@@ -8,7 +8,8 @@
 
 export const TARIFS = {
   arrondi: 50,                       // prix arrondis au 50 F supérieur (monnaie facile)
-  partLivreur: 0.8,                  // part reversée au livreur sur la livraison (hors articles de courses)
+  partLivreur: 0.8,                  // part reversée au livreur sur le transport (livraison, trajet, zone, collecte) — hors articles et prestations pressing
+  lignesTransport: ["delivery", "ride", "zone", "collect", "collectFree"],
   distanceMaxKm: 40,
   facteurRoute: 1.35,                // distance à vol d'oiseau × 1,35 ≈ distance par la route en ville
 
@@ -208,7 +209,13 @@ export function fromPrices() {
     errand: T.courses.fraisMin, ride: T.deplacement.bike.minimum };
 }
 
+/** Gain du livreur : part du transport uniquement (arrondi au 50 F). */
+export function courierShare(lines) {
+  const base = (lines || []).filter((l) => TARIFS.lignesTransport.includes(l.key)).reduce((s, l) => s + (l.amount || 0), 0);
+  return Math.round(Math.max(0, base) * TARIFS.partLivreur / TARIFS.arrondi) * TARIFS.arrondi;
+}
+
 if (typeof window !== "undefined") {
   window.WPricing = { TARIFS: TARIFS, QUARTIERS: QUARTIERS, quote: quote, zoneOf: zoneOf, hourFactor: hourFactor, roadKm: roadKm,
-    distanceKm: distanceKm, findQuartier: findQuartier, vehicleFor: vehicleFor, vehicleAllows: vehicleAllows, fromPrices: fromPrices, doualaTime: doualaTime };
+    distanceKm: distanceKm, findQuartier: findQuartier, vehicleFor: vehicleFor, vehicleAllows: vehicleAllows, fromPrices: fromPrices, doualaTime: doualaTime, courierShare: courierShare };
 }
