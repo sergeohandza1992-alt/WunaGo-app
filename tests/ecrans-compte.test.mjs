@@ -1,4 +1,5 @@
 // Étape 3 : Mes adresses, moyens de paiement, notifications, annulation, litiges.
+import { fixClock, fixNode } from './horloge.mjs'; fixNode();
 import { chromium } from 'playwright';
 import { spawn } from 'node:child_process';
 import { mkdirSync, writeFileSync } from 'node:fs';
@@ -8,7 +9,7 @@ await new Promise(r=>setTimeout(r,800));
 const results=[]; const ok=(n,c,info='')=>results.push(`${c?'PASS':'FAIL'}  ${n}${info?' — '+info:''}`);
 const browser=await chromium.launch(process.env.CHROME_PATH?{executablePath:process.env.CHROME_PATH}:{});
 const ctx=await browser.newContext({viewport:{width:390,height:844},deviceScaleFactor:2,isMobile:true,hasTouch:true,locale:'fr-FR',
-  geolocation:{latitude:4.0612,longitude:9.7295},permissions:['geolocation','notifications']});
+  geolocation:{latitude:4.0612,longitude:9.7295},permissions:['geolocation','notifications']}); await fixClock(ctx);
 await ctx.route('https://tile.openstreetmap.org/**',r=>r.abort());
 await ctx.route('https://photon.komoot.io/api/**',r=>r.fulfill({status:200,contentType:'application/json',body:JSON.stringify({features:[
   {geometry:{coordinates:[9.6941,4.0291]},properties:{name:'Immeuble Victoria',street:'Rue Joss',district:'Bonapriso',city:'Douala'}}]})}));

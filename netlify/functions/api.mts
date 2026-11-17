@@ -469,10 +469,29 @@ async function publicTrack(token: string) {
   }
   const d = o.details || {};
   return json({ code: o.code, service: o.service, status: o.status, stage: o.stage, pickup: o.pickup, dropoff: o.dropoff, hints: d.hints || null,
+    positionShared: !!d.dropoffShared, canSharePosition: live && o.service !== "ride" && !(o.service === "laundry" && d.laundry && d.laundry.sameReturn),
     recipient: d.recipient ? { name: d.recipient.name || "" } : null, vehicle: o.vehicle,
     pickupGeo: o.pickup_lat != null ? { lat: o.pickup_lat, lng: o.pickup_lng } : null, dropoffGeo: o.dropoff_lat != null ? { lat: o.dropoff_lat, lng: o.dropoff_lng } : null,
     createdAt: new Date(o.created_at).getTime(), deliveredAt: o.delivered_at ? new Date(o.delivered_at).getTime() : null,
     arrivedAt: o.arrived_at && o.status !== "delivered" ? new Date(o.arrived_at).getTime() : null, courier });
+}
+
+/* le destinataire envoie sa position exacte depuis le lien de suivi (point d'arrivée corrigé, prix inchangé) */
+async function shareDropoff(token: string, b: Row) {
+  const lat = Number(b.lat), lng = Number(b.lng);
+  if (!(Math.abs(lat) <= 90 && Math.abs(lng) <= 180)) return fail(400, "Position invalide.");
+  const o = (await db().sql`SELECT * FROM orders WHERE track_token = ${token}`)[0];
+  if (!o) return fail(404, "Lien de suivi introuvable.");
+  if (o.status === "delivered" || o.status === "cancelled") return fail(409, "Cette livraison est terminée.");
+  if (o.service === "ride" || (o.service === "laundry" && (o.details || {}).laundry?.sameReturn)) return fail(409, "Non disponible pour ce service.");
+  const before = o.dropoff_lat != null ? { lat: o.dropoff_lat, lng: o.dropoff_lng } : null;
+  if (before && distanceKm(before, { lat, lng }) * 1.35 > 2.5)
+    return fail(409, "Vous êtes loin de l'adresse indiquée dans la commande. Appelez le livreur ou le client pour la corriger.");
+  const details = { ...(o.details || {}), dropoffShared: { at: Date.now(), acc: Math.round(Number(b.accuracy) || 0) } };
+  const rows = await db().sql`UPDATE orders SET dropoff_lat = ${lat}, dropoff_lng = ${lng}, details = ${JSON.stringify(details)}::jsonb, updated_at = NOW() WHERE id = ${o.id} RETURNING *`;
+  if (o.courier_id) push([o.courier_id], { title: "Position exacte reçue · " + o.code, body: "Le destinataire a envoyé sa position : l'itinéraire est à jour.", url: "/#courses", tag: o.code }, "orders");
+  push([o.user_id], { title: "Position du destinataire reçue", body: o.code + " : le livreur ira directement au bon endroit.", url: "/#commande=" + o.id, tag: o.code }, "orders");
+  return json({ ok: true, dropoffGeo: { lat: rows[0].dropoff_lat, lng: rows[0].dropoff_lng } });
 }
 
 /* ---------- livreur ---------- */
@@ -1032,6 +1051,8 @@ export default async (req: Request, context: Context) => {
     if (path === "/auth/request" && m === "POST") return await authRequest(req);
     const sv = path.match(/^\/suivi\/([A-Za-z0-9_-]{10,40})$/);
     if (sv && m === "GET") return await publicTrack(sv[1]);
+    const sp2 = path.match(/^\/suivi\/([A-Za-z0-9_-]{10,40})\/position$/);
+    if (sp2 && m === "POST") return await shareDropoff(sp2[1], await body(req));
     if (path === "/auth/verify" && m === "POST") return await authVerify(req);
     if (path === "/auth/logout" && m === "POST") return await logout(req);
 

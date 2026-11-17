@@ -99,16 +99,35 @@
         '<div class="card"><div class="tl">' + tl + '</div></div>' +
         '<div class="card"><div><div class="lbl">Départ</div><div style="font-weight:700">' + esc(d.pickup) + '</div>' + (h.pickup ? '<p class="muted">Repère : ' + esc(h.pickup) + '</p>' : '') + '</div>' +
         (d.dropoff !== d.pickup ? '<div><div class="lbl">Arrivée</div><div style="font-weight:700">' + esc(d.dropoff) + '</div>' + (h.dropoff ? '<p class="muted">Repère : ' + esc(h.dropoff) + '</p>' : '') + '</div>' : '') + '</div>' +
+        (d.canSharePosition ? '<div class="card"><div class="big">' + (d.positionShared ? "Position exacte reçue ✓" : "Le livreur ne connaît pas l'endroit ?") + '</div>' +
+          '<p class="muted">' + (d.positionShared ? "Le livreur ira directement au point envoyé. Vous pouvez le renvoyer si vous avez bougé." : "Si vous êtes déjà à l'adresse de livraison, envoyez votre position exacte : le livreur arrivera directement à vous.") + '</p>' +
+          '<button class="btn ' + (d.positionShared ? "out" : "ink") + '" id="share-pos">📍 ' + (d.positionShared ? "Renvoyer ma position" : "Envoyer ma position exacte") + '</button><p class="muted" id="pos-msg" role="status"></p></div>' : '') +
         (!done && !cancelled ? '<p class="muted">À l\'arrivée, donnez au livreur le <b>code de remise</b> reçu dans le message.</p>' : '') +
         '<a class="btn yel" href="/">Commander avec WunaGo</a>';
       drawMap(d);
+      var sb = document.getElementById("share-pos");
+      if (sb) sb.onclick = sharePos;
       return !done && !cancelled;
     }
+    function sharePos() {
+      var msg = document.getElementById("pos-msg"), btn = document.getElementById("share-pos");
+      if (!navigator.geolocation) { msg.textContent = "Votre téléphone ne permet pas de partager la position."; return; }
+      btn.disabled = true; msg.textContent = "Recherche de votre position…";
+      navigator.geolocation.getCurrentPosition(function (p) {
+        fetch("/api/suivi/" + encodeURIComponent(token) + "/position", { method: "POST", headers: { "content-type": "application/json" },
+          body: JSON.stringify({ lat: p.coords.latitude, lng: p.coords.longitude, accuracy: p.coords.accuracy }) })
+          .then(function (r) { return r.json().then(function (j) { if (!r.ok) throw new Error(j.error || "Envoi impossible."); return j; }); })
+          .then(function () { fitted = false; load(); })
+          .catch(function (e) { btn.disabled = false; msg.textContent = e.message; });
+      }, function () { btn.disabled = false; msg.textContent = "Autorisez la localisation dans votre navigateur, puis réessayez."; }, { enableHighAccuracy: true, timeout: 20000, maximumAge: 0 });
+    }
+    var timer = null;
     function load() {
+      clearTimeout(timer);
       fetch("/api/suivi/" + encodeURIComponent(token), { cache: "no-store" }).then(function (r) { return r.json().then(function (j) { return { ok: r.ok, j: j }; }); })
         .then(function (x) {
           if (!x.ok) throw new Error(x.j.error || "Lien invalide.");
-          if (show(x.j)) setTimeout(load, 15000);
+          if (show(x.j)) timer = setTimeout(load, 15000);
         }).catch(function (e) {
           main.innerHTML = '<div class="err"><h1>Lien de suivi introuvable</h1><p class="muted">' + esc(e.message) + '</p><p><a class="btn yel" href="/">Ouvrir WunaGo</a></p></div>';
         });

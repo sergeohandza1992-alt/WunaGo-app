@@ -9,7 +9,7 @@
   var SUPPORT_PHONE = "+237600000000", SUPPORT_PHONE_LABEL = "+237 6 00 00 00 00";
   var STORE_KEY = "wunago.client.v1";
   /* Version affichée dans Réglages : à changer avec CACHE dans sw.js à chaque mise en ligne */
-  var APP_VERSION = "15 · 17/11/2026";
+  var APP_VERSION = "16 · 17/11/2026";
   var deferredInstall = null;
   var lastScreenKey = "";
   var installDismissed = false;
@@ -408,6 +408,7 @@
           '</div>' +
           '<button class="btn btn-ink" data-action="requestOtp" ' + (canGo ? "" : "disabled") + '>' + esc(d.continue) + '</button>' +
           '<div style="font-size:11px;line-height:1.5;color:rgba(16,16,16,.6);text-align:center">' + esc(d.terms) + '</div>' +
+          '<button class="btn" data-action="openPrice" style="height:44px;background:transparent;font-weight:800;font-size:13.5px;text-decoration:underline">' + esc(te().seePrice) + '</button>' +
         '</div>' +
       '</div>'
     );
@@ -481,7 +482,7 @@
       '</div>' +
       '<div class="scroll">' + installBanner() + '<div style="padding:18px 20px 6px;font-weight:700;font-size:12.5px;color:rgba(16,16,16,.5)">' + esc(d.services) + '</div>' +
       '<div style="padding:2px 20px 0">' + (state.settings.homeLayout === "tiles" ? '<div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">' + tiles + '</div>' : '<div class="col" style="gap:8px">' + listRows + '</div>') + '</div>' +
-      activeCard +
+      activeCard + recentBlock() +
       '<div style="padding:20px 20px 24px"><div style="border:1px dashed rgba(16,16,16,.2);border-radius:16px;padding:14px;background:repeating-linear-gradient(135deg,rgba(255,215,0,.16) 0 8px,transparent 8px 16px)">' +
         '<div class="mono" style="font-size:9.5px;letter-spacing:.08em;color:rgba(16,16,16,.5)">PROMO</div><div style="font-weight:700;font-size:14px;margin-top:5px">' + esc(t4().promo) + '</div></div></div>' +
       '</div>'
@@ -1328,7 +1329,7 @@
     var root = document.getElementById("app");
     var html = "";
     if (!state.loggedIn) {
-      html = offlineBar() + '<div class="screen-body">' + (state.authScreen === "otp" ? screenOtp() : state.authScreen === "name" ? screenName() : screenLogin()) + '</div>';
+      html = offlineBar() + '<div class="screen-body">' + (state.authScreen === "otp" ? screenOtp() : state.authScreen === "name" ? screenName() : state.authScreen === "price" ? screenPrice() : screenLogin()) + '</div>';
     } else {
       var c = cur();
       var body;
@@ -1802,7 +1803,7 @@
     fr: { hint: "Point de repère (ex. après la pharmacie, portail bleu)", who: "Qui reçoit le colis ?", me: "Moi", other: "Une autre personne",
       rName: "Nom du destinataire", rPhone: "Téléphone du destinataire", needRecipient: "Indiquez le nom et le numéro du destinataire (9 chiffres, commence par 6).",
       codeTitle: "CODE DE REMISE", codeSub: "À donner au livreur à l'arrivée. Ne le communiquez qu'au destinataire.", share: "Partager le suivi", shareSub: "par WhatsApp ou SMS",
-      shareMsg: "Bonjour{name} ! Votre {svc} WunaGo ({code}) est en route.{link} Code à donner au livreur : {pin}.", shareLink: " Suivez-la ici : {url}",
+      shareMsg: "Bonjour{name} ! Votre {svc} WunaGo ({code}) est en route.{link} Code à donner au livreur : {pin}.", shareLink: " Suivez-la et envoyez votre position exacte ici : {url}",
       copied: "Message copié : collez-le dans WhatsApp.", reorder: "Recommander", reorderSub: "Même trajet, mêmes détails",
       recipient: "Destinataire", landmark: "Repère", withCode: "Remis avec le code de remise ✓",
       cCode: "Code de remise (4 chiffres)", cNoCode: "Le destinataire n'a pas le code ?", cWithCode: "J'ai le code", cNameReq: "Nom de la personne qui a reçu", cPhotoReq: "Photo de la remise (obligatoire sans code)",
@@ -1812,7 +1813,7 @@
     en: { hint: "Landmark (e.g. after the pharmacy, blue gate)", who: "Who receives the parcel?", me: "Me", other: "Someone else",
       rName: "Recipient's name", rPhone: "Recipient's phone", needRecipient: "Enter the recipient's name and number (9 digits, starting with 6).",
       codeTitle: "DELIVERY CODE", codeSub: "Give it to the courier on arrival. Share it only with the recipient.", share: "Share tracking", shareSub: "via WhatsApp or SMS",
-      shareMsg: "Hello{name}! Your WunaGo {svc} ({code}) is on its way.{link} Code to give the courier: {pin}.", shareLink: " Track it here: {url}",
+      shareMsg: "Hello{name}! Your WunaGo {svc} ({code}) is on its way.{link} Code to give the courier: {pin}.", shareLink: " Track it and send your exact location here: {url}",
       copied: "Message copied: paste it in WhatsApp.", reorder: "Order again", reorderSub: "Same route, same details",
       recipient: "Recipient", landmark: "Landmark", withCode: "Handed over with the delivery code ✓",
       cCode: "Delivery code (4 digits)", cNoCode: "Recipient doesn't have the code?", cWithCode: "I have the code", cNameReq: "Name of the person who received it", cPhotoReq: "Photo of the handover (required without code)",
@@ -1830,7 +1831,7 @@
     var u = tu(), r = dr.recipient || (dr.recipient = { self: true, name: "", phone: "" });
     var chipB = function (on, arg, label) { return '<button class="btn" data-action="setRecipient" data-arg="' + arg + '" aria-pressed="' + on + '" style="flex:1;height:40px;border-radius:99px;font-weight:700;font-size:12px;background:' + (on ? "#101010" : "#fff") + ';color:' + (on ? "#FFD700" : "#101010") + ';border:1px solid ' + (on ? "#101010" : "var(--hair)") + '">' + esc(label) + '</button>'; };
     return '<div class="col" style="gap:8px">' + sectionTitle(u.who) + '<div class="fx" style="gap:7px">' + chipB(r.self, "self", u.me) + chipB(!r.self, "other", u.other) + '</div>' +
-      (r.self ? '' : '<div style="' + card + ';padding:0 14px">' +
+      (r.self ? '' : (canPickContact() ? '<button class="btn btn-outline" data-action="pickContact" style="height:44px;color:#101010;font-size:12.5px">👤 ' + esc(te().contacts) + '</button>' : '') + '<div style="' + card + ';padding:0 14px">' +
         '<input data-bind="draft.rname" autocomplete="off" aria-label="' + esc(u.rName) + '" placeholder="' + esc(u.rName) + '" value="' + esc(r.name) + '" style="width:100%;height:48px;font-weight:600;font-size:13.5px;border-bottom:1px solid var(--hair)" />' +
         '<div class="fx ac" style="gap:8px"><span class="mono" style="font-weight:600;font-size:13px;color:rgba(16,16,16,.55)">+237</span><input data-bind="draft.rphone" inputmode="numeric" autocomplete="off" aria-label="' + esc(u.rPhone) + '" placeholder="' + esc(u.rPhone) + '" value="' + esc(r.phone) + '" style="flex:1;height:48px;font-weight:600;font-size:13.5px" /></div></div>') + '</div>';
   }
@@ -1909,6 +1910,86 @@
     state.activeTab = "home"; state.tabStacks.home = [{ screen: "home" }, { screen: "order" }];
     try { history.pushState({ wg: 2 }, ""); } catch (e) {} render();
   };
+
+  /* ============================== faciliter l'usage : trajets récents, contacts, prix sans compte ============================== */
+  var EASE = {
+    fr: { recent: "Vos trajets récents", contacts: "Choisir dans mes contacts", priceTitle: "Combien ça coûte ?", priceSub: "Choisissez le départ et l'arrivée : le prix s'affiche tout de suite.",
+      from: "Départ", to: "Arrivée", pick: "Quartier…", parcel: "Colis (jusqu'à 5 kg)", ride: "Moto-taxi", priceFrom: "Prix estimé", priceNote: "Prix indicatif selon l'heure ; le prix exact s'affiche avant de commander.",
+      order: "Commander maintenant", back: "Retour", seePrice: "Combien ça coûte ?", closed: "Service de 6 h à 22 h : revenez demain matin.",
+      posShared: "Position exacte envoyée par le destinataire ✓" },
+    en: { recent: "Your recent trips", contacts: "Pick from my contacts", priceTitle: "How much does it cost?", priceSub: "Choose pickup and drop-off: the price shows instantly.",
+      from: "Pickup", to: "Drop-off", pick: "Neighbourhood…", parcel: "Parcel (up to 5 kg)", ride: "Moto-taxi", priceFrom: "Estimated price", priceNote: "Indicative price depending on the time; the exact price is shown before ordering.",
+      order: "Order now", back: "Back", seePrice: "How much does it cost?", closed: "Service from 6 am to 10 pm: come back tomorrow morning.",
+      posShared: "Exact location sent by the recipient ✓" }
+  };
+  function te() { return EASE[state.lang] || EASE.fr; }
+
+  /* trajets récents : les 3 derniers trajets différents, recommandables en un geste */
+  function recentTrips() {
+    var seen = {}, out = [];
+    (state.orders || []).slice().sort(function (a, b) { return (b.createdAt || 0) - (a.createdAt || 0); }).forEach(function (o) {
+      if (o.status !== "delivered" || out.length >= 3) return;
+      var k = o.service + "|" + o.pickup + "|" + o.dropoff; if (seen[k]) return; seen[k] = 1; out.push(o);
+    });
+    return out;
+  }
+  function recentBlock() {
+    var list = recentTrips(); if (!list.length) return "";
+    var short = function (s) { return String(s || "").split(",")[0]; };
+    return '<div style="padding:18px 20px 0"><div style="font-weight:700;font-size:12.5px;color:rgba(16,16,16,.5);margin-bottom:8px">' + esc(te().recent) + '</div><div class="col" style="gap:8px">' +
+      list.map(function (o) {
+        return '<button class="fx ac" data-action="reorder" data-arg="' + o.id + '" style="gap:11px;width:100%;text-align:left;' + card + ';padding:11px 13px;min-height:56px;cursor:pointer;color:#101010">' +
+          '<span class="fx ac jc" aria-hidden="true" style="width:34px;height:34px;flex:none;border-radius:10px;background:#FFD700;font-weight:800;font-size:15px">↻</span>' +
+          '<span class="col" style="gap:2px;flex:1;min-width:0"><span style="font-weight:700;font-size:13.5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">' + esc(short(o.pickup)) + (o.dropoff !== o.pickup ? ' → ' + esc(short(o.dropoff)) : '') + '</span>' +
+          '<span class="mono" style="font-size:10px;color:rgba(16,16,16,.55)">' + esc(svcName(o.service)) + ' · ' + fmtFcfa(orderNet(o)) + '</span></span><span aria-hidden="true" style="color:rgba(16,16,16,.35);font-weight:600">→</span></button>';
+      }).join("") + '</div></div>';
+  }
+
+  /* contacts du téléphone (Android / Chrome) */
+  function canPickContact() { return !!(navigator.contacts && navigator.contacts.select); }
+  actions.pickContact = function () {
+    navigator.contacts.select(["name", "tel"], { multiple: false }).then(function (list) {
+      var c = list && list[0]; if (!c) return;
+      var r = state.draft.recipient || (state.draft.recipient = { self: false, name: "", phone: "" });
+      r.self = false; r.name = (c.name && c.name[0]) || r.name;
+      var tel = String((c.tel && c.tel[0]) || "").replace(/\D/g, "").replace(/^(00)?237/, "");
+      if (tel) r.phone = tel.slice(-9);
+      render();
+    }).catch(function () {});
+  };
+
+  /* prix sans compte, depuis l'écran de connexion */
+  state.sim = { service: "parcel", from: "", to: "" };
+  function screenPrice() {
+    var e = te(), S2 = state.sim, qs = (window.WPricing && WPricing.QUARTIERS) || [];
+    var sel = function (k, label) {
+      return '<label class="col" style="gap:6px"><span class="mono" style="font-size:10px;letter-spacing:.06em;color:rgba(16,16,16,.6)">' + esc(label.toUpperCase()) + '</span>' +
+        '<select data-sim="' + k + '" aria-label="' + esc(label) + '" style="height:52px;border-radius:16px;border:0;background:#fff;padding:0 14px;font:inherit;font-weight:700;font-size:15px;color:#101010">' +
+        '<option value="">' + esc(e.pick) + '</option>' + qs.map(function (q) { return '<option' + (S2[k] === q.name ? " selected" : "") + '>' + esc(q.name) + '</option>'; }).join("") + '</select></label>';
+    };
+    var price = "";
+    if (S2.from && S2.to && window.WPricing) {
+      var g = function (n) { var q = qs.filter(function (x) { return x.name === n; })[0]; return { lat: q.lat, lng: q.lng }; };
+      var q = WPricing.quote({ service: S2.service, pickup: S2.from, dropoff: S2.to, pickupGeo: g(S2.from), dropoffGeo: g(S2.to), vehicle: "bike", weightKg: 2, ride: { passengers: 1 } }, Date.now());
+      price = q.closed ? '<div style="background:#101010;color:#fff;border-radius:16px;padding:14px;font-weight:700;font-size:13px">' + esc(e.closed) + '</div>'
+        : '<div class="col" style="gap:4px;background:#101010;border-radius:18px;padding:16px"><span class="mono" style="font-size:10px;letter-spacing:.08em;color:rgba(255,255,255,.6)">' + esc(e.priceFrom.toUpperCase()) + ' · ' + String(q.distanceKm).replace(".", ",") + ' KM</span>' +
+          '<span style="font-weight:800;font-size:30px;color:#FFD700">' + fmtFcfa(q.net) + '</span><span style="font-size:11.5px;line-height:1.4;color:rgba(255,255,255,.7)">' + esc(e.priceNote) + '</span></div>';
+    }
+    var svcBtn = function (k, label) { var on = S2.service === k; return '<button class="btn" data-action="simService" data-arg="' + k + '" aria-pressed="' + on + '" style="flex:1;height:44px;border-radius:99px;font-weight:700;font-size:12.5px;background:' + (on ? "#101010" : "rgba(255,255,255,.6)") + ';color:' + (on ? "#FFD700" : "#101010") + '">' + esc(label) + '</button>'; };
+    return '<div class="col fill" style="background:#FFD700;padding:calc(24px + var(--sat)) 24px 30px;gap:16px;overflow-y:auto">' +
+      '<button class="backbtn" data-action="simBack" aria-label="' + esc(e.back) + '" style="background:rgba(16,16,16,.1)">←</button>' +
+      '<div class="col" style="gap:6px"><h1 style="margin:0;font-weight:800;font-size:26px;letter-spacing:-.8px">' + esc(e.priceTitle) + '</h1><p style="margin:0;font-size:13.5px;line-height:1.5;color:rgba(16,16,16,.75)">' + esc(e.priceSub) + '</p></div>' +
+      '<div class="fx" style="gap:8px">' + svcBtn("parcel", e.parcel) + svcBtn("ride", e.ride) + '</div>' +
+      sel("from", e.from) + sel("to", e.to) + price +
+      '<button class="btn btn-ink" data-action="simBack" style="margin-top:auto">' + esc(e.order) + '</button></div>';
+  }
+  actions.openPrice = function () { state.authScreen = "price"; render(); };
+  actions.simBack = function () { state.authScreen = "login"; render(); };
+  actions.simService = function (el, arg) { state.sim.service = arg; render(); };
+  document.addEventListener("change", function (ev) {
+    var k = ev.target && ev.target.getAttribute && ev.target.getAttribute("data-sim");
+    if (k) { state.sim[k] = ev.target.value; render(); }
+  });
 
   /* ============================== mode serveur (API WunaGo) ============================== */
   /* Si l'API répond, comptes, commandes, portefeuille et réclamations sont enregistrés sur le serveur.
@@ -2346,6 +2427,7 @@
   function courseExtras(o) {
     var x = o.details || {}, h = x.hints || {}, r = x.recipient, u = tu(), out = "";
     if (h.pickup) out += '<div style="font-size:12px;line-height:1.45"><span class="mono" style="font-size:9.5px;color:rgba(16,16,16,.55)">' + esc(u.landmark.toUpperCase()) + ' ① </span>' + esc(h.pickup) + '</div>';
+    if (x.dropoffShared) out += '<div class="mono" style="font-size:10.5px;font-weight:600;color:#101010;background:#FFD700;border-radius:8px;padding:5px 8px;align-self:flex-start">📍 ' + esc(te().posShared) + '</div>';
     if (h.dropoff) out += '<div style="font-size:12px;line-height:1.45"><span class="mono" style="font-size:9.5px;color:rgba(16,16,16,.55)">' + esc(u.landmark.toUpperCase()) + ' ② </span>' + esc(h.dropoff) + '</div>';
     if (r && (r.name || r.phone)) out += '<div class="fx ac" style="gap:8px;background:rgba(255,215,0,.25);border-radius:12px;padding:8px 10px"><span class="col" style="flex:1;gap:1px"><span class="mono" style="font-size:9.5px;color:rgba(16,16,16,.6)">' + esc(u.recipient.toUpperCase()) + '</span><span style="font-weight:700;font-size:13px">' + esc(r.name || "") + '</span></span>' +
       (r.phone && o.courier && o.courier.id === state.user.id && o.status !== "delivered" && o.status !== "cancelled" ? '<a class="btn btn-ink" href="tel:+237' + esc(r.phone) + '" aria-label="' + esc(tm().call) + '" style="width:44px;height:44px;border-radius:11px;padding:0;text-decoration:none">' + ICON_PHONE + '</a>' : '') + '</div>';
