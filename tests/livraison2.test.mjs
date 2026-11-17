@@ -26,9 +26,10 @@ async function login(page,num,name){
   if(name){ await page.waitForSelector('[data-bind="nameInput"]'); await page.fill('[data-bind="nameInput"]',name); await page.click('[data-action="saveName"]'); }
 }
 const T=30000;
-import { mkdirSync } from 'node:fs';
+import { mkdirSync, writeFileSync } from 'node:fs';
 const CAP=process.env.CAPTURE?'tests/captures/livraison2/':null; if(CAP) mkdirSync(CAP,{recursive:true});
-const shot=async(page,name)=>{ if(CAP){ await page.waitForTimeout(400); await page.screenshot({path:CAP+name+'.png'}); } };
+const shot=async(page,name)=>{ if(CAP){ await page.waitForTimeout(400); await page.screenshot({path:CAP+name+'.png'});
+  writeFileSync(CAP+name+'.html',await page.evaluate(()=>{const r=document.getElementById('app')||document.getElementById('admin');return r.innerHTML})); } };
 const sub=(page,ep)=>page.evaluate(e=>fetch('/api/push/subscribe',{method:'POST',headers:{'content-type':'application/json',authorization:'Bearer '+WAPI.token()},body:JSON.stringify({subscription:{endpoint:'https://push.example/'+e,keys:{p256dh:'k',auth:'a'}}})}),ep);
 
 /* 1. Backoffice : connexion administrateur, ajout d'un livreur */
