@@ -40,6 +40,9 @@ Porteur du projet : Serge-Venant OHANDZA. Langue de travail et de l'interface : 
 - Tests : `livraison2` (multi-acteurs : backoffice, livreur, clients, messagerie, notifications), `tarifs` (grille, sans navigateur), `services` (parcours dédiés, profil), `parcours` (mode local), `google-maps` (API Google simulée), `ecrans-compte` (étape 3), `serveur` (API + Postgres local
   via `tests/dev-server.mjs`). Les tests décalent l'heure à midi la nuit (`tests/horloge.mjs`). Lancer : `npm install && npx playwright install chromium && npm test`. Serveur local : `npm run dev`.
 - Mise en ligne : Netlify (projet `wunago-app` → https://wunago-app.netlify.app).
+  **Crédits Netlify épuisés (nov. 2026) : production en pause.** Version en ligne provisoire = deploy preview de la PR permanente
+  `live` → `main` (ne jamais fusionner). Pour publier : fusionner la PR de l'étape dans `main`, puis fusionner `main` dans `live` et pousser `live`.
+  Les fonctions planifiées ne tournent pas en preview : `maybeAlerts()` relance les alertes depuis /admin/stats et /courier/offers.
   GitHub Actions est bloqué tant que le compte GitHub a un problème de facturation (ticket ouvert).
 
 ## Identité visuelle (à respecter strictement)
