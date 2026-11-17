@@ -214,6 +214,7 @@
   function popScreen() { var s = stack(); if (s.length > 1) s.pop(); render(); }
   function switchTab(tab) {
     if (tab === "orders" && state.spend) { state.spend.list = null; state.spend.err = false; }
+    if (tab === "orders" && window.WAPI && WAPI.status.on && WAPI.token()) WAPI.get("/orders").then(function (r) { state.orders = r.orders; render(); }).catch(function () {});
     if (tab === "account" && state.cEarn) { state.cEarn.data = null; state.cEarn.err = false; }
     /* toucher l'onglet déjà ouvert ramène à son premier écran */
     if (state.activeTab === tab) { var s = state.tabStacks[tab]; state.tabStacks[tab] = [s[0]]; }
@@ -374,7 +375,8 @@
 
   /* pressing avec retour à la même adresse : la livraison se fait à l'adresse de collecte */
   function finalDrop(dr) { return dr.service === "laundry" && dr.laundry.sameReturn ? { text: dr.pickup, geo: dr.pickupGeo } : { text: dr.dropoff, geo: dr.dropoffGeo }; }
-  function orderDetails(dr) {
+  function orderDetails(dr) { return Object.assign(serviceDetailsOf(dr), extraDetails(dr)); }
+  function serviceDetailsOf(dr) {
     if (dr.service === "laundry") return { laundry: dr.laundry };
     if (dr.service === "errand") return { errand: { list: dr.errand.list.filter(function (x) { return String(x.name).trim(); }), load: dr.errand.load, advance: dr.errand.advance !== false } };
     if (dr.service === "ride") return { ride: dr.ride };
@@ -589,7 +591,7 @@
       vehicle: "bike", payMethod: state.defaultPay || "orange_money", when: "now",
       laundry: { items: {}, kg: 0, mode: "wash_iron", speed: "standard", sameReturn: true },
       errand: { list: [{ name: "", qty: 1, price: "" }], load: "light", advance: true },
-      ride: { passengers: 1 } };
+      ride: { passengers: 1 }, hints: { pickup: "", dropoff: "" }, recipient: { self: true, name: "", phone: "" } };
     if (home) {
       var f = service === "errand" ? "dropoff" : "pickup";
       dr[f] = home.text; dr[f + "Geo"] = home.geo;
@@ -606,7 +608,8 @@
     var e4 = t4();
     if (step === 1) {
       if (dr.service === "laundry" && dr.laundry.sameReturn) return dr.pickup ? null : e4.errs.pickupOnly;
-      return dr.pickup && dr.dropoff ? null : e4.errs.address;
+      if (!(dr.pickup && dr.dropoff)) return e4.errs.address;
+      return dr.service === "parcel" && !recipientOk(dr) ? tu().needRecipient : null;
     }
     var q = draftQuote(dr);
     if (step === 2 && q && q.errors.indexOf("empty") !== -1) return e4.errs.empty;
@@ -742,7 +745,7 @@
         : '<button class="btn" data-action="saveAddress" data-arg="' + field + '" aria-label="' + esc(d.saveAddr) + '" style="height:30px;border-radius:99px;padding:0 9px;background:rgba(16,16,16,.06);font-weight:700;font-size:10.5px;gap:4px">' + ICON.starO + esc(d.saveAddr) + '</button>') : "";
       return '<div class="fx ac addr-row" style="gap:11px;min-height:52px">' + dot +
         '<input data-bind="draft.' + field + '" data-field="' + field + '" autocomplete="off" aria-autocomplete="list" aria-label="' + esc(ph) + '" value="' + esc(v) + '" placeholder="' + esc(ph) + '" style="flex:1;min-width:0;font-weight:600;font-size:13.5px;height:52px" />' +
-        right + '</div>' + suggestList(field);
+        right + '</div>' + suggestList(field) + (v ? hintInput(field) : '');
     }
     var chipStyle = 'border:1px solid rgba(16,16,16,.12);background:#fff;border-radius:99px;padding:7px 12px;height:auto;min-height:34px;font-weight:600;font-size:11.5px;color:#101010;gap:5px';
     var routeKm = dr.pickupGeo && (laundrySame ? null : dr.dropoffGeo) ? WGeo.roadKm(dr.pickupGeo, dr.dropoffGeo) : null;
@@ -753,6 +756,7 @@
         addrRow("pickup", roles[0], '<span style="width:8px;height:8px;flex:none;border-radius:99px;background:#FFD700;border:2.5px solid #101010"></span>') +
         (laundrySame ? '' : '<div style="height:1px;background:var(--hair);margin-left:19px"></div>' + addrRow("dropoff", roles[1], '<span style="width:8px;height:8px;flex:none;background:#101010"></span>')) +
       '</div>' +
+      (dr.service === "parcel" ? recipientBlock(dr) : '') +
       (dr.service === "laundry" ? '<div style="' + card + '">' + toggleRow(e4.sameReturn, WPricing.TARIFS.pressing.atelier.nom, dr.laundry.sameReturn, "toggleSameReturn", "x") + '</div>' : '') +
       (routeKm != null ? '<div class="fx ac jb wrap" style="gap:8px"><div class="fx ac mono" style="gap:6px;font-size:11px;color:rgba(16,16,16,.6)">' + ICON.pin + d.approx + ' ' + fmtKm(routeKm) + '</div>' + gmapsButton(dr.pickupGeo, dr.dropoffGeo, true) + '</div>' : '') +
       '<div class="fx wrap ac" style="gap:7px"><button class="btn" data-action="useMyLocation" style="' + chipStyle + ';background:#101010;color:#FFD700;border-color:#101010">' + ICON.gps + esc(d.myPosition) + '</button></div>' +
@@ -786,7 +790,7 @@
         progressBar + addrSection + detSection + recapSection +
       '</div></div>' +
       '<div style="padding:16px 20px 20px"><button class="btn btn-yellow" data-action="orderNext" style="width:100%"' + (isLast && err ? " disabled" : "") + '>' +
-        (isLast ? esc(d.confirmPay) + (q ? ' · ' + fmtFcfa(q.net) : '') : esc(d.continue) + (q && step === 2 && !q.errors.length ? ' · ' + fmtFcfa(q.net) : '')) +
+        (isLast ? esc(d.confirmPay) + (q ? ' · ' + fmtFcfa(q.net) : '') : esc(d.continue) + (q && step <= 2 && !q.errors.length ? ' · ' + fmtFcfa(q.net) : '')) +
       '</button></div>'
     );
   }
@@ -858,7 +862,7 @@
       '</div>' +
       '<div class="scroll" style="background:#fbfaf7;border-radius:22px 22px 0 0;margin-top:-18px;padding:16px 20px 20px;position:relative;z-index:500"><div class="col" style="gap:16px">' +
         '<div style="width:34px;height:4px;border-radius:9px;background:rgba(16,16,16,.15);margin:0 auto"></div>' +
-        courierBlock(o, orderId) +
+        courierBlock(o, orderId) + codeCard(o) +
         '<div style="height:1px;background:var(--hair)"></div>' +
         '<div class="col">' + timeline + '</div>' +
         gmapsButton(orderGeo(o).pickup, orderGeo(o).dropoff, false) +
@@ -886,12 +890,12 @@
           '<div style="background:#fff;padding:13px 15px;display:flex;flex-direction:column;gap:5px">' +
             '<div class="fx jb"><span class="mono" style="font-size:10.5px;color:rgba(16,16,16,.5)">' + esc(d.gps) + '</span><span class="mono" style="font-size:10.5px;font-weight:600">4.0511 N · 9.7679 E</span></div>' +
             '<div class="fx jb"><span class="mono" style="font-size:10.5px;color:rgba(16,16,16,.5)">' + esc(d.timestamp) + '</span><span class="mono" style="font-size:10.5px;font-weight:600">' + nowLabel() + '</span></div>' +
-            '<div class="fx jb"><span class="mono" style="font-size:10.5px;color:rgba(16,16,16,.5)">' + esc(d.receivedBy) + '</span><span class="mono" style="font-size:10.5px;font-weight:600">' + esc(o.proofName || (o.courier ? "—" : "A. Ngono")) + '</span></div>' +
+            '<div class="fx jb"><span class="mono" style="font-size:10.5px;color:rgba(16,16,16,.5)">' + esc(d.receivedBy) + '</span><span class="mono" style="font-size:10.5px;font-weight:600">' + esc(o.deliveredWith === "code" ? (o.proofName || tu().withCode) : (o.proofName || (o.courier ? "—" : "A. Ngono"))) + '</span></div>' +
           '</div></div>' +
         '<div style="background:#fff;border:1px solid var(--hair);border-radius:16px;padding:15px;display:flex;flex-direction:column;gap:11px">' +
           '<span style="font-weight:700;font-size:13.5px">' + esc(d.rate) + '</span><div class="fx" style="gap:7px">' + stars + '</div></div>' +
       '</div></div>' +
-      '<div style="padding:16px 20px 20px;display:flex;flex-direction:column;gap:8px"><button class="btn btn-ink" data-action="finishProof" style="width:100%">' + esc(d.backHome) + '</button>' +
+      '<div style="padding:16px 20px 20px;display:flex;flex-direction:column;gap:8px">' + reorderButton(o) + '<button class="btn btn-ink" data-action="finishProof" style="width:100%">' + esc(d.backHome) + '</button>' +
       '<button class="btn" data-action="openDispute" data-arg="' + orderId + '" style="height:44px;background:transparent;font-weight:700;font-size:12.5px;text-decoration:underline">' + esc(t3().reportProblem) + '</button></div>'
     );
   }
@@ -1196,7 +1200,7 @@
         '<span class="mono" style="font-size:11px;color:rgba(255,255,255,.65)">' + fmtFcfa(price.net) + '</span></div>' +
       '<div style="' + cardStyle + ';padding:14px;display:flex;flex-direction:column;gap:8px">' +
         '<div class="fx jb" style="gap:10px"><span class="mono" style="font-size:10.5px;color:rgba(16,16,16,.55)">' + esc(e.reason.toUpperCase()) + '</span><span style="font-weight:600;font-size:12.5px;text-align:right">' + esc(o.cancelReason || "—") + '</span></div>' +
-        '<div style="font-size:12.5px;line-height:1.5;color:rgba(16,16,16,.75)">' + esc(o.refundNote || "") + '</div></div>');
+        '<div style="font-size:12.5px;line-height:1.5;color:rgba(16,16,16,.75)">' + esc(o.refundNote || "") + '</div></div>' + reorderButton(o));
   }
 
   /* ---------- Aide et litiges ---------- */
@@ -1481,7 +1485,7 @@
           pickupGeo: draft.pickupGeo || geoOf(draft.pickup), dropoffGeo: finalDrop(draft).geo || geoOf(finalDrop(draft).text), createdAt: Date.now(),
           paymentMethod: draft.payMethod, paymentStatus: paid ? "paid" : "cod",
           price: price, priceLines: q.lines, distanceKm: q.distanceKm, zone: q.zone, scheduledAt: whenAt(draft.when),
-          details: orderDetails(draft), vehicle: q.vehicle,
+          details: orderDetails(draft), vehicle: q.vehicle, deliveryCode: String(1000 + Math.floor(Math.random() * 9000)),
           status: "received", stage: 0, rating: null
         };
         state.orders.unshift(order);
@@ -1498,6 +1502,10 @@
     openOrder: function (el, arg) {
       var o = findOrder(arg);
       push(o.status === "delivered" ? "proof" : "track", { orderId: arg });
+      if (window.WAPI && WAPI.status.on && WAPI.token()) WAPI.get("/orders/" + arg).then(function (r) {
+        var old = findOrder(arg); replaceOrder(r.order);
+        if (old && old.status !== r.order.status && cur().orderId === arg) replaceTop(r.order.status === "delivered" ? "proof" : "track", { orderId: arg }); else render();
+      }).catch(function () {});
     },
     advanceOrder: function (el, arg) {
       var o = findOrder(arg);
@@ -1695,12 +1703,16 @@
       var fld = bind.slice(6); state.draft[fld] = el.value; state.draft[fld + "Geo"] = null; state.addrTarget = fld; suggest(fld, el.value);
     }
     else if (bind === "draft.note") state.draft.note = el.value;
+    else if (bind === "draft.hint.pickup" || bind === "draft.hint.dropoff") { (state.draft.hints = state.draft.hints || {})[bind.slice(11)] = el.value; return; }
+    else if (bind === "draft.rname") { state.draft.recipient.name = el.value; return; }
+    else if (bind === "draft.rphone") { state.draft.recipient.phone = el.value.replace(/[^\d ]/g, ""); el.value = state.draft.recipient.phone; return; }
     else if (bind === "topUpAmount") state.topUpAmount = el.value.replace(/\D/g, "");
     else if (bind === "sendPhone") state.sendPhone = el.value;
     else if (bind === "chatDraft") state.chatDraft = el.value;
     else if (bind === "msgDraft") { state.msgDraft = el.value; return; }
     else if (bind === "newChatPhone") { state.newChatPhone = el.value.replace(/[^\d ]/g, ""); return; }
     else if (bind === "proofName") { if (state.proofForm) state.proofForm.name = el.value; return; }
+    else if (bind === "proofCode") { if (state.proofForm) { state.proofForm.code = el.value.replace(/\D/g, "").slice(0, 4); el.value = state.proofForm.code; } return; }
     else return;
 
     render();
@@ -1767,6 +1779,101 @@
     if (/^[0-9]$/.test(e.key)) actions.otpKey(null, e.key);
     else if (e.key === "Backspace") actions.otpKey(null, "back");
   });
+
+  /* ============================== expérience : repères, destinataire, code de remise, partage, recommander ============================== */
+  var UX = {
+    fr: { hint: "Point de repère (ex. après la pharmacie, portail bleu)", who: "Qui reçoit le colis ?", me: "Moi", other: "Une autre personne",
+      rName: "Nom du destinataire", rPhone: "Téléphone du destinataire", needRecipient: "Indiquez le nom et le numéro du destinataire (9 chiffres, commence par 6).",
+      codeTitle: "CODE DE REMISE", codeSub: "À donner au livreur à l'arrivée. Ne le communiquez qu'au destinataire.", share: "Partager le suivi", shareSub: "par WhatsApp ou SMS",
+      shareMsg: "Bonjour{name} ! Votre {svc} WunaGo ({code}) est en route.{link} Code à donner au livreur : {pin}.", shareLink: " Suivez-la ici : {url}",
+      copied: "Message copié : collez-le dans WhatsApp.", reorder: "Recommander", reorderSub: "Même trajet, mêmes détails",
+      recipient: "Destinataire", landmark: "Repère", withCode: "Remis avec le code de remise ✓",
+      cCode: "Code de remise (4 chiffres)", cNoCode: "Le destinataire n'a pas le code ?", cWithCode: "J'ai le code", cNameReq: "Nom de la personne qui a reçu", cPhotoReq: "Photo de la remise (obligatoire sans code)",
+      cCodeHelp: "Demandez le code au destinataire : il le trouve dans son app ou dans le message reçu.",
+      balance: "SOLDE À REVERSER (TOTAL)", balanceOwed: "WUNAGO VOUS DOIT (TOTAL)", balanceSub: "Espèces encaissées {cash} − vos gains {earned} − versements {paid}",
+      payments: "Mes versements", noPayments: "Aucun versement enregistré.", paidIn: "Remis à WunaGo", paidOut: "Versé par WunaGo" },
+    en: { hint: "Landmark (e.g. after the pharmacy, blue gate)", who: "Who receives the parcel?", me: "Me", other: "Someone else",
+      rName: "Recipient's name", rPhone: "Recipient's phone", needRecipient: "Enter the recipient's name and number (9 digits, starting with 6).",
+      codeTitle: "DELIVERY CODE", codeSub: "Give it to the courier on arrival. Share it only with the recipient.", share: "Share tracking", shareSub: "via WhatsApp or SMS",
+      shareMsg: "Hello{name}! Your WunaGo {svc} ({code}) is on its way.{link} Code to give the courier: {pin}.", shareLink: " Track it here: {url}",
+      copied: "Message copied: paste it in WhatsApp.", reorder: "Order again", reorderSub: "Same route, same details",
+      recipient: "Recipient", landmark: "Landmark", withCode: "Handed over with the delivery code ✓",
+      cCode: "Delivery code (4 digits)", cNoCode: "Recipient doesn't have the code?", cWithCode: "I have the code", cNameReq: "Name of the person who received it", cPhotoReq: "Photo of the handover (required without code)",
+      cCodeHelp: "Ask the recipient for the code: it's in their app or in the message they received.",
+      balance: "TO HAND OVER (TOTAL)", balanceOwed: "WUNAGO OWES YOU (TOTAL)", balanceSub: "Cash collected {cash} − your earnings {earned} − payments {paid}",
+      payments: "My payments", noPayments: "No payment recorded.", paidIn: "Handed to WunaGo", paidOut: "Paid by WunaGo" }
+  };
+  function tu() { return UX[state.lang] || UX.fr; }
+  function hintInput(field) {
+    var dr = state.draft, v = (dr.hints && dr.hints[field]) || "";
+    return '<div class="fx ac" style="gap:8px;padding:0 0 10px 19px"><span class="mono" style="font-size:9.5px;color:rgba(16,16,16,.5);flex:none">' + esc(tu().landmark.toUpperCase()) + '</span>' +
+      '<input data-bind="draft.hint.' + field + '" aria-label="' + esc(tu().hint) + '" placeholder="' + esc(tu().hint) + '" value="' + esc(v) + '" style="flex:1;min-width:0;height:36px;border-radius:10px;background:rgba(16,16,16,.04);padding:0 10px;font-weight:500;font-size:12.5px" /></div>';
+  }
+  function recipientBlock(dr) {
+    var u = tu(), r = dr.recipient || (dr.recipient = { self: true, name: "", phone: "" });
+    var chipB = function (on, arg, label) { return '<button class="btn" data-action="setRecipient" data-arg="' + arg + '" aria-pressed="' + on + '" style="flex:1;height:40px;border-radius:99px;font-weight:700;font-size:12px;background:' + (on ? "#101010" : "#fff") + ';color:' + (on ? "#FFD700" : "#101010") + ';border:1px solid ' + (on ? "#101010" : "var(--hair)") + '">' + esc(label) + '</button>'; };
+    return '<div class="col" style="gap:8px">' + sectionTitle(u.who) + '<div class="fx" style="gap:7px">' + chipB(r.self, "self", u.me) + chipB(!r.self, "other", u.other) + '</div>' +
+      (r.self ? '' : '<div style="' + card + ';padding:0 14px">' +
+        '<input data-bind="draft.rname" autocomplete="off" aria-label="' + esc(u.rName) + '" placeholder="' + esc(u.rName) + '" value="' + esc(r.name) + '" style="width:100%;height:48px;font-weight:600;font-size:13.5px;border-bottom:1px solid var(--hair)" />' +
+        '<div class="fx ac" style="gap:8px"><span class="mono" style="font-weight:600;font-size:13px;color:rgba(16,16,16,.55)">+237</span><input data-bind="draft.rphone" inputmode="numeric" autocomplete="off" aria-label="' + esc(u.rPhone) + '" placeholder="' + esc(u.rPhone) + '" value="' + esc(r.phone) + '" style="flex:1;height:48px;font-weight:600;font-size:13.5px" /></div></div>') + '</div>';
+  }
+  function recipientOk(dr) {
+    var r = dr.recipient; if (!r || r.self) return true;
+    return String(r.name || "").trim().length >= 2 && /^6\d{8}$/.test(String(r.phone || "").replace(/\D/g, ""));
+  }
+  function extraDetails(dr) {
+    var x = {}, h = dr.hints || {};
+    if ((h.pickup || "").trim() || (h.dropoff || "").trim()) x.hints = { pickup: (h.pickup || "").trim(), dropoff: (h.dropoff || "").trim() };
+    var r = dr.recipient;
+    if (r && !r.self && dr.service === "parcel") x.recipient = { name: r.name.trim(), phone: String(r.phone).replace(/\D/g, "") };
+    return x;
+  }
+  function trackUrl(o) { return o.trackToken ? location.origin + "/suivi.html?c=" + o.trackToken : ""; }
+  function shareText(o) {
+    var u = tu(), r = (o.details || {}).recipient;
+    return u.shareMsg.replace("{name}", r && r.name ? " " + r.name.split(" ")[0] : "").replace("{svc}", svcName(o.service).toLowerCase()).replace("{code}", o.code)
+      .replace("{link}", o.trackToken ? u.shareLink.replace("{url}", trackUrl(o)) : "").replace("{pin}", o.deliveryCode || "—");
+  }
+  function codeCard(o) {
+    if (!o.deliveryCode || o.status === "delivered" || o.status === "cancelled") return "";
+    var u = tu();
+    return '<div class="fx ac" style="gap:12px;background:#FFD700;border-radius:16px;padding:13px 14px">' +
+      '<div class="col" style="gap:3px;flex:1"><span class="mono" style="font-size:9.5px;letter-spacing:.08em;color:rgba(16,16,16,.7)">' + u.codeTitle + '</span>' +
+      '<span class="mono" style="font-weight:600;font-size:26px;letter-spacing:.3em">' + esc(o.deliveryCode) + '</span><span style="font-size:11px;line-height:1.4;color:rgba(16,16,16,.75)">' + esc(u.codeSub) + '</span></div>' +
+      '<button class="btn btn-ink" data-action="shareTracking" data-arg="' + o.id + '" style="flex:none;height:44px;border-radius:12px;padding:0 13px;font-size:12px;gap:6px">' + ICON_SHARE + esc(u.share) + '</button></div>';
+  }
+  var ICON_SHARE = '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#FFD700" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="18" cy="5" r="2.5"/><circle cx="6" cy="12" r="2.5"/><circle cx="18" cy="19" r="2.5"/><path d="M8.2 10.8l7.6-4.4M8.2 13.2l7.6 4.4"/></svg>';
+  function reorderButton(o) {
+    var u = tu();
+    return '<button class="btn btn-yellow" data-action="reorder" data-arg="' + o.id + '" style="width:100%;gap:8px">↻ ' + esc(u.reorder) + '</button>';
+  }
+  actions.setRecipient = function (el, arg) { var r = state.draft.recipient || (state.draft.recipient = { self: true, name: "", phone: "" }); r.self = arg === "self"; render(); };
+  actions.shareTracking = function (el, arg) {
+    var o = findOrder(arg); if (!o) return;
+    var text = shareText(o), r = (o.details || {}).recipient;
+    if (navigator.share) { navigator.share({ text: text }).catch(function () {}); return; }
+    var wa = "https://wa.me/" + (r && r.phone ? "237" + r.phone : "") + "?text=" + encodeURIComponent(text);
+    var win = window.open(wa, "_blank", "noopener");
+    if (!win && navigator.clipboard) navigator.clipboard.writeText(text).then(function () { toast(tu().copied); });
+  };
+  actions.reorder = function (el, arg) {
+    var o = findOrder(arg); if (!o) return;
+    var dr = newDraft(o.service), x = o.details || {};
+    dr.pickup = o.pickup; dr.pickupGeo = o.pickupGeo || geoOf(o.pickup);
+    if (!(o.service === "laundry" && x.laundry && x.laundry.sameReturn)) { dr.dropoff = o.dropoff; dr.dropoffGeo = o.dropoffGeo || geoOf(o.dropoff); }
+    if (o.weightKg) dr.weightKg = Number(o.weightKg);
+    if (o.vehicle && o.service !== "laundry") dr.vehicle = o.vehicle;
+    if (x.laundry) dr.laundry = JSON.parse(JSON.stringify(x.laundry));
+    if (x.errand) dr.errand = { list: x.errand.list.map(function (i) { return { name: i.name, qty: i.qty, price: String(i.price || "") }; }), load: x.errand.load, advance: x.errand.advance !== false };
+    if (x.ride) dr.ride = { passengers: x.ride.passengers };
+    if (x.hints) dr.hints = { pickup: x.hints.pickup || "", dropoff: x.hints.dropoff || "" };
+    if (x.recipient) dr.recipient = { self: false, name: x.recipient.name || "", phone: x.recipient.phone || "" };
+    dr.note = o.note || ""; dr.payMethod = o.paymentMethod || dr.payMethod;
+    if (state.settings.orderFlow === "stepped") dr.step = 3;
+    state.draft = dr; state.suggest = null;
+    state.activeTab = "home"; state.tabStacks.home = [{ screen: "home" }, { screen: "order" }];
+    try { history.pushState({ wg: 2 }, ""); } catch (e) {} render();
+  };
 
   /* ============================== mode serveur (API WunaGo) ============================== */
   /* Si l'API répond, comptes, commandes, portefeuille et réclamations sont enregistrés sur le serveur.
@@ -1874,7 +1981,7 @@
     var fd = finalDrop(draft), det = orderDetails(draft);
     WAPI.post("/orders", { service: draft.service, pickup: draft.pickup, dropoff: fd.text, pickupGeo: draft.pickupGeo || geoOf(draft.pickup),
       dropoffGeo: fd.geo || geoOf(fd.text), weightKg: draft.weightKg, vehicle: draft.vehicle, note: draft.note, paymentMethod: draft.payMethod,
-      scheduledAt: whenAt(draft.when), laundry: det.laundry, errand: det.errand, ride: det.ride })
+      scheduledAt: whenAt(draft.when), laundry: det.laundry, errand: det.errand, ride: det.ride, hints: det.hints, recipient: det.recipient })
       .then(function (r) {
         state.payPending = false; state.wallet.balance = r.wallet.balance; replaceOrder(r.order);
         var st0 = stack(); state.tabStacks[state.activeTab] = [st0[0], { screen: "track", orderId: r.order.id }];
@@ -2198,6 +2305,14 @@
       (mine.length ? sectionTitle(c.mine) + mine.map(function (o) { return offerCard(o, true); }).join("") : '') +
       (online ? sectionTitle(c.offers) + (cd.offers.length ? cd.offers.map(function (o) { return offerCard(o, false); }).join("") : '<p style="margin:0;font-size:12.5px;line-height:1.5;color:rgba(16,16,16,.6)">' + esc(c.noOffers) + '</p>') : ''));
   }
+  function courseExtras(o) {
+    var x = o.details || {}, h = x.hints || {}, r = x.recipient, u = tu(), out = "";
+    if (h.pickup) out += '<div style="font-size:12px;line-height:1.45"><span class="mono" style="font-size:9.5px;color:rgba(16,16,16,.55)">' + esc(u.landmark.toUpperCase()) + ' ① </span>' + esc(h.pickup) + '</div>';
+    if (h.dropoff) out += '<div style="font-size:12px;line-height:1.45"><span class="mono" style="font-size:9.5px;color:rgba(16,16,16,.55)">' + esc(u.landmark.toUpperCase()) + ' ② </span>' + esc(h.dropoff) + '</div>';
+    if (r && (r.name || r.phone)) out += '<div class="fx ac" style="gap:8px;background:rgba(255,215,0,.25);border-radius:12px;padding:8px 10px"><span class="col" style="flex:1;gap:1px"><span class="mono" style="font-size:9.5px;color:rgba(16,16,16,.6)">' + esc(u.recipient.toUpperCase()) + '</span><span style="font-weight:700;font-size:13px">' + esc(r.name || "") + '</span></span>' +
+      (r.phone && o.courier && o.courier.id === state.user.id && o.status !== "delivered" && o.status !== "cancelled" ? '<a class="btn btn-ink" href="tel:+237' + esc(r.phone) + '" aria-label="' + esc(tm().call) + '" style="width:44px;height:44px;border-radius:11px;padding:0;text-decoration:none">' + ICON_PHONE + '</a>' : '') + '</div>';
+    return out;
+  }
   function findCourse(id) { var cd = state.courierData; return cd.orders.concat(cd.offers).filter(function (o) { return o.id === id; })[0]; }
   function screenCourse(id) {
     var c = tc(), d = t(), o = findCourse(id);
@@ -2209,10 +2324,13 @@
     var action = "";
     if (!mine && o.status === "received") action = '<button class="btn btn-yellow" data-action="acceptCourse" data-arg="' + o.id + '">' + esc(c.accept) + ' · ' + fmtFcfa(courierGain(o)) + '</button>';
     else if (mine && next === "delivered") action = pf ? '<div class="col" style="gap:10px;' + card + ';padding:14px">' + sectionTitle(c.proofTitle) +
-        '<input data-bind="proofName" aria-label="' + esc(c.proofName) + '" placeholder="' + esc(c.proofName) + '" value="' + esc(pf.name || "") + '" style="background:rgba(16,16,16,.04);border-radius:12px;height:48px;padding:0 13px;font-weight:600;font-size:14px" />' +
+        (pf.noCode ? '' : '<input data-bind="proofCode" inputmode="numeric" maxlength="4" autocomplete="one-time-code" aria-label="' + esc(tu().cCode) + '" placeholder="• • • •" value="' + esc(pf.code || "") + '" style="background:rgba(16,16,16,.04);border-radius:12px;height:58px;padding:0 13px;font-family:var(--mono);font-weight:600;font-size:26px;letter-spacing:.4em;text-align:center" />' +
+          '<span style="font-size:11.5px;line-height:1.45;color:rgba(16,16,16,.65)">' + esc(tu().cCodeHelp) + '</span>') +
+        (pf.noCode ? '<input data-bind="proofName" aria-label="' + esc(tu().cNameReq) + '" placeholder="' + esc(tu().cNameReq) + '" value="' + esc(pf.name || "") + '" style="background:rgba(16,16,16,.04);border-radius:12px;height:48px;padding:0 13px;font-weight:600;font-size:14px" />' : '') +
         '<label class="fx ac" style="gap:10px;background:rgba(16,16,16,.04);border-radius:12px;padding:8px 12px;min-height:52px;cursor:pointer;position:relative">' + (pf.photo ? '<img src="' + pf.photo + '" alt="" width="40" height="40" style="border-radius:8px;object-fit:cover">' : CAMERA) +
-          '<span style="font-weight:700;font-size:13px">' + esc(c.proofPhoto) + '</span><input type="file" accept="image/*" capture="environment" data-file="proof" style="position:absolute;width:1px;height:1px;opacity:0"></label>' +
-        '<button class="btn btn-ink" data-action="confirmDelivery" data-arg="' + o.id + '">' + esc(c.confirmDelivery) + '</button></div>'
+          '<span style="font-weight:700;font-size:13px">' + esc(pf.noCode ? tu().cPhotoReq : c.proofPhoto) + '</span><input type="file" accept="image/*" capture="environment" data-file="proof" style="position:absolute;width:1px;height:1px;opacity:0"></label>' +
+        '<button class="btn btn-ink" data-action="confirmDelivery" data-arg="' + o.id + '">' + esc(c.confirmDelivery) + '</button>' +
+        '<button class="btn" data-action="toggleNoCode" style="height:44px;background:transparent;font-weight:700;font-size:12.5px;text-decoration:underline">' + esc(pf.noCode ? tu().cWithCode : tu().cNoCode) + '</button></div>'
       : '<button class="btn btn-ink" data-action="startProof" data-arg="' + o.id + '">' + esc(steps.delivered) + '</button>';
     else if (mine && next) action = '<button class="btn btn-ink" data-action="courseStep" data-arg="' + o.id + '|' + next + '">' + esc(steps[next]) + '</button>';
     var client = o.client || {};
@@ -2220,6 +2338,7 @@
       '<div style="' + card + ';padding:14px;display:flex;flex-direction:column;gap:10px">' +
         '<div class="fx" style="gap:10px"><span style="width:9px;height:9px;margin-top:5px;flex:none;border-radius:99px;background:#FFD700;border:2.5px solid #101010"></span><span style="font-weight:700;font-size:13.5px">' + esc(o.pickup) + '</span></div>' +
         (o.dropoff !== o.pickup ? '<div class="fx" style="gap:10px"><span style="width:9px;height:9px;margin-top:5px;flex:none;background:#101010"></span><span style="font-weight:700;font-size:13.5px">' + esc(o.dropoff) + '</span></div>' : '') +
+        courseExtras(o) +
         '<div style="font-size:12.5px;line-height:1.5;color:rgba(16,16,16,.75)">' + esc(detailsSummary(o)) + (o.note ? '<br>« ' + esc(o.note) + ' »' : '') + '</div>' +
         '<div class="fx ac jb"><span class="mono" style="font-size:10.5px;color:rgba(16,16,16,.6)">' + esc(o.paymentMethod === "cash" ? c.collect + " " + fmtFcfa(o.price.net) : c.prepaid) + '</span><span style="font-weight:800">' + esc(c.gain) + ' ' + fmtFcfa(courierGain(o)) + '</span></div></div>' +
       (mine && client.phone ? '<div class="fx ac" style="gap:11px;' + card + ';padding:12px 14px">' + avatar(client.name) + '<div class="col" style="gap:2px;flex:1"><span class="mono" style="font-size:9.5px;color:rgba(16,16,16,.55)">' + esc(c.client.toUpperCase()) + '</span><span style="font-weight:700">' + esc(client.name) + '</span></div>' +
@@ -2278,9 +2397,26 @@
         '<span class="mono" style="font-size:12px;font-weight:700;text-align:right">' + (o.status === "delivered" ? fmtFcfa(o.gain) : o.status === "cancelled" ? L.cancelled : fmtFcfa(o.estimate) + '<br><span style="font-weight:500;font-size:10px;color:rgba(16,16,16,.5)">' + L.planned + '</span>') + '</span></div>';
     }).join("") + '</div>' : '<p style="margin:0;font-size:12.5px;color:rgba(16,16,16,.6);text-align:center">' + L.none + '</p>') : '';
     return page3('<div class="fx ac" style="gap:12px">' + avatar(state.user.name) + '<div class="col" style="gap:2px"><span style="font-weight:800;font-size:17px">' + esc(state.user.name) + '</span><span class="mono" style="font-size:11px;color:rgba(16,16,16,.6)">+237 ' + esc(state.phone) + ' · ' + esc(t().vehNames[cv.vehicle] || { car: "Voiture" }[cv.vehicle] || "") + (cv.plate ? " · " + esc(cv.plate) : "") + '</span></div></div>' +
-      sectionTitle(L.title) + modes + nav + big + cash + list +
+      balanceCard(d) +
+      sectionTitle(L.title) + modes + nav + big + cash + list + paymentsList(d) +
       '<button class="btn btn-outline" data-action="openScreen" data-arg="notifs" style="color:#101010">' + esc(t().notifs) + '</button>' +
       '<button class="btn btn-outline" data-action="logOut" style="color:#101010">' + esc(t().logOut) + '</button>');
+  }
+  function balanceCard(d) {
+    if (!d || !d.balance) return "";
+    var b = d.balance, u = tu(), owe = b.due >= 0;
+    return '<div class="col" style="gap:4px;background:' + (owe ? "#FFD700" : "#fff") + ';border:1px solid ' + (owe ? "#FFD700" : "var(--hair)") + ';border-radius:16px;padding:13px 14px">' +
+      '<span class="mono" style="font-size:9.5px;letter-spacing:.08em;color:rgba(16,16,16,.7)">' + (owe ? u.balance : u.balanceOwed) + '</span>' +
+      '<span style="font-weight:800;font-size:22px">' + fmtFcfa(Math.abs(b.due)) + '</span>' +
+      '<span style="font-size:11px;line-height:1.4;color:rgba(16,16,16,.7)">' + esc(u.balanceSub.replace("{cash}", fmtFcfa(b.cash)).replace("{earned}", fmtFcfa(b.earned)).replace("{paid}", fmtFcfa(b.paid))) + '</span></div>';
+  }
+  function paymentsList(d) {
+    if (!d || !d.payments) return "";
+    var u = tu();
+    return sectionTitle(u.payments) + (d.payments.length ? '<div style="' + card + ';padding:2px 14px">' + d.payments.slice(0, 20).map(function (p, i) {
+      return '<div class="fx ac jb" style="gap:10px;padding:10px 0;' + (i ? 'border-top:1px solid var(--hair)' : '') + '"><span class="col" style="gap:1px"><span style="font-weight:700;font-size:12.5px">' + esc(p.amount > 0 ? u.paidIn : u.paidOut) + '</span>' +
+        '<span class="mono" style="font-size:10px;color:rgba(16,16,16,.55)">' + fmtTime(p.at) + (p.note ? ' · ' + esc(p.note) : '') + '</span></span><span class="mono" style="font-weight:700;font-size:12px">' + fmtFcfa(Math.abs(p.amount)) + '</span></div>';
+    }).join("") + '</div>' : '<p style="margin:0;font-size:12px;color:rgba(16,16,16,.55)">' + esc(u.noPayments) + '</p>');
   }
   actions.earnMode = function (el, arg) { state.cEarn.mode = arg; state.cEarn.data = null; state.cEarn.err = false; render(); };
   actions.earnShift = function (el, arg) {
@@ -2308,7 +2444,8 @@
     if (m1 && srv()) { state.activeTab = "support"; state.tabStacks.support = [{ screen: "inbox" }, { screen: "conv", convId: m1[1] }]; loadConvs().then(function () { loadMessages(m1[1], true); }); }
     else if (m2) { var o = findOrder(m2[1]); if (o) { state.activeTab = "orders"; state.tabStacks.orders = [{ screen: "history" }, { screen: o.status === "delivered" ? "proof" : "track", orderId: o.id }]; } }
     else if (h === "#courses" && isCourier()) { state.activeTab = "courses"; }
-    if (m1 || m2 || h === "#courses") { try { history.replaceState(null, "", location.pathname); } catch (e) {} render(); }
+    else if (h === "#compte" && isCourier()) { state.activeTab = "account"; }
+    if (m1 || m2 || h === "#courses" || h === "#compte") { try { history.replaceState(null, "", location.pathname); } catch (e) {} render(); }
   }
   window.addEventListener("hashchange", handleHash);
   if (navigator.serviceWorker) navigator.serviceWorker.addEventListener("message", function (ev) { if (ev.data && ev.data.wgOpen && ev.data.wgOpen.indexOf("#") >= 0) { location.hash = ev.data.wgOpen.replace(/^.*#/, "#"); } });
@@ -2370,12 +2507,16 @@
     WAPI.post("/courier/orders/" + p[0] + "/step", { to: p[1] }).then(function (r) { state.busy = false; putCourse(r.order); render(); })
       .catch(function (e) { state.busy = false; errToast(e); loadCourier(); });
   };
-  actions.startProof = function (el, arg) { state.proofForm = { orderId: arg, name: "", photo: null }; render(); };
+  actions.startProof = function (el, arg) { state.proofForm = { orderId: arg, name: "", code: "", photo: null, noCode: false }; render(); };
+  actions.toggleNoCode = function () { if (state.proofForm) { state.proofForm.noCode = !state.proofForm.noCode; render(); } };
   actions.confirmDelivery = function (el, arg) {
     var pf = state.proofForm; if (!pf || state.busy) return;
-    if (String(pf.name || "").trim().length < 2) { toast(tc().proofName); return; }
+    var code = String(pf.code || "").replace(/\D/g, "");
+    if (!pf.noCode && code.length !== 4) { toast(tu().cCode); return; }
+    if (pf.noCode && String(pf.name || "").trim().length < 2) { toast(tu().cNameReq); return; }
+    if (pf.noCode && !pf.photo) { toast(tu().cPhotoReq); return; }
     state.busy = true;
-    WAPI.post("/courier/orders/" + arg + "/step", { to: "delivered", receivedBy: pf.name.trim(), photo: pf.photo }).then(function (r) {
+    WAPI.post("/courier/orders/" + arg + "/step", pf.noCode ? { to: "delivered", receivedBy: pf.name.trim(), photo: pf.photo } : { to: "delivered", code: code, photo: pf.photo }).then(function (r) {
       state.busy = false; state.proofForm = null; putCourse(r.order); popScreen();
     }).catch(function (e) { state.busy = false; errToast(e); });
   };

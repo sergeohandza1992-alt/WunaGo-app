@@ -7,6 +7,7 @@ import { getDatabase } from "@netlify/database";
 import { createHash, randomBytes, randomInt } from "node:crypto";
 import { SERVICES, VEHICLES, PAY_METHODS, STATUSES, quote, normalizePhone, distanceKm, courierShare, TARIFS } from "../lib/rules.mts";
 import { sendPush, publicKey, pushLog } from "../lib/push.mts";
+import { runAlerts } from "../lib/alerts.mts";
 
 type Row = Record<string, any>;
 
@@ -157,6 +158,14 @@ const ERRS: Record<string, string> = {
   service: "Service inconnu."
 };
 function cleanDetails(service: string, b: Row) {
+  const extra: Row = {};
+  const h = b.hints || {}, hp = String(h.pickup || "").trim().slice(0, 120), hd = String(h.dropoff || "").trim().slice(0, 120);
+  if (hp || hd) extra.hints = { pickup: hp, dropoff: hd };
+  const rc = b.recipient || {}, rn = String(rc.name || "").trim().slice(0, 60), rph = normalizePhone(rc.phone);
+  if (rn || rph) extra.recipient = { name: rn, phone: rph || "" };
+  return { ...serviceDetails(service, b), ...extra };
+}
+function serviceDetails(service: string, b: Row) {
   if (service === "laundry" && b.laundry) {
     const L = b.laundry, items: Record<string, number> = {};
     for (const [k, v] of Object.entries(L.items || {})) { const n = Math.max(0, Math.min(200, Math.floor(Number(v) || 0))); if (n) items[k] = n; }
@@ -205,20 +214,26 @@ async function createOrder(req: Request, user: Row) {
       const year = new Date().getFullYear();
       const rows = await q(
         `INSERT INTO orders (code, user_id, service, pickup, dropoff, pickup_lat, pickup_lng, dropoff_lat, dropoff_lng, weight_kg, vehicle, note,
-           payment_method, payment_status, price_gross, discount, price_net, details, price_lines, distance_km, zone, scheduled_at)
-         VALUES ('WUN-' || $1 || '-' || LPAD(nextval('order_code_seq')::text, 3, '0'), $2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22) RETURNING *`,
+           payment_method, payment_status, price_gross, discount, price_net, details, price_lines, distance_km, zone, scheduled_at, delivery_code, track_token)
+         VALUES ('WUN-' || $1 || '-' || LPAD(nextval('order_code_seq')::text, 3, '0'), $2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23,$24) RETURNING *`,
         [year, user.id, service, pickup, dropoff, plat, plng, dlat, dlng, weight, qt.vehicle, String(b.note || "").slice(0, 500),
           b.paymentMethod, paid ? "paid" : "cod", price.gross, price.discount, price.net, JSON.stringify(details), JSON.stringify(qt.lines),
-          qt.distanceKm, qt.zone, scheduledAt ? new Date(scheduledAt).toISOString() : null]);
+          qt.distanceKm, qt.zone, scheduledAt ? new Date(scheduledAt).toISOString() : null,
+          String(randomInt(1000, 10000)), randomBytes(12).toString("base64url")]);
       if (b.paymentMethod === "wallet") await q("INSERT INTO wallet_tx (user_id, amount, kind, order_id) VALUES ($1, $2, 'order', $3)", [user.id, -price.net, rows[0].id]);
       return rows[0];
     });
     const u = await db().sql`SELECT wallet_balance FROM users WHERE id = ${user.id}`;
     if (!scheduledAt || scheduledAt < Date.now() + 2 * 3600000) {
-      const couriers = await db().sql`SELECT id FROM users WHERE role = 'courier' AND online`;
-      push(couriers.map((c) => c.id), { title: "Nouvelle course · " + fmtF(order.price_net), body: `${SVC_FR[order.service]} · ${order.pickup}`, url: "/#courses", tag: "offres" }, "offers");
+      /* d'abord les 3 livreurs en ligne les plus proches (8 km max) ; les autres sont prévenus après 3 minutes */
+      const couriers = await db().sql`SELECT id, pos_lat, pos_lng FROM users WHERE role = 'courier' AND online`;
+      const near = pg ? couriers.filter((c) => c.pos_lat != null).map((c) => ({ id: c.id, km: distanceKm(pg, { lat: c.pos_lat, lng: c.pos_lng }) * 1.35 }))
+        .filter((c) => c.km <= 8).sort((a, b2) => a.km - b2.km).slice(0, 3) : [];
+      const targets = near.length ? near.map((c) => c.id) : couriers.map((c) => c.id);
+      if (!near.length) await db().sql`UPDATE orders SET broadcast_at = NOW() WHERE id = ${order.id}`;
+      push(targets, { title: "Nouvelle course · " + fmtF(courierShare(order.price_lines || [])) + " pour vous", body: `${SVC_FR[order.service]} · ${order.pickup}`, url: "/#courses", tag: "offres" }, "offers");
     }
-    return json({ order: orderOut(order), wallet: { balance: u[0].wallet_balance } }, 201);
+    return json({ order: { ...orderOut(order), deliveryCode: order.delivery_code, trackToken: order.track_token }, wallet: { balance: u[0].wallet_balance } }, 201);
   } catch (e) {
     if (e instanceof HttpError) return fail(e.status, e.message);
     throw e;
@@ -379,6 +394,8 @@ async function enrich(rows: Row[], viewer: Row) {
         pos: live && c.pos_lat != null ? { lat: c.pos_lat, lng: c.pos_lng, at: new Date(c.pos_at).getTime() } : null };
     }
     out.proofName = o.proof_name || null;
+    out.deliveredWith = o.delivered_with || null;
+    if (o.user_id === viewer.id || viewer.role === "admin") { out.deliveryCode = o.delivery_code || null; out.trackToken = o.track_token || null; }
     out.proofPhoto = o.proof_photo || null;
     out.assignedAt = o.assigned_at ? new Date(o.assigned_at).getTime() : null;
     return out;
@@ -393,10 +410,20 @@ async function courierHistory(courierId: string, sp: URLSearchParams) {
   const W = `WHERE o.courier_id = $1 AND ($2::date IS NULL OR o.created_at >= ($2::date)::timestamp AT TIME ZONE 'Africa/Douala')
     AND ($3::date IS NULL OR o.created_at < ($3::date + 1)::timestamp AT TIME ZONE 'Africa/Douala')`;
   const args = [courierId, from, to];
-  const [all, page] = await Promise.all([
+  const [all, page, life, pays] = await Promise.all([
     db().pool.query(`SELECT o.status, o.payment_method, o.price_net, o.price_lines, o.distance_km, o.rating, o.created_at, o.assigned_at, o.delivered_at FROM orders o ${W}`, args),
-    db().pool.query(`SELECT o.*, u.name AS client_name FROM orders o JOIN users u ON u.id = o.user_id ${W} ORDER BY o.created_at DESC LIMIT ${limit} OFFSET ${offset}`, args)
+    db().pool.query(`SELECT o.*, u.name AS client_name FROM orders o JOIN users u ON u.id = o.user_id ${W} ORDER BY o.created_at DESC LIMIT ${limit} OFFSET ${offset}`, args),
+    db().pool.query(`SELECT payment_method, price_net, price_lines FROM orders WHERE courier_id = $1 AND status = 'delivered'`, [courierId]),
+    db().pool.query(`SELECT p.id, p.amount, p.note, p.created_at, a.name AS by_name FROM courier_payments p LEFT JOIN users a ON a.id = p.created_by
+      WHERE p.courier_id = $1 ORDER BY p.created_at DESC LIMIT 200`, [courierId])
   ]);
+  /* solde depuis le début : espèces encaissées − gains − versements déjà faits */
+  const lifeRows = life.rows as Row[], payRows = pays.rows as Row[];
+  const cashAll = lifeRows.filter((o) => o.payment_method === "cash").reduce((a, o) => a + o.price_net, 0);
+  const earnedAll = lifeRows.reduce((a, o) => a + courierShare(o.price_lines || []), 0);
+  const paidAll = payRows.reduce((a, p) => a + Number(p.amount), 0);
+  const balance = { cash: cashAll, earned: earnedAll, paid: paidAll, due: cashAll - earnedAll - paidAll };
+  const payments = payRows.map((p) => ({ id: Number(p.id), amount: Number(p.amount), note: p.note, by: p.by_name || "", at: new Date(p.created_at).getTime() }));
   const rows = all.rows as Row[];
   const art = (o: Row) => (o.price_lines || []).filter((l: Row) => l.key === "articles").reduce((a: number, l: Row) => a + (l.amount || 0), 0);
   const days: Record<string, Row> = {};
@@ -424,7 +451,25 @@ async function courierHistory(courierId: string, sp: URLSearchParams) {
     estimate: courierShare(o.price_lines || []), distanceKm: o.distance_km == null ? null : Number(o.distance_km), rating: o.rating,
     createdAt: new Date(o.created_at).getTime(), deliveredAt: o.delivered_at ? new Date(o.delivered_at).getTime() : null }));
   return { period: { from, to }, summary: { ...sum, due: sum.cash - sum.earned }, byDay: Object.values(days).sort((a, b) => a.day < b.day ? -1 : 1),
-    orders: out, more: offset + out.length < rows.length };
+    orders: out, more: offset + out.length < rows.length, balance, payments };
+}
+
+/* ---------- suivi public (lien partagé au destinataire, sans compte) ---------- */
+async function publicTrack(token: string) {
+  const o = (await db().sql`SELECT * FROM orders WHERE track_token = ${token}`)[0];
+  if (!o) return fail(404, "Lien de suivi introuvable ou expiré.");
+  const live = o.status !== "delivered" && o.status !== "cancelled";
+  let courier = null;
+  if (o.courier_id) {
+    const c = (await db().sql`SELECT name, phone, courier, pos_lat, pos_lng, pos_at FROM users WHERE id = ${o.courier_id}`)[0];
+    if (c) courier = { name: String(c.name || "Livreur").split(" ")[0], vehicle: (c.courier || {}).vehicle || o.vehicle, plate: (c.courier || {}).plate || null,
+      phone: live ? c.phone : null, pos: live && c.pos_lat != null ? { lat: c.pos_lat, lng: c.pos_lng, at: new Date(c.pos_at).getTime() } : null };
+  }
+  const d = o.details || {};
+  return json({ code: o.code, service: o.service, status: o.status, stage: o.stage, pickup: o.pickup, dropoff: o.dropoff, hints: d.hints || null,
+    recipient: d.recipient ? { name: d.recipient.name || "" } : null, vehicle: o.vehicle,
+    pickupGeo: o.pickup_lat != null ? { lat: o.pickup_lat, lng: o.pickup_lng } : null, dropoffGeo: o.dropoff_lat != null ? { lat: o.dropoff_lat, lng: o.dropoff_lng } : null,
+    createdAt: new Date(o.created_at).getTime(), deliveredAt: o.delivered_at ? new Date(o.delivered_at).getTime() : null, courier });
 }
 
 /* ---------- livreur ---------- */
@@ -453,6 +498,9 @@ async function courierRoutes(req: Request, user: Row, path: string, m: string): 
     const rows = await db().sql`
       SELECT * FROM orders WHERE courier_id IS NULL AND status = 'received'
         AND (scheduled_at IS NULL OR scheduled_at <= NOW() + INTERVAL '2 hours')
+        AND (broadcast_at IS NOT NULL OR created_at < NOW() - INTERVAL '3 minutes' OR pickup_lat IS NULL
+          OR (${user.pos_lat}::float8 IS NOT NULL AND 2 * 6371 * asin(sqrt(power(sin(radians(pickup_lat - ${user.pos_lat}::float8) / 2), 2)
+             + cos(radians(${user.pos_lat}::float8)) * cos(radians(pickup_lat)) * power(sin(radians(pickup_lng - ${user.pos_lng}::float8) / 2), 2))) * 1.35 <= 8))
       ORDER BY created_at ASC LIMIT 50`;
     const me = user.pos_lat != null ? { lat: user.pos_lat, lng: user.pos_lng } : null;
     const out = (await enrich(rows, user)).map((o) => ({ ...o, fromMeKm: me && o.pickupGeo ? Math.round(distanceKm(me, o.pickupGeo) * 13.5) / 10 : null }));
@@ -489,10 +537,18 @@ async function courierRoutes(req: Request, user: Row, path: string, m: string): 
     else if (to === "en_route" && o.stage === 1) rows = await db().sql`UPDATE orders SET stage = 2, status = 'en_route', en_route_at = NOW(), updated_at = NOW() WHERE id = ${o.id} RETURNING *`;
     else if (to === "delivered" && o.stage >= 1) {
       const photo = typeof b.photo === "string" && /^data:image\/(jpeg|png|webp);base64,/.test(b.photo) && b.photo.length < 400_000 ? b.photo : null;
-      const name = String(b.receivedBy || "").trim().slice(0, 60);
-      if (!name) return fail(400, "Indiquez le nom de la personne qui a reçu.");
+      const name = String(b.receivedBy || "").trim().slice(0, 60), code = String(b.code || "").replace(/\D/g, "");
+      let how = "name";
+      if (code) {
+        if (!o.delivery_code || code !== o.delivery_code) return fail(400, "Code de remise incorrect. Demandez-le au destinataire.");
+        how = "code";
+      } else {
+        /* sans code : nom de la personne et photo obligatoires */
+        if (name.length < 2) return fail(400, "Indiquez le nom de la personne qui a reçu.");
+        if (o.delivery_code && !photo) return fail(400, "Sans code, une photo de la remise est obligatoire.");
+      }
       rows = await db().sql`
-        UPDATE orders SET stage = 3, status = 'delivered', delivered_at = NOW(), proof_photo = ${photo}, proof_name = ${name}, updated_at = NOW()
+        UPDATE orders SET stage = 3, status = 'delivered', delivered_at = NOW(), proof_photo = ${photo}, proof_name = ${name || null}, delivered_with = ${how}, updated_at = NOW()
         WHERE id = ${o.id} RETURNING *`;
     } else return fail(409, "Étape impossible depuis le statut actuel.");
     const done = rows[0];
@@ -637,6 +693,19 @@ async function messagesRoute(req: Request, user: Row, convId: string, m: string,
 async function adminRoutes(req: Request, user: Row, path: string, m: string, url: URL): Promise<Response | null> {
   if (!path.startsWith("/admin")) return null;
   if (user.role !== "admin") return fail(403, "Espace réservé à l'équipe WunaGo.");
+  if (path === "/admin/run-alerts" && m === "POST") return json(await runAlerts(db()));
+  let rp = path.match(/^\/admin\/couriers\/([A-Za-z0-9-]+)\/payments$/);
+  if (rp && m === "POST") {
+    const b = await body(req);
+    const amount = Math.round(Number(b.amount) || 0);
+    if (!(amount > 0 && amount <= 5_000_000)) return fail(400, "Montant invalide.");
+    const c = (await db().sql`SELECT id FROM users WHERE id::text = ${rp[1]}`)[0];
+    if (!c) return fail(404, "Livreur introuvable.");
+    const signed = b.direction === "out" ? -amount : amount;
+    await db().sql`INSERT INTO courier_payments (courier_id, amount, note, created_by) VALUES (${c.id}, ${signed}, ${String(b.note || "").trim().slice(0, 140)}, ${user.id})`;
+    push([c.id], { title: "Versement enregistré", body: (signed > 0 ? "Vous avez remis " : "WunaGo vous a versé ") + fmtF(amount) + ".", url: "/#compte", tag: "versement" }, "orders");
+    return json({ ok: true }, 201);
+  }
   if (path === "/admin/stats") {
     const s = await db().sql`
       SELECT
@@ -647,7 +716,9 @@ async function adminRoutes(req: Request, user: Row, path: string, m: string, url
         (SELECT COUNT(*) FROM disputes WHERE status <> 'closed') AS open_disputes,
         (SELECT COUNT(*) FROM users WHERE role = 'courier' AND online) AS couriers_online,
         (SELECT COUNT(*) FROM users WHERE role = 'courier') AS couriers,
-        (SELECT COUNT(*) FROM users WHERE role = 'client' AND deleted_at IS NULL) AS clients`;
+        (SELECT COUNT(*) FROM users WHERE role = 'client' AND deleted_at IS NULL) AS clients,
+        (SELECT COUNT(*) FROM orders WHERE status = 'received' AND courier_id IS NULL
+           AND GREATEST(created_at, COALESCE(scheduled_at, created_at) - INTERVAL '1 hour') < NOW() - INTERVAL '10 minutes') AS late`;
     const x = s[0];
     return json({ stats: Object.fromEntries(Object.entries(x).map(([k, v]) => [k, Number(v)])) });
   }
@@ -927,6 +998,8 @@ export default async (req: Request, context: Context) => {
       return json({ ok: true, sms: SMS_MODE(), demo: DEMO_ACTIONS(), pushKey: publicKey() });
     }
     if (path === "/auth/request" && m === "POST") return await authRequest(req);
+    const sv = path.match(/^\/suivi\/([A-Za-z0-9_-]{10,40})$/);
+    if (sv && m === "GET") return await publicTrack(sv[1]);
     if (path === "/auth/verify" && m === "POST") return await authVerify(req);
     if (path === "/auth/logout" && m === "POST") return await logout(req);
 

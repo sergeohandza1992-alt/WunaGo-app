@@ -29,7 +29,7 @@ const T=30000;
 import { mkdirSync, writeFileSync } from 'node:fs';
 const CAP=process.env.CAPTURE?'tests/captures/livraison2/':null; if(CAP) mkdirSync(CAP,{recursive:true});
 const shot=async(page,name)=>{ if(CAP){ await page.waitForTimeout(400); await page.screenshot({path:CAP+name+'.png'});
-  writeFileSync(CAP+name+'.html',await page.evaluate(()=>{const r=document.getElementById('app')||document.getElementById('admin');return r.innerHTML})); } };
+  writeFileSync(CAP+name+'.html',await page.evaluate(()=>{const r=document.getElementById('app')||document.getElementById('admin')||document.body;return r.innerHTML})); } };
 const sub=(page,ep)=>page.evaluate(e=>fetch('/api/push/subscribe',{method:'POST',headers:{'content-type':'application/json',authorization:'Bearer '+WAPI.token()},body:JSON.stringify({subscription:{endpoint:'https://push.example/'+e,keys:{p256dh:'k',auth:'a'}}})}),ep);
 
 /* 1. Backoffice : connexion administrateur, ajout d'un livreur */
@@ -67,6 +67,12 @@ await sub(CLI,'client');
 await CLI.click('[data-action="pickService"][data-arg="parcel"]');
 await CLI.click('[data-action="setAddrTarget"][data-arg="pickup"]'); await CLI.click('[data-action="pickQuartier"][data-arg="Akwa"]');
 await CLI.click('[data-action="setAddrTarget"][data-arg="dropoff"]'); await CLI.click('[data-action="pickQuartier"][data-arg="Bonamoussadi"]');
+await CLI.fill('[data-bind="draft.hint.dropoff"]','Portail bleu après la pharmacie');
+await CLI.click('[data-action="setRecipient"][data-arg="other"]');
+ok('Client : prix affiché dès le choix des adresses',/Continuer · [\d\s\u202f]+ FCFA/.test(await CLI.locator('[data-action="orderNext"]').textContent()));
+await CLI.click('[data-action="orderNext"]');
+ok('Client : destinataire obligatoire quand ce n\'est pas le client',await CLI.isVisible('[data-bind="draft.rname"]'));
+await CLI.fill('[data-bind="draft.rname"]','Paul Mbarga'); await CLI.fill('[data-bind="draft.rphone"]','677112233');
 for(let i=0;i<3;i++) await CLI.click('[data-action="orderNext"]');
 await CLI.click('[data-action="pickPay"][data-arg="cash"]');
 await CLI.click('[data-action="confirmPay"]');
@@ -87,6 +93,13 @@ await LIV.evaluate(()=>fetch('/api/courier/position',{method:'POST',headers:{'co
 /* 5. Client : voit le vrai livreur et sa position */
 await CLI.waitForSelector('text=Marcel Kamga',{timeout:T});
 await shot(CLI,'01-client-suivi-vrai-livreur');
+ok('Client : code de remise affiché avec bouton de partage',/^\d{4}$/.test((await CLI.locator('.mono[style*="letter-spacing:.3em"]').textContent()).trim())&&await CLI.isVisible('[data-action="shareTracking"]'));
+const myOrder=(await CLI.evaluate(async()=>(await (await fetch('/api/orders',{headers:{authorization:'Bearer '+WAPI.token()}})).json()).orders))[0];
+const PUB=await open();
+await PUB.goto(URL+'suivi.html?c='+myOrder.trackToken);
+await PUB.waitForSelector('text=Marcel',{timeout:T});
+ok('Lien de suivi public (sans compte) : livreur et repère visibles',await PUB.isVisible('text=Pour Paul Mbarga')&&await PUB.isVisible('text=Portail bleu après la pharmacie'));
+await shot(PUB,'17-suivi-public');
 ok('Client : vrai livreur affiché (nom, plaque, appel)',await CLI.isVisible('text=LT 123 AB')&&await CLI.isVisible('a[href="tel:+237677000002"]'));
 ok('Client : plus de bouton de simulation quand un livreur réel est assigné',!(await CLI.isVisible('[data-action="advanceOrder"]')));
 
@@ -110,10 +123,18 @@ await LIV.click('[data-action="switchTab"][data-arg="courses"]');
 if(await LIV.isVisible('[data-action="openCourse"]')) await LIV.click('[data-action="openCourse"]');
 await LIV.click('text=J\'ai récupéré'); await LIV.waitForSelector('text=Je suis en route');
 await LIV.click('text=Je suis en route'); await LIV.waitForSelector('[data-action="startProof"]');
+ok('Livreur : destinataire et repère affichés',await LIV.isVisible('text=Paul Mbarga')&&await LIV.isVisible('text=Portail bleu après la pharmacie')&&await LIV.isVisible('a[href="tel:+237677112233"]'));
 await LIV.click('[data-action="startProof"]');
+await LIV.fill('[data-bind="proofCode"]',myOrder.deliveryCode==='0000'?'1111':String((Number(myOrder.deliveryCode)+1)%10000).padStart(4,'0'));
 await LIV.click('[data-action="confirmDelivery"]');
-ok('Livreur : nom du réceptionnaire obligatoire',await LIV.isVisible('text=Nom de la personne qui a reçu'));
+await LIV.waitForSelector('text=Code de remise incorrect');
+ok('Livreur : mauvais code refusé',true);
+await LIV.click('[data-action="toggleNoCode"]');
 await LIV.fill('[data-bind="proofName"]','A. Ngono');
+await LIV.click('[data-action="confirmDelivery"]');
+ok('Livreur : sans code, la photo est obligatoire',await LIV.isVisible('text=Photo de la remise (obligatoire sans code)'));
+await LIV.click('[data-action="toggleNoCode"]');
+await LIV.fill('[data-bind="proofCode"]',myOrder.deliveryCode);
 await LIV.setInputFiles('input[data-file="proof"]',{name:'colis.png',mimeType:'image/png',buffer:Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==','base64')});
 await LIV.waitForSelector('label img');
 await shot(LIV,'07-livreur-preuve-de-livraison');
@@ -124,7 +145,7 @@ await CLI.click('[data-action="switchTab"][data-arg="orders"]');
 await CLI.click('[data-action="switchTab"][data-arg="orders"]');
 await CLI.waitForTimeout(500);
 const orders=await CLI.evaluate(async()=>(await (await fetch('/api/orders',{headers:{authorization:'Bearer '+WAPI.token()}})).json()).orders);
-ok('Client : commande livrée, preuve enregistrée (nom + photo)',orders[0].status==='delivered'&&orders[0].proofName==='A. Ngono'&&/^data:image/.test(orders[0].proofPhoto||''));
+ok('Client : commande remise avec le code, photo enregistrée',orders[0].status==='delivered'&&orders[0].deliveredWith==='code'&&/^data:image/.test(orders[0].proofPhoto||''));
 
 /* 8. Service client : client → backoffice → client */
 await CLI.click('[data-action="switchTab"][data-arg="support"]');
@@ -261,6 +282,39 @@ await CLI.click('[data-action="spendMode"][data-arg="year"]'); await CLI.click('
 await CLI.waitForSelector('text=Aucune commande sur cette période');
 ok('Client : année précédente sans dépense',(await CLI.evaluate(()=>document.querySelector('#app').innerText)).includes('0 FCFA'));
 await CLI.click('[data-action="spendMode"][data-arg="all"]');
+
+/* 11 quinquies. Versement du livreur, course proposée d'abord aux plus proches, recommander */
+await ADM.click('[data-a="nav"][data-v="couriers"]'); await ADM.click('tr[data-a="openCourier"]');
+await ADM.waitForSelector('text=Caisse du livreur');
+await ADM.click('[data-a="addPayment"]');
+await ADM.click('[data-a="savePayment"]');
+await ADM.waitForSelector('text=Versement enregistré');
+await ADM.waitForSelector('text=Versements enregistrés',{timeout:T});
+ok('Backoffice : versement du livreur enregistré, caisse remise à zéro',(await ADM.locator('.balance b').textContent()).startsWith('0 F'),(await ADM.locator('.balance b').textContent()));
+await LIV.click('[data-action="switchTab"][data-arg="account"]');
+await LIV.waitForSelector('text=Mes versements');
+ok('App livreur : solde et versements visibles',await LIV.isVisible('text=Remis à WunaGo'));
+const call=async(p,m,b,tok)=>{const r=await fetch(URL+'api'+p,{method:m||'GET',headers:{'content-type':'application/json',...(tok?{authorization:'Bearer '+tok}:{})},body:b?JSON.stringify(b):undefined});return r.json()};
+const admTok=await ADM.evaluate(()=>WAPI.token());
+await call('/admin/couriers','POST',{phone:'677000009',name:'Jean Loin',vehicle:'bike'},admTok);
+let rr=await call('/auth/request','POST',{phone:'677000009'}); rr=await call('/auth/verify','POST',{phone:'677000009',code:rr.demoCode});
+const farTok=rr.token;
+await call('/courier/status','POST',{online:true},farTok); await call('/courier/position','POST',{lat:4.25,lng:9.95},farTok);
+const cliTok=await CLI.evaluate(()=>WAPI.token());
+await call('/orders','POST',{service:'parcel',pickup:'Akwa',dropoff:'Deido',pickupGeo:{lat:4.0489,lng:9.6996},dropoffGeo:{lat:4.0600,lng:9.7100},weightKg:1,vehicle:'bike',paymentMethod:'cash'},cliTok);
+const farOffers=(await call('/courier/offers','GET',null,farTok)).offers, nearOffers=(await call('/courier/offers','GET',null,await LIV.evaluate(()=>WAPI.token()))).offers;
+ok('Nouvelle course proposée d\'abord aux livreurs proches',!farOffers.some(o=>o.dropoff==='Deido')&&nearOffers.some(o=>o.dropoff==='Deido'));
+const al=await call('/admin/run-alerts','POST',{},admTok);
+ok('Alertes automatiques : rien à signaler avant 3 / 10 minutes',al.broadcast===0&&al.late===0);
+await CLI.click('[data-action="switchTab"][data-arg="orders"]'); await CLI.click('[data-action="switchTab"][data-arg="orders"]');
+await CLI.click('[data-action="openOrder"] >> nth=-1');
+await CLI.waitForSelector('[data-action="reorder"]');
+await CLI.click('[data-action="reorder"]');
+await CLI.waitForSelector('[data-action="confirmPay"], [data-action="orderNext"]');
+const atRecap=await CLI.isVisible('text=3/3');
+await CLI.click('[data-action="orderBack"]'); await CLI.click('[data-action="orderBack"]');
+ok('Client : « Recommander » reprend le même trajet et va au récapitulatif',atRecap&&(await CLI.inputValue('[data-bind="draft.dropoff"]')).includes('Bonamoussadi')&&(await CLI.inputValue('[data-bind="draft.rname"]'))==='Paul Mbarga');
+await CLI.click('[data-action="orderBack"]');
 
 /* 12. Notifications envoyées (mode test, sans envoi réel) */
 const log=await CLI.evaluate(async()=>(await (await fetch('/api/push/_log',{headers:{authorization:'Bearer '+WAPI.token()}})).json()).log);

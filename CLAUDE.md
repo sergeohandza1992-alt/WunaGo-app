@@ -24,6 +24,10 @@ Porteur du projet : Serge-Venant OHANDZA. Langue de travail et de l'interface : 
   Rapports du backoffice : `GET /api/admin/reports?from&to` (dates de Douala) et export CSV `GET /api/admin/export`.
   Historique : `GET /api/admin/orders` (filtres status, from, to, service, pay, courier, q, limit, offset + totaux) ; courses et gains d'un livreur :
   `GET /api/admin/couriers/:id/history` (backoffice) et `GET /api/courier/history` (app livreur, onglet Compte) ; dépenses du client : `GET /api/orders?from&to` (onglet Commandes, par période).
+- Expérience : point de repère et destinataire (`details.hints`, `details.recipient`), code de remise à 4 chiffres (`orders.delivery_code`,
+  obligatoire pour livrer, sinon nom + photo), lien de suivi public `web/suivi.html?c=<track_token>` (`GET /api/suivi/:token`), bouton « Recommander ».
+  Courses proposées d'abord aux 3 livreurs les plus proches (8 km), puis à tous après 3 min ; alerte au backoffice après 10 min sans livreur :
+  fonction planifiée `netlify/functions/alertes.mts` (toutes les 2 min, `netlify/lib/alerts.mts`). Versements des livreurs : table `courier_payments`.
 - Tests : `livraison2` (multi-acteurs : backoffice, livreur, clients, messagerie, notifications), `tarifs` (grille, sans navigateur), `services` (parcours dédiés, profil), `parcours` (mode local), `google-maps` (API Google simulée), `ecrans-compte` (étape 3), `serveur` (API + Postgres local
   via `tests/dev-server.mjs`). Lancer : `npm install && npx playwright install chromium && npm test`. Serveur local : `npm run dev`.
 - Mise en ligne : Netlify (projet `wunago-app` → https://wunago-app.netlify.app).
