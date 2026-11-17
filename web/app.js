@@ -67,7 +67,7 @@
       showActive: "Afficher la commande en cours", tiles: "Tuiles", list: "Liste",
       stepped: "Étapes", singlePage: "Page unique", logOut: "Se déconnecter",
       timeline: ["Commande reçue", "Colis récupéré", "En route", "Livré"],
-      myPosition: "Ma position", locating: "Localisation…", locError: "Position indisponible. Autorisez la localisation ou saisissez l'adresse.", saveAddr: "Enregistrer", saved: "Adresse enregistrée.", searching: "Recherche…", noResult: "Aucun résultat — vous pouvez garder l'adresse saisie.", kindSaved: "Adresse enregistrée", kindQuartier: "Quartier", kindPlace: "OpenStreetMap", distance: "Distance", approx: "≈", fillTarget: "Les raccourcis remplissent :", pickupShort: "Récupération", dropShort: "Livraison", minBy: "min en", mapOffline: "Carte indisponible hors connexion",
+      myPosition: "Ma position", locating: "Localisation…", locError: "Position indisponible. Autorisez la localisation ou saisissez l'adresse.", saveAddr: "Enregistrer", saved: "Adresse enregistrée.", searching: "Recherche…", noResult: "Aucun résultat — vous pouvez garder l'adresse saisie.", kindSaved: "Adresse enregistrée", kindQuartier: "Quartier", kindPlace: "OpenStreetMap", kindGoogle: "Google Maps", openGmaps: "Ouvrir dans Google Maps", distance: "Distance", approx: "≈", fillTarget: "Les raccourcis remplissent :", pickupShort: "Récupération", dropShort: "Livraison", minBy: "min en", mapOffline: "Carte indisponible hors connexion",
       cashNote: "Prévoir l'appoint", paymentNames: { orange_money: "Orange Money", mtn_momo: "MTN MoMo", wallet: "Portefeuille WunaGo", cash: "Espèces à la livraison", card: "Carte bancaire" },
       vehNames: { bike: "Moto", tricycle: "Tricycle", van: "Camionnette" }, min: "min",
       botGreet: "Bonjour, comment pouvons-nous vous aider ?",
@@ -103,7 +103,7 @@
       showActive: "Show active order", tiles: "Tiles", list: "List",
       stepped: "Steps", singlePage: "Single page", logOut: "Log out",
       timeline: ["Order received", "Parcel picked up", "On the way", "Delivered"],
-      myPosition: "My location", locating: "Locating…", locError: "Location unavailable. Allow location or type the address.", saveAddr: "Save", saved: "Address saved.", searching: "Searching…", noResult: "No result — you can keep the typed address.", kindSaved: "Saved address", kindQuartier: "Neighbourhood", kindPlace: "OpenStreetMap", distance: "Distance", approx: "≈", fillTarget: "Shortcuts fill:", pickupShort: "Pickup", dropShort: "Delivery", minBy: "min by", mapOffline: "Map unavailable offline",
+      myPosition: "My location", locating: "Locating…", locError: "Location unavailable. Allow location or type the address.", saveAddr: "Save", saved: "Address saved.", searching: "Searching…", noResult: "No result — you can keep the typed address.", kindSaved: "Saved address", kindQuartier: "Neighbourhood", kindPlace: "OpenStreetMap", kindGoogle: "Google Maps", openGmaps: "Open in Google Maps", distance: "Distance", approx: "≈", fillTarget: "Shortcuts fill:", pickupShort: "Pickup", dropShort: "Delivery", minBy: "min by", mapOffline: "Map unavailable offline",
       cashNote: "Bring exact change", paymentNames: { orange_money: "Orange Money", mtn_momo: "MTN MoMo", wallet: "WunaGo wallet", cash: "Cash on delivery", card: "Bank card" },
       vehNames: { bike: "Bike", tricycle: "Tricycle", van: "Van" }, min: "min",
       botGreet: "Hi, how can we help?",
@@ -235,7 +235,7 @@
   function suggestList(field) {
     var s = state.suggest, d = t();
     if (!s || s.field !== field) return "";
-    var kinds = { saved: [ICON.star, d.kindSaved], quartier: [ICON.area, d.kindQuartier], place: [ICON.pin, d.kindPlace] };
+    var kinds = { saved: [ICON.star, d.kindSaved], quartier: [ICON.area, d.kindQuartier], place: [ICON.pin, d.kindPlace], google: [ICON.pin, d.kindGoogle] };
     var rows = s.items.map(function (it, i) {
       var k = kinds[it.kind] || kinds.place;
       return '<button class="sg-item" role="option" data-action="pickSuggest" data-arg="' + i + '">' +
@@ -266,7 +266,8 @@
     else if (o.stage === 1) pos = p;
     else pos = { lat: p.lat + 0.006, lng: p.lng + 0.004 };
     var remainingKm = WGeo.roadKm(pos, q) + (o.stage === 0 ? WGeo.roadKm(pos, p) : 0);
-    return { pos: pos, min: o.status === "delivered" ? 0 : WGeo.etaMin(remainingKm, o.vehicle) };
+    var frac = o.status === "delivered" || o.stage >= 3 ? 1 : o.stage === 2 ? f : o.stage === 1 ? 0 : undefined;
+    return { pos: pos, fraction: frac, min: o.status === "delivered" ? 0 : WGeo.etaMin(remainingKm, o.vehicle) };
   }
   var trackTimer = null;
   function afterRender() {
@@ -275,11 +276,23 @@
     var o = findOrder(cur().orderId); if (!o) return;
     var g = orderGeo(o);
     if (navigator.onLine === false || !WMap.available()) return;
-    WMap.mount("track-map", { key: o.id, pickup: g.pickup, dropoff: g.dropoff, courier: courierInfo(o).pos });
+    var ci0 = courierInfo(o);
+    WMap.mount("track-map", { key: o.id, pickup: g.pickup, dropoff: g.dropoff, courier: ci0.pos, fraction: ci0.fraction });
     if (o.stage === 2) trackTimer = setInterval(function () {
-      var ci = courierInfo(o); WMap.setCourier(ci.pos);
+      var ci = courierInfo(o); WMap.setCourier(ci.pos, ci.fraction);
       var el = document.getElementById("track-eta"); if (el) el.textContent = t().arriving + " · " + ci.min + " " + t().min;
     }, 1000);
+  }
+
+  function gmapsLink(a, b) {
+    return "https://www.google.com/maps/dir/?api=1&origin=" + a.lat.toFixed(6) + "," + a.lng.toFixed(6) +
+      "&destination=" + b.lat.toFixed(6) + "," + b.lng.toFixed(6) + "&travelmode=driving";
+  }
+  function gmapsButton(a, b, compact) {
+    var d = t();
+    return '<a class="btn' + (compact ? '' : ' btn-outline') + ' gmaps-link" href="' + gmapsLink(a, b) + '" target="_blank" rel="noopener" style="' +
+      (compact ? 'height:30px;border-radius:99px;padding:0 10px;background:rgba(16,16,16,.06);font-weight:700;font-size:10.5px;gap:5px;color:#101010;text-decoration:none' : 'width:100%;gap:7px;color:#101010;text-decoration:none') + '">' +
+      ICON.pin + esc(d.openGmaps) + '</a>';
   }
 
   function findOrder(id) { return state.orders.filter(function (o) { return o.id === id; })[0]; }
@@ -418,7 +431,7 @@
         '<div style="height:1px;background:var(--hair);margin-left:19px"></div>' +
         addrRow("dropoff", d.dropPh, '<span style="width:8px;height:8px;flex:none;background:#101010"></span>') +
       '</div>' +
-      (route ? '<div class="fx ac mono" style="gap:6px;font-size:11px;color:rgba(16,16,16,.6)">' + ICON.pin + d.approx + ' ' + fmtKm(route.km) + ' · ' + route.min + ' ' + d.minBy + ' ' + esc(d.vehNames[draft.vehicle]).toLowerCase() + '</div>' : '') +
+      (route ? '<div class="fx ac jb wrap" style="gap:8px"><div class="fx ac mono" style="gap:6px;font-size:11px;color:rgba(16,16,16,.6)">' + ICON.pin + d.approx + ' ' + fmtKm(route.km) + ' · ' + route.min + ' ' + d.minBy + ' ' + esc(d.vehNames[draft.vehicle]).toLowerCase() + '</div>' + gmapsButton(draft.pickupGeo, draft.dropoffGeo, true) + '</div>' : '') +
       '<div class="fx wrap ac" style="gap:7px">' +
         '<button class="btn" data-action="useMyLocation" style="' + chipStyle + ';background:#101010;color:#FFD700;border-color:#101010">' + ICON.gps + esc(d.myPosition) + '</button>' +
       '</div>' +
@@ -518,7 +531,7 @@
     return (
       '<div style="height:300px;position:relative;background:#eceae4;overflow:hidden;flex:none">' +
         '<div id="track-map" style="position:absolute;inset:0 0 18px 0"></div>' +
-        (navigator.onLine === false || !window.L ? '<div class="fx ac jc mono" style="position:absolute;inset:0;font-size:10.5px;color:rgba(16,16,16,.55)">' + esc(d.mapOffline) + '</div>' : '') +
+        (navigator.onLine === false || !(window.WMap && WMap.available()) ? '<div class="fx ac jc mono" style="position:absolute;inset:0;font-size:10.5px;color:rgba(16,16,16,.55)">' + esc(d.mapOffline) + '</div>' : '') +
         '<div style="position:absolute;z-index:600;top:calc(14px + var(--sat));left:12px;right:12px;display:flex;align-items:center;gap:9px;background:#101010;border-radius:14px;padding:9px 12px">' +
           '<button class="backbtn" aria-label="Retour" data-action="popScreen" style="background:rgba(255,255,255,.12);color:#fff;width:26px;height:26px">←</button>' +
           '<span class="mono" style="font-size:10px;color:#FFD700">' + o.code + '</span>' +
@@ -535,6 +548,7 @@
         '</div>' +
         '<div style="height:1px;background:var(--hair)"></div>' +
         '<div class="col">' + timeline + '</div>' +
+        gmapsButton(orderGeo(o).pickup, orderGeo(o).dropoff, false) +
         (DEMO ? '<button class="btn btn-outline" data-action="advanceOrder" data-arg="' + orderId + '" style="width:100%">' + esc(d.simulate) + '</button>' : '') +
       '</div></div>'
     );
@@ -791,7 +805,16 @@
     pickQuartier: function (el, arg) { var f = state.addrTarget || "dropoff"; state.draft[f] = arg + ", Douala"; state.draft[f + "Geo"] = geoOf(arg); state.suggest = null; render(); },
     pickSaved: function (el, arg) { var a = state.addresses[Number(arg)]; if (!a) return; applyPlace(state.addrTarget || "dropoff", { label: a.text, lat: a.geo.lat, lng: a.geo.lng }); render(); },
     setAddrTarget: function (el, arg) { state.addrTarget = arg; render(); },
-    pickSuggest: function (el, arg) { var s = state.suggest; if (!s) return; var it = s.items[Number(arg)]; if (!it) return; applyPlace(s.field, it); state.addrTarget = s.field === "pickup" ? "dropoff" : "dropoff"; render(); },
+    pickSuggest: function (el, arg) {
+      var s = state.suggest; if (!s) return; var it = s.items[Number(arg)]; if (!it) return;
+      var field = s.field; state.addrTarget = "dropoff";
+      if (it.resolve) {
+        state.draft[field] = it.label; state.draft[field + "Geo"] = null; state.suggest = null; render();
+        it.resolve().then(function (geo) { if (state.draft && state.draft[field] === it.label) { state.draft[field + "Geo"] = geo; render(); } }).catch(function () {});
+        return;
+      }
+      applyPlace(field, it); render();
+    },
     saveAddress: function (el, arg) {
       var dr = state.draft, geo = dr[arg + "Geo"]; if (!geo || !dr[arg] || isSavedAddr(dr[arg])) return;
       state.addresses.push({ id: "a" + Date.now(), label: dr[arg].split(",")[0], text: dr[arg], geo: geo });
@@ -985,6 +1008,7 @@
   window.addEventListener("beforeinstallprompt", function (e) { e.preventDefault(); deferredInstall = e; render(); });
   window.addEventListener("appinstalled", function () { deferredInstall = null; isStandalone = true; render(); });
   window.addEventListener("online", function () { render(); });
+  document.addEventListener("wg:maps-ready", function () { render(); });
   window.addEventListener("offline", function () { render(); });
 
   /* Bouton retour Android / navigateur : dépile l'écran courant */
@@ -1022,7 +1046,10 @@
   if (state.loggedIn && location.hash === "#commandes") state.activeTab = "orders";
 
   if ("serviceWorker" in navigator && location.protocol !== "file:") {
-    window.addEventListener("load", function () { navigator.serviceWorker.register("sw.js").catch(function () {}); });
+    window.addEventListener("load", function () { navigator.serviceWorker.register("sw.js").then(function (reg) { reg.update(); }).catch(function () {}); });
+    /* Nouvelle version publiée : on recharge une fois pour l'afficher tout de suite */
+    var hadController = !!navigator.serviceWorker.controller, reloaded = false;
+    navigator.serviceWorker.addEventListener("controllerchange", function () { if (hadController && !reloaded) { reloaded = true; location.reload(); } });
   }
 
   render();

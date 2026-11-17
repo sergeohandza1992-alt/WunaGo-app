@@ -9,9 +9,11 @@ Porteur du projet : Serge-Venant OHANDZA. Langue de travail et de l'interface : 
 - `web/` : web app client installable (PWA), HTML/CSS/JS sans build ni framework.
   - `app.js` : écrans (gabarits HTML en chaînes), état, actions, persistance `localStorage`.
   - `geo.js` : quartiers de Douala, recherche d'adresses Photon, distances.
-  - `map.js` : carte de suivi Leaflet + OpenStreetMap (`vendor/leaflet/`).
+  - `map.js` : carte de suivi Leaflet + OpenStreetMap (`vendor/leaflet/`) — utilisée sans clé Google.
+  - `gmaps.js` : Google Maps (carte, itinéraire, recherche Places, adresse de « Ma position ») si une clé existe.
+  - `config.js` : généré par Netlify (`scripts/write-config.mjs`) depuis la variable `GOOGLE_MAPS_KEY`.
   - `sw.js` : service worker hors ligne — **incrémenter `CACHE`** à chaque modification de fichier.
-- `tests/parcours.test.mjs` : test Playwright de bout en bout. Services externes simulés.
+- `tests/parcours.test.mjs` (mode OpenStreetMap) et `tests/google-maps.test.mjs` (API Google simulée).
   Lancer : `npm install && npx playwright install chromium && npm test`.
 - Mise en ligne : Netlify (projet `wunago-app` → https://wunago-app.netlify.app).
   GitHub Actions est bloqué tant que le compte GitHub a un problème de facturation (ticket ouvert).
@@ -29,7 +31,7 @@ Design de référence : projet Claude Design « WunaGo — App Client ».
 - `DEMO = true` (en tête de `app.js`) : code SMS affiché, livreur simulé — tant que le backend n'est pas branché.
 
 ## Feuille de route (dans cet ordre)
-1. ✅ Carte de suivi réelle (OpenStreetMap)
+1. ✅ Carte de suivi réelle (OpenStreetMap, puis Google Maps dès que la clé est fournie)
 2. ✅ Saisie d'adresses : suggestions, Ma position, adresses enregistrées, distance
 3. Écrans manquants : Mes adresses, moyens de paiement, notifications, annulation, litiges
 4. Backend réel (hors paiements) : comptes, commandes serveur, SMS de connexion, suivi temps réel

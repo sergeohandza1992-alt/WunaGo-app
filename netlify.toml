@@ -1,7 +1,7 @@
 # Publication Netlify : l'application se trouve dans le dossier web/
 [build]
   publish = "web"
-  command = ""
+  command = "node scripts/write-config.mjs"
 
 # Le service worker doit toujours être relu pour que les mises à jour arrivent
 [[headers]]
