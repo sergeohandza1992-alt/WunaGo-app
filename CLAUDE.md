@@ -33,10 +33,14 @@ Design de référence : projet Claude Design « WunaGo — App Client ».
 ## Feuille de route (dans cet ordre)
 1. ✅ Carte de suivi réelle (OpenStreetMap, puis Google Maps dès que la clé est fournie)
 2. ✅ Saisie d'adresses : suggestions, Ma position, adresses enregistrées, distance
-3. Écrans manquants : Mes adresses, moyens de paiement, notifications, annulation, litiges
+3. ✅ Écrans manquants : Mes adresses, moyens de paiement, notifications, annulation, litiges
 4. Backend réel (hors paiements) : comptes, commandes serveur, SMS de connexion, suivi temps réel
 5. App livreur + tableau de bord de suivi
 6. **En dernier** : paiements Orange Money / MTN MoMo réels
+
+## Décisions
+- Pas de clé Google Maps payante pour l'instant : carte OpenStreetMap + bouton « Ouvrir dans Google Maps ».
+- Accès mobile : certains réseaux mobiles coupent `*.netlify.app` → prévoir un nom de domaine propre.
 
 ## Façon de travailler
 - Une étape = une branche + une demande de fusion, testée (tests Playwright à jour et au vert).
