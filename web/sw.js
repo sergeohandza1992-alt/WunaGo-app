@@ -1,7 +1,7 @@
 /* WunaGo — service worker
    Réseau d'abord : on sert toujours la dernière version publiée ;
    le cache ne sert qu'en secours, hors connexion. */
-const CACHE = "wunago-v8";
+const CACHE = "wunago-v9";
 const SHELL = [
   "./", "index.html", "styles.css", "config.js", "app.js", "pricing.mjs", "geo.js", "map.js", "gmaps.js", "api.js", "manifest.webmanifest",
   "vendor/leaflet/leaflet.js", "vendor/leaflet/leaflet.css",
@@ -18,10 +18,30 @@ self.addEventListener("fetch", (e) => {
   const req = e.request;
   const u = new URL(req.url);
   if (req.method !== "GET" || u.origin !== location.origin || u.pathname.startsWith("/api/")) return;
+  const appPage = req.mode === "navigate" && (u.pathname === "/" || u.pathname.endsWith("/index.html"));
   e.respondWith(
     fetch(req, { cache: "no-cache" }).then((res) => {
-      if (res.ok) { const copy = res.clone(); caches.open(CACHE).then((c) => c.put(req.mode === "navigate" ? "index.html" : req, copy)); }
+      if (res.ok) { const copy = res.clone(); caches.open(CACHE).then((c) => c.put(appPage ? "index.html" : req, copy)); }
       return res;
-    }).catch(() => caches.match(req.mode === "navigate" ? "index.html" : req).then((hit) => hit || caches.match(req)))
+    }).catch(() => caches.match(appPage ? "index.html" : req).then((hit) => hit || caches.match(req)))
   );
+});
+
+/* Notifications sur le téléphone (Web Push) */
+self.addEventListener("push", (e) => {
+  let d = {};
+  try { d = e.data ? e.data.json() : {}; } catch (err) { d = { title: "WunaGo", body: e.data ? e.data.text() : "" }; }
+  e.waitUntil(self.registration.showNotification(d.title || "WunaGo", {
+    body: d.body || "", tag: d.tag, renotify: !!d.tag, data: { url: d.url || "/" },
+    icon: "icons/icon-192.png", badge: "icons/icon-192.png", lang: "fr"
+  }));
+});
+self.addEventListener("notificationclick", (e) => {
+  e.notification.close();
+  const url = new URL((e.notification.data && e.notification.data.url) || "/", self.location.origin).href;
+  e.waitUntil(self.clients.matchAll({ type: "window", includeUncontrolled: true }).then((list) => {
+    const win = list.find((c) => new URL(c.url).origin === self.location.origin && !c.url.includes("admin"));
+    if (win) { win.postMessage({ wgOpen: url }); return win.focus(); }
+    return self.clients.openWindow(url);
+  }));
 });

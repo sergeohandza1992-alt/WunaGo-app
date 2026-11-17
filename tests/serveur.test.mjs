@@ -54,7 +54,7 @@ await A.click('[data-action="setWhen"][data-arg="tomorrow"]');
 for(let i=0;i<2;i++) await A.click('[data-action="orderNext"]');
 await A.click('[data-action="pickPay"][data-arg="wallet"]');
 await A.click('[data-action="confirmPay"]');
-await A.waitForSelector('text=Marcel K.');
+await A.waitForSelector('text=Recherche d\'un livreur');
 const api=async(page,path,method='GET',body)=>page.evaluate(async([p,m,b])=>{const r=await fetch('/api'+p,{method:m,headers:{'content-type':'application/json',authorization:'Bearer '+WAPI.token()},body:b?JSON.stringify(b):undefined});return r.json()},[path,method,body]);
 let orders=(await api(A,'/orders')).orders;
 ok('Commande enregistrée sur le serveur (code WUN, prix serveur)',orders.length===1&&/^WUN-\d{4}-\d{3}$/.test(orders[0].code)&&orders[0].price.net>0&&orders[0].priceLines.length>0,orders[0].code+' · '+orders[0].price.net+' FCFA');
