@@ -10,7 +10,7 @@ process.env.WG_DB_URL = await db.start();
 await db.applyMigrations("./netlify/database/migrations");
 const { default: handler } = await import("../netlify/functions/api.mts");
 
-const TYPES = { ".html": "text/html; charset=utf-8", ".js": "text/javascript", ".css": "text/css", ".json": "application/json",
+const TYPES = { ".html": "text/html; charset=utf-8", ".js": "text/javascript", ".mjs": "text/javascript", ".css": "text/css", ".json": "application/json",
   ".webmanifest": "application/manifest+json", ".png": "image/png", ".woff2": "font/woff2", ".svg": "image/svg+xml" };
 
 const server = http.createServer(async (req, res) => {

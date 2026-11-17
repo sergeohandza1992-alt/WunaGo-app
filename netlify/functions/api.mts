@@ -5,7 +5,7 @@
 import type { Config, Context } from "@netlify/functions";
 import { getDatabase } from "@netlify/database";
 import { createHash, randomBytes, randomInt } from "node:crypto";
-import { SERVICES, VEHICLES, PAY_METHODS, STATUSES, computePrice, normalizePhone, type ServiceKey } from "../lib/rules.mts";
+import { SERVICES, VEHICLES, PAY_METHODS, STATUSES, quote, normalizePhone } from "../lib/rules.mts";
 
 type Row = Record<string, any>;
 
@@ -50,6 +50,8 @@ function orderOut(o: Row) {
     enRouteAt: o.en_route_at ? new Date(o.en_route_at).getTime() : null,
     proofAt: o.delivered_at ? new Date(o.delivered_at).getTime() : null,
     cancelReason: o.cancel_reason, refundNote: o.refund_note,
+    details: o.details || {}, priceLines: o.price_lines || null, distanceKm: o.distance_km == null ? null : Number(o.distance_km), zone: o.zone,
+    scheduledAt: o.scheduled_at ? new Date(o.scheduled_at).getTime() : null,
     createdAt: new Date(o.created_at).getTime(),
   };
 }
@@ -144,19 +146,52 @@ async function patchMe(req: Request, user: Row) {
   return json({ user: userOut(rows[0]) });
 }
 
+const ERRS: Record<string, string> = {
+  closed: "Service fermé à cette heure (6 h – 22 h) : choisissez un autre moment.",
+  empty: "Ajoutez au moins un article.",
+  advance: "Au-delà de 50 000 F, réglez les articles à la commande.",
+  distance: "Trajet trop long (40 km maximum).",
+  service: "Service inconnu."
+};
+function cleanDetails(service: string, b: Row) {
+  if (service === "laundry" && b.laundry) {
+    const L = b.laundry, items: Record<string, number> = {};
+    for (const [k, v] of Object.entries(L.items || {})) { const n = Math.max(0, Math.min(200, Math.floor(Number(v) || 0))); if (n) items[k] = n; }
+    return { laundry: { items, kg: Math.max(0, Math.min(200, Number(L.kg) || 0)), mode: String(L.mode || "wash_iron"), speed: String(L.speed || "standard"), sameReturn: L.sameReturn !== false } };
+  }
+  if (service === "errand" && b.errand) {
+    const E = b.errand;
+    const list = (Array.isArray(E.list) ? E.list : []).slice(0, 60)
+      .map((x: Row) => ({ name: String(x?.name || "").trim().slice(0, 80), qty: Math.max(1, Math.min(99, Math.round(Number(x?.qty) || 1))), price: Math.max(0, Math.min(1_000_000, Math.round(Number(x?.price) || 0))) }))
+      .filter((x: Row) => x.name);
+    return { errand: { list, load: ["light", "medium", "heavy"].includes(E.load) ? E.load : "light", advance: E.advance !== false } };
+  }
+  if (service === "ride") return { ride: { passengers: Math.max(1, Math.min(4, Math.round(Number(b.ride?.passengers) || 1))) } };
+  return {};
+}
+
 async function createOrder(req: Request, user: Row) {
   const b = await body(req);
-  const service = String(b.service) as ServiceKey;
-  if (!(service in SERVICES)) return fail(400, "Service inconnu.");
-  if (!VEHICLES.includes(b.vehicle)) return fail(400, "Véhicule inconnu.");
-  if (!PAY_METHODS.includes(b.paymentMethod)) return fail(400, "Moyen de paiement inconnu.");
+  const service = String(b.service);
+  if (!(SERVICES as readonly string[]).includes(service)) return fail(400, "Service inconnu.");
+  if (!(VEHICLES as readonly string[]).includes(b.vehicle)) return fail(400, "Véhicule inconnu.");
+  if (!(PAY_METHODS as readonly string[]).includes(b.paymentMethod)) return fail(400, "Moyen de paiement inconnu.");
   const pickup = String(b.pickup || "").trim().slice(0, 200), dropoff = String(b.dropoff || "").trim().slice(0, 200);
-  if (!pickup || !dropoff) return fail(400, "Indiquez l'adresse de récupération et de livraison.");
-  const weight = SERVICES[service].pricing === "weight" ? Math.round(Number(b.weightKg) * 10) / 10 : 0;
-  if (SERVICES[service].pricing === "weight" && !(weight >= 0.5 && weight <= 200)) return fail(400, "Poids invalide.");
-  const price = computePrice(service, weight);
-  const g = (p: any) => (p && Number.isFinite(+p.lat) && Number.isFinite(+p.lng) ? [+p.lat, +p.lng] : [null, null]);
-  const [plat, plng] = g(b.pickupGeo), [dlat, dlng] = g(b.dropoffGeo);
+  if (!pickup || !dropoff) return fail(400, "Indiquez les adresses.");
+  const weight = service === "parcel" ? Math.round(Number(b.weightKg) * 10) / 10 : 0;
+  if (service === "parcel" && !(weight >= 0.5 && weight <= 1000)) return fail(400, "Poids invalide.");
+  const now = Date.now();
+  let scheduledAt: number | null = Number(b.scheduledAt) || null;
+  if (scheduledAt && (scheduledAt < now - 5 * 60000 || scheduledAt > now + 7 * 86400000)) return fail(400, "Créneau invalide.");
+  const g = (p: any) => (p && Number.isFinite(+p.lat) && Number.isFinite(+p.lng) ? { lat: +p.lat, lng: +p.lng } : null);
+  const pg = g(b.pickupGeo), dg = g(b.dropoffGeo);
+  const details = cleanDetails(service, b);
+  // Le serveur recalcule le prix avec la même grille que l'app : il fait foi.
+  const qt = quote({ service, pickup, dropoff, pickupGeo: pg, dropoffGeo: dg, vehicle: b.vehicle, weightKg: weight, scheduledAt, ...details }, now);
+  const blocking = qt.errors.find((e: string) => ERRS[e]);
+  if (blocking) return fail(400, ERRS[blocking]);
+  const price = { gross: qt.gross, discount: qt.discount, net: qt.net };
+  const [plat, plng] = pg ? [pg.lat, pg.lng] : [null, null], [dlat, dlng] = dg ? [dg.lat, dg.lng] : [null, null];
   const paid = b.paymentMethod !== "cash";
   try {
     const order = await tx(async (q) => {
@@ -167,10 +202,11 @@ async function createOrder(req: Request, user: Row) {
       const year = new Date().getFullYear();
       const rows = await q(
         `INSERT INTO orders (code, user_id, service, pickup, dropoff, pickup_lat, pickup_lng, dropoff_lat, dropoff_lng, weight_kg, vehicle, note,
-           payment_method, payment_status, price_gross, discount, price_net)
-         VALUES ('WUN-' || $1 || '-' || LPAD(nextval('order_code_seq')::text, 3, '0'), $2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17) RETURNING *`,
-        [year, user.id, service, pickup, dropoff, plat, plng, dlat, dlng, weight, b.vehicle, String(b.note || "").slice(0, 500),
-          b.paymentMethod, paid ? "paid" : "cod", price.gross, price.discount, price.net]);
+           payment_method, payment_status, price_gross, discount, price_net, details, price_lines, distance_km, zone, scheduled_at)
+         VALUES ('WUN-' || $1 || '-' || LPAD(nextval('order_code_seq')::text, 3, '0'), $2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22) RETURNING *`,
+        [year, user.id, service, pickup, dropoff, plat, plng, dlat, dlng, weight, qt.vehicle, String(b.note || "").slice(0, 500),
+          b.paymentMethod, paid ? "paid" : "cod", price.gross, price.discount, price.net, JSON.stringify(details), JSON.stringify(qt.lines),
+          qt.distanceKm, qt.zone, scheduledAt ? new Date(scheduledAt).toISOString() : null]);
       if (b.paymentMethod === "wallet") await q("INSERT INTO wallet_tx (user_id, amount, kind, order_id) VALUES ($1, $2, 'order', $3)", [user.id, -price.net, rows[0].id]);
       return rows[0];
     });
@@ -313,6 +349,15 @@ export default async (req: Request, context: Context) => {
 
     if (path === "/me" && m === "GET") return json({ user: userOut(user) });
     if (path === "/me" && m === "PATCH") return await patchMe(req, user);
+    if (path === "/me" && m === "DELETE") {
+      // Suppression : données personnelles effacées, commandes conservées anonymement (comptabilité).
+      await tx(async (q) => {
+        await q("DELETE FROM sessions WHERE user_id = $1", [user.id]);
+        await q("UPDATE users SET phone = $2, name = NULL, prefs = '{}'::jsonb, deleted_at = NOW() WHERE id = $1", [user.id, "supprime-" + user.id]);
+        await q("UPDATE orders SET pickup_lat = NULL, pickup_lng = NULL, dropoff_lat = NULL, dropoff_lng = NULL WHERE user_id = $1", [user.id]);
+      });
+      return json({ ok: true });
+    }
     if (path === "/orders" && m === "GET") {
       const rows = await db().sql`SELECT * FROM orders WHERE user_id = ${user.id} ORDER BY created_at DESC LIMIT 100`;
       return json({ orders: rows.map(orderOut) });

@@ -5,6 +5,8 @@
      DEMO = true : OTP affiché à l'écran et bouton « Avancer la livraison »,
      tant que le backend (SMS, paiement, suivi GPS) n'est pas branché. */
   var DEMO = true;
+  /* Numéro du service client WunaGo — À REMPLACER par le vrai numéro */
+  var SUPPORT_PHONE = "+237600000000", SUPPORT_PHONE_LABEL = "+237 6 00 00 00 00";
   var STORE_KEY = "wunago.client.v1";
   var deferredInstall = null;
   var lastScreenKey = "";
@@ -228,6 +230,7 @@
   function svcName(key) { return svc(key)[state.lang]; }
   function priceLabel(s) {
     var pre = state.lang === "en" ? "from " : "dès ";
+    if (window.WPricing) { var fp = WPricing.fromPrices()[s.key]; return pre + fp.toLocaleString("fr-FR").replace(/\u202f|\u00a0/g, " ") + " F" + (s.key === "laundry" ? (state.lang === "en" ? "/item" : "/pièce") : ""); }
     if (s.pricing === "weight") return pre + s.baseRate.toLocaleString() + " F/kg";
     return pre + s.flatPrice.toLocaleString() + " F";
   }
@@ -362,6 +365,15 @@
       ICON.pin + esc(d.openGmaps) + '</a>';
   }
 
+  /* pressing avec retour à la même adresse : la livraison se fait à l'adresse de collecte */
+  function finalDrop(dr) { return dr.service === "laundry" && dr.laundry.sameReturn ? { text: dr.pickup, geo: dr.pickupGeo } : { text: dr.dropoff, geo: dr.dropoffGeo }; }
+  function orderDetails(dr) {
+    if (dr.service === "laundry") return { laundry: dr.laundry };
+    if (dr.service === "errand") return { errand: { list: dr.errand.list.filter(function (x) { return String(x.name).trim(); }), load: dr.errand.load, advance: dr.errand.advance !== false } };
+    if (dr.service === "ride") return { ride: dr.ride };
+    return {};
+  }
+
   function findOrder(id) { return state.orders.filter(function (o) { return o.id === id; })[0]; }
 
   /* ============================== screen: login ============================== */
@@ -460,91 +472,314 @@
       '<div style="padding:2px 20px 0">' + (state.settings.homeLayout === "tiles" ? '<div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">' + tiles + '</div>' : '<div class="col" style="gap:8px">' + listRows + '</div>') + '</div>' +
       activeCard +
       '<div style="padding:20px 20px 24px"><div style="border:1px dashed rgba(16,16,16,.2);border-radius:16px;padding:14px;background:repeating-linear-gradient(135deg,rgba(255,215,0,.16) 0 8px,transparent 8px 16px)">' +
-        '<div class="mono" style="font-size:9.5px;letter-spacing:.08em;color:rgba(16,16,16,.5)">PROMO</div><div style="font-weight:700;font-size:14px;margin-top:5px">' + esc(d.promo) + '</div></div></div>' +
+        '<div class="mono" style="font-size:9.5px;letter-spacing:.08em;color:rgba(16,16,16,.5)">PROMO</div><div style="font-weight:700;font-size:14px;margin-top:5px">' + esc(t4().promo) + '</div></div></div>' +
       '</div>'
     );
   }
 
   /* ============================== screen: order ============================== */
 
-  function screenOrder(paramsService) {
-    var d = t();
-    var draft = state.draft;
-    var s = svc(draft.service);
-    var stepped = state.settings.orderFlow === "stepped";
-    var price = computePrice(draft.service, draft.weightKg);
-    var step = draft.step;
+  /* ============================== parcours dédiés par service + devis ============================== */
+  var STR4 = {
+    fr: {
+      roles: {
+        parcel: ["Récupération", "Livraison"], laundry: ["Adresse de collecte", "Adresse de retour"],
+        errand: ["Magasin ou marché", "Livraison"], ride: ["Départ", "Destination"]
+      },
+      stepTitles: {
+        parcel: ["Trajet", "Colis", "Estimation"], laundry: ["Collecte", "Articles", "Estimation"],
+        errand: ["Magasin et livraison", "Liste d'achats", "Estimation"], ride: ["Trajet", "Options", "Estimation"]
+      },
+      sameReturn: "Retour du linge à la même adresse", markets: "Marchés", when: "Quand ?",
+      whenOpts: { now: "Maintenant", "1h": "Dans 1 h", evening: "Ce soir 18 h", tomorrow: "Demain 8 h" },
+      weightHint: "Poids estimé du colis", vehicleTooSmall: "trop lourd", ridePassengers: "Passagers",
+      rideVehicles: { bike: "Moto-taxi", car: "Voiture" }, rideBikeNote: "1 passager", rideCarNote: "jusqu'à 4",
+      laundryItems: { shirt: "Chemise", tshirt: "T-shirt / polo", trousers: "Pantalon", skirt: "Jupe", dress: "Robe", jacket: "Veste",
+        suit: "Costume 2 pièces", boubou: "Boubou / kaba", sheet: "Drap", duvet: "Couette", curtain: "Rideau" },
+      perPiece: "/ pièce", kiloTitle: "Linge au kilo", kiloSub: "Lavé, séché, plié · 1 kg offert dès 5 kg",
+      mode: "Prestation", modes: { wash_iron: "Lavage + repassage", iron: "Repassage seul", dry: "Nettoyage à sec" },
+      speed: "Délai", speeds: { standard: "48 h", express: "Express 24 h" },
+      listTitle: "Votre liste", itemName: "Article", itemQty: "Qté", itemPrice: "Prix estimé", addItem: "Ajouter un article",
+      quickItems: ["Riz 5 kg", "Huile 1 L", "Pain", "Eau 1,5 L", "Sucre 1 kg", "Savon", "Tomates", "Poisson"],
+      load: "Volume des achats", loads: { light: "Léger (sac)", medium: "Moyen (cabas)", heavy: "Lourd (cartons)" },
+      advance: "Le livreur avance l'argent des achats", advanceSub: "Remboursé à la livraison, sur présentation du ticket",
+      articlesTotal: "Total estimé des articles",
+      lines: { delivery: "Livraison", zone: "Supplément zone", items: "Articles pressing", kilo: "Linge au kilo", kgFree: "1 kg offert",
+        collect: "Collecte + retour", collectFree: "Collecte offerte", articles: "Articles (estimation)", service: "Frais de service", ride: "Course", hour: "" },
+      zoneNames: { 1: "centre", 2: "intermédiaire", 3: "périphérie" },
+      hourNotes: { peak: "Heure de pointe +15 %", evening: "Soirée +20 %" },
+      errs: { closed: "Service fermé à cette heure (6 h – 22 h) : choisissez un autre moment.", empty: "Ajoutez au moins un article.",
+        advance: "Au-delà de 50 000 F, réglez les articles à la commande (décochez l'avance).", distance: "Trajet trop long (40 km maximum).",
+        address: "Indiquez les deux adresses.", pickupOnly: "Indiquez l'adresse de collecte." },
+      finalNote: { errand: "Montant final ajusté au ticket de caisse.", laundry: "Montant ajusté au comptage à la collecte." },
+      timeline: {
+        parcel: ["Commande reçue", "Colis récupéré", "En route", "Livré"], laundry: ["Demande reçue", "Linge collecté", "Retour en cours", "Linge livré"],
+        errand: ["Commande reçue", "Achats en cours", "En route", "Livré"], ride: ["Course demandée", "Chauffeur en approche", "En trajet", "Arrivé"]
+      },
+      delivered: { parcel: "Colis livré", laundry: "Linge livré", errand: "Courses livrées", ride: "Course terminée" },
+      from: "dès", promo: "Pressing : 1 kg offert dès 5 kg, collecte offerte dès 10 kg.",
+      insufficientShort: "Solde insuffisant", topUpNow: "Recharger", filters: ["Toutes", "Colis", "Pressing", "Courses", "Trajets"]
+    },
+    en: {
+      roles: { parcel: ["Pickup", "Delivery"], laundry: ["Collection address", "Return address"], errand: ["Shop or market", "Delivery"], ride: ["From", "To"] },
+      stepTitles: { parcel: ["Route", "Parcel", "Estimate"], laundry: ["Collection", "Items", "Estimate"], errand: ["Shop and delivery", "Shopping list", "Estimate"], ride: ["Route", "Options", "Estimate"] },
+      sameReturn: "Return the laundry to the same address", markets: "Markets", when: "When?",
+      whenOpts: { now: "Now", "1h": "In 1 h", evening: "Tonight 6 pm", tomorrow: "Tomorrow 8 am" },
+      weightHint: "Estimated parcel weight", vehicleTooSmall: "too heavy", ridePassengers: "Passengers",
+      rideVehicles: { bike: "Moto-taxi", car: "Car" }, rideBikeNote: "1 passenger", rideCarNote: "up to 4",
+      laundryItems: { shirt: "Shirt", tshirt: "T-shirt / polo", trousers: "Trousers", skirt: "Skirt", dress: "Dress", jacket: "Jacket",
+        suit: "2-piece suit", boubou: "Boubou / kaba", sheet: "Sheet", duvet: "Duvet", curtain: "Curtain" },
+      perPiece: "/ item", kiloTitle: "Laundry by the kilo", kiloSub: "Washed, dried, folded · 1 kg free from 5 kg",
+      mode: "Service", modes: { wash_iron: "Wash + iron", iron: "Iron only", dry: "Dry cleaning" },
+      speed: "Turnaround", speeds: { standard: "48 h", express: "Express 24 h" },
+      listTitle: "Your list", itemName: "Item", itemQty: "Qty", itemPrice: "Est. price", addItem: "Add an item",
+      quickItems: ["Rice 5 kg", "Oil 1 L", "Bread", "Water 1.5 L", "Sugar 1 kg", "Soap", "Tomatoes", "Fish"],
+      load: "Shopping volume", loads: { light: "Light (bag)", medium: "Medium (tote)", heavy: "Heavy (boxes)" },
+      advance: "The courier advances the money", advanceSub: "Paid back on delivery, with the receipt",
+      articlesTotal: "Estimated items total",
+      lines: { delivery: "Delivery", zone: "Zone fee", items: "Laundry items", kilo: "Laundry by kilo", kgFree: "1 kg free",
+        collect: "Collection + return", collectFree: "Free collection", articles: "Items (estimate)", service: "Service fee", ride: "Ride", hour: "" },
+      zoneNames: { 1: "centre", 2: "middle", 3: "outskirts" },
+      hourNotes: { peak: "Rush hour +15%", evening: "Evening +20%" },
+      errs: { closed: "Closed at that time (6 am – 10 pm): pick another time.", empty: "Add at least one item.",
+        advance: "Above 50,000 F, pay the items upfront (untick the advance).", distance: "Trip too long (40 km max).",
+        address: "Enter both addresses.", pickupOnly: "Enter the collection address." },
+      finalNote: { errand: "Final amount adjusted to the receipt.", laundry: "Amount adjusted when items are counted." },
+      timeline: {
+        parcel: ["Order received", "Parcel picked up", "On the way", "Delivered"], laundry: ["Request received", "Laundry collected", "On the way back", "Laundry delivered"],
+        errand: ["Order received", "Shopping", "On the way", "Delivered"], ride: ["Ride requested", "Driver on the way", "On the trip", "Arrived"]
+      },
+      delivered: { parcel: "Parcel delivered", laundry: "Laundry delivered", errand: "Shopping delivered", ride: "Ride completed" },
+      from: "from", promo: "Laundry: 1 kg free from 5 kg, free collection from 10 kg.",
+      insufficientShort: "Insufficient balance", topUpNow: "Top up", filters: ["All", "Parcels", "Laundry", "Errands", "Rides"]
+    }
+  };
+  function t4() { return STR4[state.lang] || STR4.fr; }
+  var MARKETS = [["Marché Central", 4.0482, 9.7066], ["Marché Sandaga", 4.0449, 9.7101], ["Marché Mboppi", 4.0556, 9.7148],
+    ["Marché de Deïdo", 4.0628, 9.7066], ["Marché Ndokoti", 4.0466, 9.7388], ["Marché de New Bell", 4.0372, 9.7158]];
+
+  /* créneaux : heure de Douala (UTC+1) */
+  function doualaMidnightUtc(ms) { var d = new Date(ms + 3600000); return Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate()) - 3600000; }
+  function whenAt(key) {
+    var now = Date.now(), mid = doualaMidnightUtc(now);
+    if (key === "1h") return now + 3600000;
+    if (key === "evening") { var e = mid + 18 * 3600000; return e > now ? e : e + 86400000; }
+    if (key === "tomorrow") return mid + 86400000 + 8 * 3600000;
+    return null;
+  }
+  function draftQuote(dr) {
+    if (!window.WPricing || !dr) return null;
+    return WPricing.quote({ service: dr.service, pickup: dr.pickup, dropoff: dr.dropoff, pickupGeo: dr.pickupGeo, dropoffGeo: dr.dropoffGeo,
+      vehicle: dr.vehicle, weightKg: dr.weightKg, scheduledAt: whenAt(dr.when), laundry: dr.laundry, errand: dr.errand, ride: dr.ride }, Date.now());
+  }
+  function orderNet(o) {
+    if (o.price && typeof o.price.net === "number") return o.price.net;
+    return computePrice(o.service, o.weightKg).net; /* anciennes commandes de démo */
+  }
+  function newDraft(service) {
+    var home = (state.addresses || [])[0];
+    var dr = { service: service, step: 1, pickup: "", dropoff: "", pickupGeo: null, dropoffGeo: null, weightKg: 2, note: "",
+      vehicle: "bike", payMethod: state.defaultPay || "orange_money", when: "now",
+      laundry: { items: {}, kg: 0, mode: "wash_iron", speed: "standard", sameReturn: true },
+      errand: { list: [{ name: "", qty: 1, price: "" }], load: "light", advance: true },
+      ride: { passengers: 1 } };
+    if (home) {
+      var f = service === "errand" ? "dropoff" : "pickup";
+      dr[f] = home.text; dr[f + "Geo"] = home.geo;
+    }
+    if (DEMO && !home) { /* exemple pré-rempli en démonstration */
+      dr.pickup = service === "errand" ? "Marché Central, Douala" : "Bonamoussadi, rue 4.212";
+      dr.pickupGeo = service === "errand" ? { lat: 4.0482, lng: 9.7066 } : geoOf("Bonamoussadi");
+      if (service !== "laundry") { dr.dropoff = "Akwa, av. du Général de Gaulle"; dr.dropoffGeo = geoOf("Akwa"); }
+    }
+    state.addrTarget = service === "laundry" ? "pickup" : (dr.pickup ? "dropoff" : "pickup");
+    return dr;
+  }
+  function stepChecks(dr, step) {
+    var e4 = t4();
+    if (step === 1) {
+      if (dr.service === "laundry" && dr.laundry.sameReturn) return dr.pickup ? null : e4.errs.pickupOnly;
+      return dr.pickup && dr.dropoff ? null : e4.errs.address;
+    }
+    var q = draftQuote(dr);
+    if (step === 2 && q && q.errors.indexOf("empty") !== -1) return e4.errs.empty;
+    if (step === 3 && q) {
+      var order = ["closed", "empty", "advance", "distance"];
+      for (var i = 0; i < order.length; i++) if (q.errors.indexOf(order[i]) !== -1) return e4.errs[order[i]];
+    }
+    return null;
+  }
+
+  function stepper(action, arg, value, min) {
+    return '<div class="fx ac" style="gap:9px;background:rgba(16,16,16,.05);border-radius:99px;padding:4px;flex:none">' +
+      '<button class="btn" data-action="' + action + '" data-arg="' + arg + '|-1" aria-label="Moins" style="width:34px;height:34px;border-radius:99px;background:#fff;font-size:16px;padding:0"' + (value <= min ? " disabled" : "") + '>–</button>' +
+      '<span class="mono" style="min-width:34px;text-align:center;font-weight:600;font-size:13.5px">' + value + '</span>' +
+      '<button class="btn btn-ink" data-action="' + action + '" data-arg="' + arg + '|1" aria-label="Plus" style="width:34px;height:34px;border-radius:99px;font-size:16px;padding:0">+</button></div>';
+  }
+  function sectionTitle(txt) { return '<div style="font-weight:700;font-size:12px;color:rgba(16,16,16,.55)">' + esc(txt) + '</div>'; }
+  var card = 'background:#fff;border:1px solid var(--hair);border-radius:16px';
+  function choiceChips(action, opts, current) {
+    return '<div class="fx wrap" style="gap:7px">' + opts.map(function (o) { return chip(o[1], current === o[0], action, o[0]); }).join("") + '</div>';
+  }
+  function whenBlock(dr) {
+    var e4 = t4();
+    return '<div class="col" style="gap:8px">' + sectionTitle(e4.when) +
+      choiceChips("setWhen", ["now", "1h", "evening", "tomorrow"].map(function (k) { return [k, e4.whenOpts[k]]; }), dr.when) + '</div>';
+  }
+
+  function detailsParcel(dr, d) {
+    var e4 = t4(), kg = dr.weightKg;
+    var vs = ["bike", "tricycle", "van"].map(function (v) {
+      var ok = WPricing.vehicleAllows(v, kg), on = dr.vehicle === v;
+      var q = ok ? WPricing.quote({ service: "parcel", pickup: dr.pickup, dropoff: dr.dropoff, pickupGeo: dr.pickupGeo, dropoffGeo: dr.dropoffGeo, vehicle: v, weightKg: kg, scheduledAt: whenAt(dr.when) }, Date.now()) : null;
+      return '<button class="col" data-action="pickVehicle" data-arg="' + v + '"' + (ok ? "" : " disabled") + ' style="flex:1;border:1.5px solid ' + (on ? "#101010" : "var(--hair)") + ';background:' + (on ? "#FFD700" : "#fff") + ';border-radius:14px;padding:11px 9px;gap:3px;align-items:flex-start;text-align:left;color:#101010;opacity:' + (ok ? 1 : .45) + '">' +
+        '<span style="font-weight:700;font-size:12px">' + esc(d.vehNames[v]) + '</span><span class="mono" style="font-size:9.5px;color:rgba(16,16,16,.6)">≤ ' + WPricing.TARIFS.vehicules[v].kgMax + ' kg</span>' +
+        '<span class="mono" style="font-size:10.5px;font-weight:600">' + (ok ? fmtFcfa(q.net) : esc(e4.vehicleTooSmall)) + '</span></button>';
+    }).join("");
+    return '<div class="col" style="gap:10px">' + sectionTitle(e4.weightHint) +
+      '<div class="fx ac jb" style="' + card + ';padding:12px 15px"><div style="font-weight:700;font-size:13.5px">' + esc(d.weight) + '</div>' +
+        '<div class="fx ac" style="gap:11px;background:rgba(16,16,16,.05);border-radius:99px;padding:4px"><button class="btn" data-action="decWeight" aria-label="Moins" style="width:34px;height:34px;border-radius:99px;background:#fff;font-size:16px;padding:0">–</button><span class="mono" style="min-width:52px;text-align:center;font-weight:600;font-size:14px">' + fmtW(kg) + '</span><button class="btn btn-ink" data-action="incWeight" aria-label="Plus" style="width:34px;height:34px;border-radius:99px;font-size:16px;padding:0">+</button></div></div>' +
+      '<div class="fx" style="gap:8px">' + vs + '</div>' +
+      '<textarea data-bind="draft.note" aria-label="Note" placeholder="' + esc(d.notePh) + '" style="' + card + ';min-height:56px;padding:12px 14px;font-weight:500;font-size:13px;resize:none">' + esc(dr.note) + '</textarea>' +
+      whenBlock(dr) + '</div>';
+  }
+  function detailsLaundry(dr, d) {
+    var e4 = t4(), L = dr.laundry, P = WPricing.TARIFS.pressing;
+    var rows = Object.keys(P.articles).map(function (k, i, arr) {
+      var n = L.items[k] || 0;
+      return '<div class="fx ac" style="gap:10px;padding:9px 14px;' + (i < arr.length - 1 ? "border-bottom:1px solid var(--hair)" : "") + '">' +
+        '<div class="col" style="gap:1px;flex:1"><span style="font-weight:700;font-size:13px">' + esc(e4.laundryItems[k]) + '</span><span class="mono" style="font-size:10px;color:rgba(16,16,16,.55)">' + fmtFcfa(P.articles[k]) + ' ' + esc(e4.perPiece) + '</span></div>' +
+        stepper("laundryItem", k, n, 0) + '</div>';
+    }).join("");
+    return '<div class="col" style="gap:10px">' +
+      '<div class="fx ac" style="gap:10px;' + card + ';padding:12px 14px"><div class="col" style="gap:2px;flex:1"><span style="font-weight:700;font-size:13.5px">' + esc(e4.kiloTitle) + '</span><span style="font-size:11px;color:rgba(16,16,16,.6)">' + fmtFcfa(P.parKg) + '/kg · ' + esc(e4.kiloSub.split(" · ")[1] || "") + '</span></div>' +
+        stepper("laundryKg", "kg", (L.kg || 0), 0) + '</div>' +
+      '<div style="' + card + '">' + rows + '</div>' +
+      '<div class="col" style="gap:8px">' + sectionTitle(e4.mode) + choiceChips("setLaundryMode", Object.keys(e4.modes).map(function (k) { return [k, e4.modes[k]]; }), L.mode) + '</div>' +
+      '<div class="col" style="gap:8px">' + sectionTitle(e4.speed) + choiceChips("setLaundrySpeed", Object.keys(e4.speeds).map(function (k) { return [k, e4.speeds[k]]; }), L.speed) + '</div>' +
+      '<textarea data-bind="draft.note" aria-label="Note" placeholder="' + esc(state.lang === "en" ? "Stains, delicate items, instructions…" : "Taches, articles délicats, consignes…") + '" style="' + card + ';min-height:56px;padding:12px 14px;font-weight:500;font-size:13px;resize:none">' + esc(dr.note) + '</textarea>' +
+      whenBlock(dr) + '</div>';
+  }
+  function detailsErrand(dr, d) {
+    var e4 = t4(), E = dr.errand, total = 0;
+    var rows = E.list.map(function (it, i) {
+      var p = Math.max(0, Number(it.price) || 0), q = Math.max(1, Number(it.qty) || 1); total += p * q;
+      return '<div class="col" style="gap:8px;padding:10px 14px;' + (i < E.list.length - 1 ? "border-bottom:1px solid var(--hair)" : "") + '">' +
+        '<div class="fx ac" style="gap:8px"><input data-bind="errand.name.' + i + '" aria-label="' + esc(e4.itemName) + ' ' + (i + 1) + '" placeholder="' + esc(e4.itemName) + '" value="' + esc(it.name) + '" style="flex:1;min-width:0;height:40px;font-weight:600;font-size:13.5px" />' +
+        '<button class="btn" data-action="removeErrandItem" data-arg="' + i + '" aria-label="Retirer" style="width:34px;height:34px;flex:none;border-radius:99px;background:rgba(16,16,16,.06);font-size:15px;padding:0">×</button></div>' +
+        '<div class="fx ac" style="gap:10px">' + stepper("errandQty", String(i), q, 1) +
+        '<label class="fx ac" style="gap:6px;flex:1;background:rgba(16,16,16,.04);border-radius:11px;padding:0 11px;height:40px"><input data-bind="errand.price.' + i + '" inputmode="numeric" aria-label="' + esc(e4.itemPrice) + '" placeholder="' + esc(e4.itemPrice) + '" value="' + esc(it.price) + '" style="flex:1;min-width:0;font-weight:600;font-size:13px" /><span class="mono" style="font-size:10.5px;color:rgba(16,16,16,.55)">F</span></label></div></div>';
+    }).join("");
+    return '<div class="col" style="gap:10px">' + sectionTitle(e4.listTitle) +
+      '<div style="' + card + '">' + rows + '</div>' +
+      '<div class="fx wrap" style="gap:7px">' + '<button class="btn" data-action="addErrandItem" style="height:auto;min-height:36px;border-radius:99px;padding:8px 13px;font-weight:700;font-size:11.5px;background:#101010;color:#FFD700">+ ' + esc(e4.addItem) + '</button>' +
+        e4.quickItems.map(function (n) { return chip(n, false, "quickErrandItem", n); }).join("") + '</div>' +
+      '<div class="fx jb ac" style="' + card + ';padding:12px 14px"><span style="font-weight:700;font-size:13px">' + esc(e4.articlesTotal) + '</span><span class="mono" style="font-weight:700;font-size:13.5px">' + fmtFcfa(total) + '</span></div>' +
+      '<div class="col" style="gap:8px">' + sectionTitle(e4.load) + choiceChips("setErrandLoad", Object.keys(e4.loads).map(function (k) { return [k, e4.loads[k]]; }), E.load) + '</div>' +
+      '<div style="' + card + '">' + toggleRow(e4.advance, e4.advanceSub, E.advance !== false, "toggleErrandAdvance", "x") + '</div>' +
+      '<textarea data-bind="draft.note" aria-label="Note" placeholder="' + esc(state.lang === "en" ? "Brands, substitutes allowed, instructions…" : "Marques, remplacements acceptés, consignes…") + '" style="' + card + ';min-height:56px;padding:12px 14px;font-weight:500;font-size:13px;resize:none">' + esc(dr.note) + '</textarea>' +
+      whenBlock(dr) + '</div>';
+  }
+  function detailsRide(dr, d) {
+    var e4 = t4(), pax = dr.ride.passengers;
+    var vs = ["bike", "car"].map(function (v) {
+      var ok = v === "car" || pax <= 1, on = dr.vehicle === v && ok;
+      var q = ok ? WPricing.quote({ service: "ride", pickupGeo: dr.pickupGeo, dropoffGeo: dr.dropoffGeo, pickup: dr.pickup, dropoff: dr.dropoff, vehicle: v, ride: dr.ride, scheduledAt: whenAt(dr.when) }, Date.now()) : null;
+      return '<button class="col" data-action="pickVehicle" data-arg="' + v + '"' + (ok ? "" : " disabled") + ' style="flex:1;border:1.5px solid ' + (on ? "#101010" : "var(--hair)") + ';background:' + (on ? "#FFD700" : "#fff") + ';border-radius:14px;padding:12px 11px;gap:3px;align-items:flex-start;text-align:left;color:#101010;opacity:' + (ok ? 1 : .45) + '">' +
+        '<span style="font-weight:700;font-size:13px">' + esc(e4.rideVehicles[v]) + '</span><span class="mono" style="font-size:9.5px;color:rgba(16,16,16,.6)">' + esc(v === "bike" ? e4.rideBikeNote : e4.rideCarNote) + '</span>' +
+        '<span class="mono" style="font-size:11px;font-weight:600">' + (ok ? fmtFcfa(q.net) : "—") + '</span></button>';
+    }).join("");
+    return '<div class="col" style="gap:10px">' +
+      '<div class="fx ac jb" style="' + card + ';padding:12px 15px"><span style="font-weight:700;font-size:13.5px">' + esc(e4.ridePassengers) + '</span>' + stepper("ridePassengers", "p", pax, 1) + '</div>' +
+      '<div class="fx" style="gap:8px">' + vs + '</div>' +
+      '<textarea data-bind="draft.note" aria-label="Note" placeholder="' + esc(state.lang === "en" ? "Meeting point, luggage…" : "Point de rendez-vous, bagages…") + '" style="' + card + ';min-height:56px;padding:12px 14px;font-weight:500;font-size:13px;resize:none">' + esc(dr.note) + '</textarea>' +
+      whenBlock(dr) + '</div>';
+  }
+
+  function quoteLines(q, dr) {
+    var e4 = t4(), d = t();
+    var rows = q.lines.filter(function (l) { return l.key !== "hour"; }).map(function (l) {
+      var label = e4.lines[l.key] || l.key, extra = "";
+      if (l.key === "delivery" || l.key === "ride") extra = " · " + d.approx + " " + fmtKm(l.info.km) + (l.info.vehicle ? " · " + (dr.service === "ride" ? e4.rideVehicles[l.info.vehicle] : d.vehNames[l.info.vehicle]) : "") + (l.info.kg ? " · " + fmtW(l.info.kg) : "");
+      if (l.key === "zone") extra = " · " + e4.zoneNames[l.info.zone];
+      if (l.key === "items") extra = " · " + l.info.count;
+      if (l.key === "kilo") extra = " · " + fmtW(l.info.kg);
+      if (l.key === "collect") extra = " · " + d.approx + " " + fmtKm(l.info.km);
+      if (l.key === "articles") extra = " · " + l.info.count;
+      var neg = l.amount < 0;
+      return '<div class="fx jb" style="align-items:baseline;gap:10px"><span style="font-weight:500;font-size:12.5px;color:rgba(255,255,255,.65)">' + esc(label + extra) + '</span>' +
+        '<span class="mono" style="font-weight:600;font-size:12.5px;white-space:nowrap;color:' + (neg ? "#FFD700" : "#fff") + '">' + (neg ? "– " + fmtFcfa(-l.amount) : fmtFcfa(l.amount)) + '</span></div>';
+    }).join("");
+    var notes = [];
+    if (q.hour === "peak" || q.hour === "evening") notes.push(e4.hourNotes[q.hour]);
+    if (dr.when && dr.when !== "now") notes.push(e4.whenOpts[dr.when]);
+    if (e4.finalNote[dr.service]) notes.push(e4.finalNote[dr.service]);
+    return rows + (notes.length ? '<div class="mono" style="font-size:10.5px;color:rgba(255,255,255,.55)">' + esc(notes.join(" · ")) + '</div>' : "");
+  }
+
+  function screenOrder() {
+    var d = t(), e4 = t4(), dr = state.draft;
+    var stepped = state.settings.orderFlow === "stepped", step = dr.step;
     var showAddr = !stepped || step === 1, showDet = !stepped || step === 2, showRecap = !stepped || step === 3;
     var isLast = !stepped || step === 3;
+    var q = draftQuote(dr), roles = e4.roles[dr.service], titles = e4.stepTitles[dr.service];
+    var laundrySame = dr.service === "laundry" && dr.laundry.sameReturn;
 
     var progressBar = stepped ? '<div class="fx" style="gap:5px">' + [1, 2, 3].map(function (n) {
       return '<span style="flex:1;height:3px;border-radius:9px;background:' + (n <= step ? "#101010" : "rgba(16,16,16,.13)") + '"></span>';
     }).join("") + '</div>' : "";
 
-    var route = draftRoute(draft);
     function addrRow(field, ph, dot) {
-      var on = state.addrTarget === field, geo = draft[field + "Geo"], v = draft[field];
+      var geo = dr[field + "Geo"], v = dr[field];
       var right = geo ? (isSavedAddr(v) ? '<span style="color:#101010" title="' + esc(d.kindSaved) + '">' + ICON.star + '</span>'
         : '<button class="btn" data-action="saveAddress" data-arg="' + field + '" aria-label="' + esc(d.saveAddr) + '" style="height:30px;border-radius:99px;padding:0 9px;background:rgba(16,16,16,.06);font-weight:700;font-size:10.5px;gap:4px">' + ICON.starO + esc(d.saveAddr) + '</button>') : "";
       return '<div class="fx ac addr-row" style="gap:11px;min-height:52px">' + dot +
-        '<input data-bind="draft.' + field + '" data-field="' + field + '" autocomplete="off" aria-autocomplete="list" aria-label="' + esc(ph) + '" value="' + esc(v) + '" placeholder="' + esc(ph) + '" style="flex:1;min-width:0;font-weight:600;font-size:13.5px;height:52px' + (on ? "" : "") + '" />' +
+        '<input data-bind="draft.' + field + '" data-field="' + field + '" autocomplete="off" aria-autocomplete="list" aria-label="' + esc(ph) + '" value="' + esc(v) + '" placeholder="' + esc(ph) + '" style="flex:1;min-width:0;font-weight:600;font-size:13.5px;height:52px" />' +
         right + '</div>' + suggestList(field);
     }
     var chipStyle = 'border:1px solid rgba(16,16,16,.12);background:#fff;border-radius:99px;padding:7px 12px;height:auto;min-height:34px;font-weight:600;font-size:11.5px;color:#101010;gap:5px';
+    var routeKm = dr.pickupGeo && (laundrySame ? null : dr.dropoffGeo) ? WGeo.roadKm(dr.pickupGeo, dr.dropoffGeo) : null;
+    var targets = laundrySame ? ["pickup"] : ["pickup", "dropoff"];
     var addrSection = !showAddr ? "" : (
-      '<div class="col" style="gap:10px"><div style="font-weight:700;font-size:12px;color:rgba(16,16,16,.5)">' + esc(d.route) + '</div>' +
-      '<div style="background:#fff;border:1px solid var(--hair);border-radius:16px;padding:0 15px">' +
-        addrRow("pickup", d.pickupPh, '<span style="width:8px;height:8px;flex:none;border-radius:99px;background:#FFD700;border:2.5px solid #101010"></span>') +
-        '<div style="height:1px;background:var(--hair);margin-left:19px"></div>' +
-        addrRow("dropoff", d.dropPh, '<span style="width:8px;height:8px;flex:none;background:#101010"></span>') +
+      '<div class="col" style="gap:10px">' + sectionTitle(titles[0]) +
+      '<div style="' + card + ';padding:0 15px">' +
+        addrRow("pickup", roles[0], '<span style="width:8px;height:8px;flex:none;border-radius:99px;background:#FFD700;border:2.5px solid #101010"></span>') +
+        (laundrySame ? '' : '<div style="height:1px;background:var(--hair);margin-left:19px"></div>' + addrRow("dropoff", roles[1], '<span style="width:8px;height:8px;flex:none;background:#101010"></span>')) +
       '</div>' +
-      (route ? '<div class="fx ac jb wrap" style="gap:8px"><div class="fx ac mono" style="gap:6px;font-size:11px;color:rgba(16,16,16,.6)">' + ICON.pin + d.approx + ' ' + fmtKm(route.km) + ' · ' + route.min + ' ' + d.minBy + ' ' + esc(d.vehNames[draft.vehicle]).toLowerCase() + '</div>' + gmapsButton(draft.pickupGeo, draft.dropoffGeo, true) + '</div>' : '') +
-      '<div class="fx wrap ac" style="gap:7px">' +
-        '<button class="btn" data-action="useMyLocation" style="' + chipStyle + ';background:#101010;color:#FFD700;border-color:#101010">' + ICON.gps + esc(d.myPosition) + '</button>' +
-      '</div>' +
-      '<div class="col" style="gap:7px"><div class="fx ac" style="gap:6px;font-size:11px;font-weight:600;color:rgba(16,16,16,.55)">' + esc(d.fillTarget) +
-        ['pickup', 'dropoff'].map(function (f) { var on = state.addrTarget === f; return '<button class="btn" data-action="setAddrTarget" data-arg="' + f + '" aria-pressed="' + on + '" style="height:26px;border-radius:99px;padding:0 9px;font-weight:700;font-size:10.5px;background:' + (on ? "#101010" : "rgba(16,16,16,.06)") + ';color:' + (on ? "#fff" : "rgba(16,16,16,.65)") + '">' + esc(f === "pickup" ? d.pickupShort : d.dropShort) + '</button>'; }).join("") + '</div>' +
+      (dr.service === "laundry" ? '<div style="' + card + '">' + toggleRow(e4.sameReturn, WPricing.TARIFS.pressing.atelier.nom, dr.laundry.sameReturn, "toggleSameReturn", "x") + '</div>' : '') +
+      (routeKm != null ? '<div class="fx ac jb wrap" style="gap:8px"><div class="fx ac mono" style="gap:6px;font-size:11px;color:rgba(16,16,16,.6)">' + ICON.pin + d.approx + ' ' + fmtKm(routeKm) + '</div>' + gmapsButton(dr.pickupGeo, dr.dropoffGeo, true) + '</div>' : '') +
+      '<div class="fx wrap ac" style="gap:7px"><button class="btn" data-action="useMyLocation" style="' + chipStyle + ';background:#101010;color:#FFD700;border-color:#101010">' + ICON.gps + esc(d.myPosition) + '</button></div>' +
+      (dr.service === "errand" ? '<div class="col" style="gap:7px">' + sectionTitle(e4.markets) + '<div class="fx wrap" style="gap:7px">' +
+        MARKETS.map(function (m, i) { return '<button class="btn" data-action="pickMarket" data-arg="' + i + '" style="' + chipStyle + '">' + esc(m[0]) + '</button>'; }).join("") + '</div></div>' : '') +
+      '<div class="col" style="gap:7px">' + (targets.length > 1 ? '<div class="fx ac" style="gap:6px;font-size:11px;font-weight:600;color:rgba(16,16,16,.6)">' + esc(d.fillTarget) +
+        targets.map(function (f, i) { var on = state.addrTarget === f; return '<button class="btn" data-action="setAddrTarget" data-arg="' + f + '" aria-pressed="' + on + '" style="height:28px;border-radius:99px;padding:0 9px;font-weight:700;font-size:10.5px;background:' + (on ? "#101010" : "rgba(16,16,16,.06)") + ';color:' + (on ? "#fff" : "rgba(16,16,16,.65)") + '">' + esc(roles[i]) + '</button>'; }).join("") + '</div>' : '') +
       '<div class="fx wrap" style="gap:7px">' +
         (state.addresses || []).map(function (a, i) { return '<button class="btn" data-action="pickSaved" data-arg="' + i + '" style="' + chipStyle + '">' + ICON.star + esc(a.label) + '</button>'; }).join("") +
-        QUARTIERS.map(function (q) { return '<button class="btn" data-action="pickQuartier" data-arg="' + q + '" style="' + chipStyle + '">' + q + '</button>'; }).join("") +
+        QUARTIERS.map(function (qq) { return '<button class="btn" data-action="pickQuartier" data-arg="' + qq + '" style="' + chipStyle + '">' + qq + '</button>'; }).join("") +
       '</div></div></div>'
     );
 
-    var detSection = !showDet ? "" : (
-      '<div class="col" style="gap:10px"><div style="font-weight:700;font-size:12px;color:rgba(16,16,16,.45)">' + esc(d.details) + '</div>' +
-      '<div style="background:#fff;border:1px solid var(--hair);border-radius:16px;padding:15px;display:flex;flex-direction:column;gap:13px">' +
-        (s.pricing === "weight" ?
-          '<div class="fx ac jb"><div><div style="font-weight:700;font-size:13.5px">' + esc(d.weight) + '</div><div class="mono" style="font-size:10.5px;color:rgba(16,16,16,.5);margin-top:2px">' + s.baseRate.toLocaleString() + ' FCFA/kg</div></div>' +
-          '<div class="fx ac" style="gap:11px;background:rgba(16,16,16,.05);border-radius:99px;padding:4px"><button class="btn" data-action="decWeight" style="width:32px;height:32px;border-radius:99px;background:#fff;font-size:16px">–</button><span class="mono" style="min-width:40px;text-align:center;font-weight:600;font-size:14px">' + fmtW(draft.weightKg) + '</span><button class="btn btn-ink" data-action="incWeight" style="width:32px;height:32px;border-radius:99px;font-size:16px">+</button></div></div>' :
-          '<div style="font-weight:700;font-size:13.5px">' + priceLabel(s) + '</div>') +
-        '<div style="height:1px;background:var(--hair)"></div>' +
-        '<textarea data-bind="draft.note" aria-label="Note pour le livreur" placeholder="' + d.notePh + '" style="min-height:48px;font-weight:500;font-size:13px;resize:none">' + esc(draft.note) + '</textarea>' +
-      '</div>' +
-      '<div class="fx" style="gap:8px">' + VEHICLES.map(function (v) {
-        var on = draft.vehicle === v.key;
-        return '<button class="col" data-action="pickVehicle" data-arg="' + v.key + '" style="flex:1;border:1.5px solid ' + (on ? "#101010" : "var(--hair)") + ';background:' + (on ? "#FFD700" : "#fff") + ';border-radius:14px;padding:11px 9px;gap:3px;align-items:flex-start;text-align:left">' +
-          '<span style="font-weight:700;font-size:12px">' + esc(t().vehNames[v.key]) + '</span><span class="mono" style="font-size:9.5px;color:rgba(16,16,16,.55)">' + v.eta + ' ' + t().min + '</span></button>';
-      }).join("") + '</div></div>'
-    );
+    var det = { parcel: detailsParcel, laundry: detailsLaundry, errand: detailsErrand, ride: detailsRide }[dr.service];
+    var detSection = !showDet ? "" : '<div class="col" style="gap:10px">' + (stepped ? "" : sectionTitle(titles[1])) + det(dr, d) + '</div>';
 
-    var recapSection = !showRecap ? "" : (
-      '<div class="col" style="gap:10px"><div style="font-weight:700;font-size:12px;color:rgba(16,16,16,.45)">' + esc(d.estimate) + '</div>' +
-      '<div style="background:#101010;border-radius:18px;padding:16px;display:flex;flex-direction:column;gap:12px">' +
-        '<div class="fx jb" style="align-items:baseline"><span style="font-weight:500;font-size:12.5px;color:rgba(255,255,255,.6)">' + esc(svcName(draft.service)) + (s.pricing === "weight" ? " · " + fmtW(draft.weightKg) : "") + '</span><span class="mono" style="font-weight:600;font-size:12.5px;color:#fff">' + fmtFcfa(price.gross) + '</span></div>' +
-        '<div class="fx jb" style="align-items:baseline"><span style="font-weight:500;font-size:12.5px;color:rgba(255,255,255,.6)">' + esc(t().vehNames[draft.vehicle]) + (route ? ' · ' + d.approx + ' ' + fmtKm(route.km) : '') + '</span><span style="font-size:12.5px;color:rgba(255,255,255,.6)">incl.</span></div>' +
-        '<div class="fx jb" style="align-items:baseline"><span style="font-weight:500;font-size:12.5px;color:rgba(255,255,255,.6)">' + esc(d.loyalty) + '</span><span class="mono" style="font-weight:600;font-size:12.5px;color:' + (price.discount ? "#FFD700" : "rgba(255,255,255,.6)") + '">' + (price.discount ? "– " + fmtFcfa(price.discount) : "—") + '</span></div>' +
+    var err = isLast ? stepChecks(dr, 3) : null;
+    var recapSection = !showRecap || !q ? "" : (
+      '<div class="col" style="gap:10px">' + sectionTitle(titles[2]) +
+      '<div style="background:#101010;border-radius:18px;padding:16px;display:flex;flex-direction:column;gap:11px">' + quoteLines(q, dr) +
         '<div style="height:1px;background:rgba(255,255,255,.14)"></div>' +
-        '<div class="fx jb" style="align-items:baseline"><span style="font-weight:700;font-size:14px;color:#fff">' + esc(d.total) + '</span><span style="font-weight:800;font-size:22px;color:#FFD700;letter-spacing:-.5px">' + fmtFcfa(price.net) + '</span></div>' +
-      '</div></div>'
+        '<div class="fx jb" style="align-items:baseline"><span style="font-weight:700;font-size:14px;color:#fff">' + esc(d.total) + '</span><span style="font-weight:800;font-size:22px;color:#FFD700;letter-spacing:-.5px">' + fmtFcfa(q.net) + '</span></div>' +
+      '</div>' + (err ? '<div role="alert" style="background:rgba(255,215,0,.22);border-radius:12px;padding:10px 12px;font-size:12px;font-weight:600;line-height:1.45">' + esc(err) + '</div>' : '') + '</div>'
     );
 
     return (
       '<div class="scroll"><div class="col" style="padding:calc(18px + var(--sat)) 20px 20px;gap:16px">' +
-        '<div class="fx ac" style="gap:11px"><button class="backbtn" aria-label="Retour" data-action="orderBack">←</button><div style="font-weight:800;font-size:18px;letter-spacing:-.4px;flex:1">' + esc(svcName(draft.service)) + '</div>' + (stepped ? '<span class="mono" style="font-size:10.5px;color:rgba(16,16,16,.45)">' + d.stepOf + " " + step + '/3</span>' : "") + '</div>' +
+        '<div class="fx ac" style="gap:11px"><button class="backbtn" aria-label="Retour" data-action="orderBack">←</button><div class="col" style="flex:1;gap:1px"><h1 style="margin:0;font-weight:800;font-size:18px;letter-spacing:-.4px">' + esc(svcName(dr.service)) + '</h1>' +
+          (stepped ? '<span style="font-size:11.5px;font-weight:600;color:rgba(16,16,16,.6)">' + esc(titles[step - 1]) + '</span>' : '') + '</div>' +
+          (stepped ? '<span class="mono" style="font-size:10.5px;color:rgba(16,16,16,.5)">' + d.stepOf + " " + step + '/3</span>' : "") + '</div>' +
         progressBar + addrSection + detSection + recapSection +
       '</div></div>' +
-      '<div style="padding:16px 20px 20px"><button class="btn btn-yellow" data-action="orderNext" style="width:100%">' +
-        (isLast ? esc(d.confirmPay) + ' · ' + fmtFcfa(price.net) : esc(d.continue)) +
+      '<div style="padding:16px 20px 20px"><button class="btn btn-yellow" data-action="orderNext" style="width:100%"' + (isLast && err ? " disabled" : "") + '>' +
+        (isLast ? esc(d.confirmPay) + (q ? ' · ' + fmtFcfa(q.net) : '') : esc(d.continue) + (q && step === 2 && !q.errors.length ? ' · ' + fmtFcfa(q.net) : '')) +
       '</button></div>'
     );
   }
@@ -554,12 +789,18 @@
   function screenPayment() {
     var d = t();
     var draft = state.draft;
-    var price = computePrice(draft.service, draft.weightKg);
+    var q = draftQuote(draft), price = { net: q ? q.net : 0 };
+    var walletShort = state.wallet.balance < price.net;
+    if (walletShort && draft.payMethod === "wallet") draft.payMethod = state.defaultPay !== "wallet" ? state.defaultPay : "orange_money";
     var rows = PAYMENTS.map(function (p) {
-      var on = draft.payMethod === p.key;
+      var on = draft.payMethod === p.key, off = p.key === "wallet" && walletShort;
       var acc = accountFor(p.key);
-      var detail = p.key === "wallet" ? fmtFcfa(state.wallet.balance) : p.key === "cash" ? d.cashNote : acc ? "•••• " + last4(acc.number) : p.detail;
-      return '<button class="fx ac" data-action="pickPay" data-arg="' + p.key + '" style="gap:12px;text-align:left;border:1.5px solid ' + (on ? "#101010" : "var(--hair)") + ';background:#fff;border-radius:15px;padding:13px 14px;cursor:pointer">' +
+      var detail = p.key === "wallet" ? fmtFcfa(state.wallet.balance) + (off ? " · " + t4().insufficientShort : "") : p.key === "cash" ? d.cashNote : acc ? "•••• " + last4(acc.number) : p.detail;
+      if (off) return '<div class="fx ac" style="gap:12px;border:1.5px dashed var(--hair);background:#fff;border-radius:15px;padding:11px 14px">' +
+        '<span class="fx ac jc" style="width:38px;height:27px;flex:none;border-radius:7px;background:' + p.bg + ';color:' + p.fg + ';font-family:var(--mono);font-weight:700;font-size:9px;opacity:.5">' + p.chip + '</span>' +
+        '<span class="col" style="gap:2px;flex:1"><span style="font-weight:700;font-size:13.5px;color:rgba(16,16,16,.55)">' + esc(d.paymentNames[p.key]) + '</span><span class="mono" style="font-size:10.5px;color:rgba(16,16,16,.6)">' + esc(detail) + '</span></span>' +
+        '<button class="btn" data-action="goTopUp" style="height:34px;border-radius:99px;padding:0 12px;background:#FFD700;font-weight:800;font-size:11px">' + esc(t4().topUpNow) + '</button></div>';
+      return '<button class="fx ac" data-action="pickPay" data-arg="' + p.key + '" style="gap:12px;text-align:left;border:1.5px solid ' + (on ? "#101010" : "var(--hair)") + ';background:#fff;border-radius:15px;padding:13px 14px;cursor:pointer;color:#101010">' +
         '<span class="fx ac jc" style="width:38px;height:27px;flex:none;border-radius:7px;background:' + p.bg + ';color:' + p.fg + ';font-family:var(--mono);font-weight:700;font-size:9px">' + p.chip + '</span>' +
         '<span class="col" style="gap:2px;flex:1"><span style="font-weight:700;font-size:13.5px">' + esc(d.paymentNames[p.key]) + '</span><span class="mono" style="font-size:10.5px;color:rgba(16,16,16,.5)">' + esc(detail || "") + '</span></span>' +
         '<span style="width:18px;height:18px;flex:none;border-radius:99px;border:2px solid ' + (on ? "#101010" : "rgba(16,16,16,.15)") + ';background:' + (on ? "#101010" : "transparent") + '"></span>' +
@@ -588,12 +829,13 @@
     if (o.status === "cancelled") return screenCancelled(o);
     var progress = Math.min(1, o.stage / 3);
     var left = (8 + progress * 84).toFixed(1) + "%";
-    var timeline = d.timeline.map(function (label, i) {
+    var tlLabels = t4().timeline[o.service] || d.timeline;
+    var timeline = tlLabels.map(function (label, i) {
       var done = i < o.stage || o.status === "delivered";
       var active = i === o.stage && o.status !== "delivered";
       return '<div class="fx" style="gap:13px;align-items:flex-start"><div class="col" style="align-items:center;width:16px">' +
         '<span style="width:13px;height:13px;border-radius:99px;background:' + (done ? "#101010" : active ? "#FFD700" : "#fff") + ';border:2.5px solid ' + (done || active ? "#101010" : "rgba(16,16,16,.18)") + '"></span>' +
-        (i < d.timeline.length - 1 ? '<span style="width:2px;height:18px;background:' + (done ? "#101010" : "rgba(16,16,16,.13)") + '"></span>' : '') +
+        (i < tlLabels.length - 1 ? '<span style="width:2px;height:18px;background:' + (done ? "#101010" : "rgba(16,16,16,.13)") + '"></span>' : '') +
         '</div><span style="font-weight:700;font-size:13px;padding-bottom:13px;color:' + (done || active ? "#101010" : "rgba(16,16,16,.4)") + '">' + esc(label) + '</span></div>';
     }).join("");
 
@@ -635,7 +877,7 @@
     }).join("");
     return (
       '<div class="scroll"><div class="col" style="padding:calc(18px + var(--sat)) 20px 20px;gap:16px">' +
-        '<div><div class="mono" style="font-size:10px;letter-spacing:.06em;color:rgba(16,16,16,.5)">' + o.code + '</div><div style="font-weight:800;font-size:23px;letter-spacing:-.7px;margin-top:4px">' + esc(d.delivered) + '</div></div>' +
+        '<div><div class="mono" style="font-size:10px;letter-spacing:.06em;color:rgba(16,16,16,.5)">' + o.code + '</div><div style="font-weight:800;font-size:23px;letter-spacing:-.7px;margin-top:4px">' + esc(t4().delivered[o.service] || d.delivered) + '</div></div>' +
         '<div style="border-radius:17px;overflow:hidden;border:1px solid var(--hair)">' +
           '<div style="height:180px;background:repeating-linear-gradient(135deg,#e6e3dc 0 10px,#efece5 10px 20px);display:flex;align-items:center;justify-content:center"><span class="mono" style="font-size:10.5px;color:rgba(16,16,16,.5)">photo de livraison</span></div>' +
           '<div style="background:#fff;padding:13px 15px;display:flex;flex-direction:column;gap:5px">' +
@@ -656,27 +898,27 @@
   function screenHistory() {
     var d = t();
     var filter = state.historyFilter || 0;
-    var svcFilter = filter === 1 ? "parcel" : filter === 2 ? "laundry" : null;
+    var svcFilter = [null, "parcel", "laundry", "errand", "ride"][filter] || null;
     var orders = state.orders.filter(function (o) { return !svcFilter || o.service === svcFilter; });
-    var chips = d.filters.map(function (f, i) {
+    var chips = t4().filters.map(function (f, i) {
       var on = filter === i;
-      return '<button class="btn" data-action="setHistoryFilter" data-arg="' + i + '" style="border:0;border-radius:99px;padding:8px 13px;height:auto;background:' + (on ? "#101010" : "rgba(16,16,16,.06)") + ';color:' + (on ? "#fff" : "rgba(16,16,16,.6)") + ';font-weight:700;font-size:11.5px">' + esc(f) + '</button>';
+      return '<button class="btn" data-action="setHistoryFilter" data-arg="' + i + '" style="border:0;border-radius:99px;padding:8px 13px;height:auto;min-height:36px;flex:none;background:' + (on ? "#101010" : "rgba(16,16,16,.06)") + ';color:' + (on ? "#fff" : "rgba(16,16,16,.6)") + ';font-weight:700;font-size:11.5px">' + esc(f) + '</button>';
     }).join("");
 
     var badgeStyle = { received: ["#FFD700", "#101010"], picked_up: ["#FFD700", "#101010"], en_route: ["#FFD700", "#101010"], delivered: ["#101010", "#FFD700"], cancelled: ["rgba(16,16,16,.07)", "rgba(16,16,16,.5)"] };
     var rows = orders.map(function (o) {
-      var price = computePrice(o.service, o.weightKg);
+      var price = { net: orderNet(o) };
       var bs = badgeStyle[o.status] || badgeStyle.cancelled;
       return '<button class="col" data-action="openOrder" data-arg="' + o.id + '" style="width:100%;text-align:left;border:1px solid var(--hair);background:#fff;border-radius:15px;padding:14px;gap:9px;cursor:pointer;margin-bottom:9px">' +
         '<div class="fx ac" style="gap:8px"><span class="mono" style="font-size:10px;color:rgba(16,16,16,.5)">' + o.code + '</span><span style="margin-left:auto;border-radius:99px;padding:4px 9px;background:' + bs[0] + ';color:' + bs[1] + ';font-family:var(--mono);font-weight:700;font-size:9.5px">' + esc(statusLabel(o.status)) + '</span></div>' +
-        '<div style="font-weight:700;font-size:13.5px">' + esc(o.pickup) + ' → ' + esc(o.dropoff) + '</div>' +
+        '<div style="font-weight:700;font-size:13.5px">' + esc(o.pickup) + (o.dropoff && o.dropoff !== o.pickup ? ' → ' + esc(o.dropoff) : '') + '</div>' +
         '<div class="fx jb" style="align-items:baseline"><span class="mono" style="font-size:10.5px;color:rgba(16,16,16,.5)">' + esc(svcName(o.service)) + '</span><span style="font-weight:700;font-size:13px">' + fmtFcfa(price.net) + '</span></div>' +
       '</button>';
     }).join("") || '<div style="padding:30px 0;text-align:center;color:rgba(16,16,16,.4);font-size:13px">—</div>';
 
     return '<div class="scroll"><div class="col" style="padding:calc(18px + var(--sat)) 20px 20px;gap:14px">' +
       '<div style="font-weight:800;font-size:23px;letter-spacing:-.7px">' + esc(d.orders) + '</div>' +
-      '<div class="fx" style="gap:7px">' + chips + '</div>' +
+      '<div class="fx hscroll" style="gap:7px;overflow-x:auto;margin:0 -20px;padding:0 20px 2px">' + chips + '</div>' +
       '<div>' + rows + '</div>' +
     '</div></div>';
   }
@@ -703,6 +945,7 @@
     }
 
     var rows = [
+      [tp().row, "", "openProfile"],
       [d.addresses, String((state.addresses || []).length), "openScreen", "addresses"],
       [d.methods, String(2 + (state.payAccounts || []).length), "openScreen", "paymethods"],
       [d.notifs, notifSummary(), "openScreen", "notifs"],
@@ -877,7 +1120,7 @@
       '<button class="btn" data-action="closeCancel" style="height:44px;background:transparent;font-weight:700;font-size:13px">' + esc(e.cancelKeep) + '</button></div>';
   }
   function screenCancelled(o) {
-    var e = t3(), d = t(), price = computePrice(o.service, o.weightKg);
+    var e = t3(), d = t(), price = { net: orderNet(o) };
     return page3(hdr(e.cancelled) +
       '<div style="background:#101010;border-radius:18px;padding:16px;display:flex;flex-direction:column;gap:8px">' +
         '<span class="mono" style="font-size:10.5px;color:#FFD700">' + o.code + ' · ' + esc(e.cancelledOn.toUpperCase()) + '</span>' +
@@ -909,7 +1152,7 @@
     return page3(hdr(e.helpTitle) +
       '<div style="' + cardStyle + '">' + helpRow(e.helpChat, e.helpChatSub, "openChatGeneral") + '<div style="height:1px;background:var(--hair)"></div>' +
         helpRow(e.helpReport, e.helpReportSub, "openDispute") + '<div style="height:1px;background:var(--hair)"></div>' +
-        helpRow(e.helpCall, "+237 6 00 00 00 00", null, null, "tel:+237600000000") + '</div>' +
+        helpRow(e.helpCall, SUPPORT_PHONE_LABEL, null, null, "tel:" + SUPPORT_PHONE) + '</div>' +
       '<div style="font-weight:700;font-size:12px;color:rgba(16,16,16,.55)">' + esc(e.helpClaims) + '</div>' +
       '<div style="' + cardStyle + '">' + claims + '</div>');
   }
@@ -948,6 +1191,38 @@
     };
     reader.readAsDataURL(el.files[0]);
   });
+
+  /* ============================== Mon profil ============================== */
+  var PROF = {
+    fr: { title: "Mon profil", name: "Nom affiché", phone: "Téléphone", save: "Enregistrer", saved: "Profil mis à jour.", need: "Indiquez au moins 2 lettres.",
+      del: "Supprimer mon compte", delTitle: "Supprimer votre compte ?", delSub: "Vos adresses, numéros et préférences seront effacés et vous serez déconnecté. L'historique des commandes est conservé de façon anonyme pour la comptabilité.",
+      delConfirm: "Supprimer définitivement", keep: "Annuler", deleted: "Compte supprimé.", row: "Mon profil" },
+    en: { title: "My profile", name: "Display name", phone: "Phone", save: "Save", saved: "Profile updated.", need: "Enter at least 2 letters.",
+      del: "Delete my account", delTitle: "Delete your account?", delSub: "Your addresses, numbers and preferences will be erased and you will be logged out. Order history is kept anonymously for accounting.",
+      delConfirm: "Delete permanently", keep: "Cancel", deleted: "Account deleted.", row: "My profile" }
+  };
+  function tp() { return PROF[state.lang] || PROF.fr; }
+  function screenProfile() {
+    var p = tp();
+    if (state.profileName == null) state.profileName = state.user.name || "";
+    return page3(hdr(p.title) +
+      '<div class="col" style="gap:8px">' + sectionTitle(p.name) +
+        '<input data-bind="profileName" autocomplete="name" aria-label="' + esc(p.name) + '" value="' + esc(state.profileName) + '" style="background:#fff;border:1px solid var(--hair);border-radius:16px;height:52px;padding:0 15px;font-weight:600;font-size:14px" /></div>' +
+      '<div class="col" style="gap:8px">' + sectionTitle(p.phone) +
+        '<div class="mono" style="background:rgba(16,16,16,.04);border-radius:16px;height:52px;padding:0 15px;display:flex;align-items:center;font-weight:600;font-size:13.5px">+237 ' + esc(state.phone) + '</div></div>' +
+      '<button class="btn btn-ink" data-action="saveProfile">' + esc(p.save) + '</button>' +
+      '<div style="height:1px;background:var(--hair);margin:6px 0"></div>' +
+      '<button class="btn" data-action="askDeleteAccount" style="height:48px;background:transparent;border:1.5px solid rgba(16,16,16,.12);color:#101010;font-weight:700;font-size:13px">' + esc(p.del) + '</button>');
+  }
+  function deleteSheet() {
+    var p = tp();
+    return '<div class="sheet-backdrop" data-action="closeDeleteAccount"></div><div class="sheet" role="dialog" aria-modal="true" aria-label="' + esc(p.delTitle) + '">' +
+      '<div style="width:34px;height:4px;border-radius:9px;background:rgba(16,16,16,.15);margin:0 auto 6px"></div>' +
+      '<h2 style="margin:0;font-weight:800;font-size:19px;letter-spacing:-.4px">' + esc(p.delTitle) + '</h2>' +
+      '<p style="margin:0;font-size:12.5px;line-height:1.5;color:rgba(16,16,16,.7)">' + esc(p.delSub) + '</p>' +
+      '<button class="btn btn-ink" data-action="confirmDeleteAccount">' + esc(p.delConfirm) + '</button>' +
+      '<button class="btn" data-action="closeDeleteAccount" style="height:44px;background:transparent;font-weight:700;font-size:13px">' + esc(p.keep) + '</button></div>';
+  }
 
   /* ============================== layout ============================== */
 
@@ -995,6 +1270,7 @@
         case "notifs": body = screenNotifs(); break;
         case "help": body = screenHelp(); break;
         case "dispute": body = screenDispute(); break;
+        case "profile": body = screenProfile(); break;
         default: body = screenHome();
       }
       var key = state.activeTab + ":" + stack().length + ":" + c.screen + ":" + (state.draft ? state.draft.step : "") + ":" + (c.orderId || "");
@@ -1002,6 +1278,7 @@
       html = offlineBar() + '<div class="screen-body' + anim + '">' + body + '</div>' + tabbar();
     }
     if (state.loggedIn && state.cancelFor) html += cancelSheet();
+    if (state.loggedIn && state.deleteAsk) html += deleteSheet();
     if (state.toast) html += '<div class="toast">' + esc(state.toast) + '</div>';
     var ae = document.activeElement, bindKey = ae && ae.getAttribute && ae.getAttribute("data-bind"), s0 = null, s1 = null;
     if (bindKey) { try { s0 = ae.selectionStart; s1 = ae.selectionEnd; } catch (e) {} }
@@ -1055,17 +1332,23 @@
     },
     switchTab: function (el, arg) { switchTab(arg); },
     popScreen: function () { popScreen(); },
-    pickService: function (el, arg) {
-      var s = svc(arg);
-      state.draft = {
-        service: arg, step: 1,
-        pickup: "Bonamoussadi, rue 4.212", dropoff: "Akwa, av. du Général de Gaulle",
-        pickupGeo: geoOf("Bonamoussadi"), dropoffGeo: geoOf("Akwa"),
-        weightKg: 2.5, note: "", vehicle: "bike", payMethod: state.defaultPay || "orange_money"
-      };
-      push("order");
-    },
-    pickQuartier: function (el, arg) { var f = state.addrTarget || "dropoff"; state.draft[f] = arg + ", Douala"; state.draft[f + "Geo"] = geoOf(arg); state.suggest = null; render(); },
+    pickService: function (el, arg) { state.draft = newDraft(arg); state.suggest = null; push("order"); },
+    setWhen: function (el, arg) { state.draft.when = arg; render(); },
+    laundryItem: function (el, arg) { var p = arg.split("|"), L = state.draft.laundry; L.items[p[0]] = Math.max(0, (L.items[p[0]] || 0) + Number(p[1])); render(); },
+    laundryKg: function (el, arg) { var L = state.draft.laundry, k = L.kg || 0, up = Number(arg.split("|")[1]) > 0; L.kg = Math.max(0, up ? k + (k < 10 ? 0.5 : 1) : k - (k <= 10 ? 0.5 : 1)); render(); },
+    setLaundryMode: function (el, arg) { state.draft.laundry.mode = arg; render(); },
+    setLaundrySpeed: function (el, arg) { state.draft.laundry.speed = arg; render(); },
+    toggleSameReturn: function () { var L = state.draft.laundry; L.sameReturn = !L.sameReturn; if (L.sameReturn) state.addrTarget = "pickup"; render(); },
+    errandQty: function (el, arg) { var p = arg.split("|"), it = state.draft.errand.list[Number(p[0])]; if (it) it.qty = Math.max(1, (Number(it.qty) || 1) + Number(p[1])); render(); },
+    addErrandItem: function () { state.draft.errand.list.push({ name: "", qty: 1, price: "" }); render(); var f = document.querySelector('[data-bind="errand.name.' + (state.draft.errand.list.length - 1) + '"]'); if (f) f.focus(); },
+    removeErrandItem: function (el, arg) { var L = state.draft.errand.list; L.splice(Number(arg), 1); if (!L.length) L.push({ name: "", qty: 1, price: "" }); render(); },
+    quickErrandItem: function (el, arg) { var L = state.draft.errand.list, empty = L.filter(function (x) { return !String(x.name).trim(); })[0]; if (empty) empty.name = arg; else L.push({ name: arg, qty: 1, price: "" }); render(); },
+    setErrandLoad: function (el, arg) { state.draft.errand.load = arg; render(); },
+    toggleErrandAdvance: function () { var E = state.draft.errand; E.advance = E.advance === false; render(); },
+    ridePassengers: function (el, arg) { var R = state.draft.ride; R.passengers = Math.max(1, Math.min(4, R.passengers + Number(arg.split("|")[1]))); if (R.passengers > 1) state.draft.vehicle = "car"; render(); },
+    pickMarket: function (el, arg) { var m = MARKETS[Number(arg)]; state.draft.pickup = m[0] + ", Douala"; state.draft.pickupGeo = { lat: m[1], lng: m[2] }; state.suggest = null; state.addrTarget = "dropoff"; render(); },
+    goTopUp: function () { state.activeTab = "wallet"; state.tabStacks.wallet = [{ screen: "wallet" }]; state.walletPanel = "topup"; state.topUpAmount = ""; render(); },
+    pickQuartier: function (el, arg) { var f = state.draft.service === "laundry" && state.draft.laundry.sameReturn ? "pickup" : (state.addrTarget || "dropoff"); state.draft[f] = arg + ", Douala"; state.draft[f + "Geo"] = geoOf(arg); state.suggest = null; render(); },
     pickSaved: function (el, arg) { var a = state.addresses[Number(arg)]; if (!a) return; applyPlace(state.addrTarget || "dropoff", { label: a.text, lat: a.geo.lat, lng: a.geo.lng }); render(); },
     setAddrTarget: function (el, arg) { state.addrTarget = arg; render(); },
     pickSuggest: function (el, arg) {
@@ -1094,20 +1377,22 @@
       }, function () { ob[field] = ""; render(); toast(d.locError); }, { enableHighAccuracy: true, timeout: 10000, maximumAge: 60000 });
     },
 
-    incWeight: function () { state.draft.weightKg = Math.round((state.draft.weightKg + 0.5) * 10) / 10; render(); },
-    decWeight: function () { state.draft.weightKg = Math.max(0.5, Math.round((state.draft.weightKg - 0.5) * 10) / 10); render(); },
+    incWeight: function () { var dr = state.draft, w = dr.weightKg; dr.weightKg = Math.min(1000, Math.round((w + (w < 5 ? 0.5 : w < 25 ? 1 : w < 100 ? 5 : 25)) * 10) / 10); if (!WPricing.vehicleAllows(dr.vehicle, dr.weightKg)) dr.vehicle = WPricing.vehicleFor(dr.weightKg); render(); },
+    decWeight: function () { var dr = state.draft, w = dr.weightKg; dr.weightKg = Math.max(0.5, Math.round((w - (w <= 5 ? 0.5 : w <= 25 ? 1 : w <= 100 ? 5 : 25)) * 10) / 10); render(); },
     pickVehicle: function (el, arg) { state.draft.vehicle = arg; render(); },
-    orderBack: function () { popScreen(); },
+    orderBack: function () { var dr = state.draft; state.suggest = null; if (state.settings.orderFlow === "stepped" && dr && dr.step > 1) { dr.step--; render(); return; } popScreen(); },
     orderNext: function () {
       var stepped = state.settings.orderFlow === "stepped";
       state.suggest = null;
-      if (stepped && state.draft.step < 3) { state.draft.step++; render(); return; }
+      var dr = state.draft, chk = stepChecks(dr, stepped ? dr.step : 1) || (stepped ? null : stepChecks(dr, 2) || stepChecks(dr, 3));
+      if (chk) { toast(chk); return; }
+      if (stepped && dr.step < 3) { dr.step++; render(); var sc = document.querySelector("#app .scroll"); if (sc) sc.scrollTop = 0; return; }
       push("payment");
     },
     pickPay: function (el, arg) { state.draft.payMethod = arg; render(); },
     confirmPay: function () {
       var d = t(); var draft = state.draft;
-      var price = computePrice(draft.service, draft.weightKg);
+      var q = draftQuote(draft), price = { gross: q.gross, discount: q.discount, net: q.net };
       if (draft.payMethod === "wallet" && state.wallet.balance < price.net) { toast(d.insufficient); return; }
       var finish = function () {
         var id = "o" + (state.seq++);
@@ -1115,10 +1400,12 @@
         var paid = draft.payMethod !== "cash";
         if (draft.payMethod === "wallet") state.wallet.balance -= price.net;
         var order = {
-          id: id, code: code, service: draft.service, pickup: draft.pickup, dropoff: draft.dropoff,
-          weightKg: draft.weightKg, vehicle: draft.vehicle, note: draft.note,
-          pickupGeo: draft.pickupGeo || geoOf(draft.pickup), dropoffGeo: draft.dropoffGeo || geoOf(draft.dropoff), createdAt: Date.now(),
+          id: id, code: code, service: draft.service, pickup: draft.pickup, dropoff: finalDrop(draft).text,
+          weightKg: draft.service === "parcel" ? draft.weightKg : 0, note: draft.note,
+          pickupGeo: draft.pickupGeo || geoOf(draft.pickup), dropoffGeo: finalDrop(draft).geo || geoOf(finalDrop(draft).text), createdAt: Date.now(),
           paymentMethod: draft.payMethod, paymentStatus: paid ? "paid" : "cod",
+          price: price, priceLines: q.lines, distanceKm: q.distanceKm, zone: q.zone, scheduledAt: whenAt(draft.when),
+          details: orderDetails(draft), vehicle: q.vehicle,
           status: "received", stage: 0, rating: null
         };
         state.orders.unshift(order);
@@ -1203,6 +1490,26 @@
       render();
     },
     openScreen: function (el, arg) { push(arg); },
+    openProfile: function () { state.profileName = state.user.name || ""; push("profile"); },
+    saveProfile: function () {
+      var p = tp(), name = (state.profileName || "").trim();
+      if (name.length < 2) { toast(p.need); return; }
+      var done = function () { state.user.name = name; state.user.initials = initials(name); toast(p.saved); };
+      if (window.WAPI && WAPI.status.on && WAPI.token()) WAPI.patch("/me", { name: name }).then(done).catch(function (e) { toast(e.message); });
+      else done();
+    },
+    askDeleteAccount: function () { state.deleteAsk = true; render(); },
+    closeDeleteAccount: function () { state.deleteAsk = false; render(); },
+    confirmDeleteAccount: function () {
+      var p = tp();
+      var finish = function () {
+        state.deleteAsk = false; state.addresses = []; state.payAccounts = []; state.orders = []; state.disputes = []; state.chatByOrder = {};
+        if (window.WAPI) WAPI.setToken(null);
+        actions.logOut(); toast(p.deleted);
+      };
+      if (window.WAPI && WAPI.status.on && WAPI.token()) WAPI.del("/me").then(finish).catch(function (e) { state.deleteAsk = false; render(); toast(e.message); });
+      else finish();
+    },
     newAddress: function () { state.addrForm = { label: t3().addrLabels[0], addr: "", addrGeo: null }; state.suggest = null; push("addrForm"); },
     setAddrLabel: function (el, arg) { state.addrForm.label = arg; render(); },
     saveAddrForm: function () {
@@ -1245,7 +1552,7 @@
     confirmCancel: function () {
       var e = t3(), c = state.cancelFor; if (!c || c.reason == null) return;
       var o = findOrder(c.orderId); if (!o || o.stage > 0) { state.cancelFor = null; render(); return; }
-      var price = computePrice(o.service, o.weightKg);
+      var price = { net: orderNet(o) };
       o.status = "cancelled"; o.cancelledAt = Date.now(); o.cancelReason = e.cancelReasons[c.reason];
       if (o.paymentMethod === "wallet") { state.wallet.balance += price.net; o.refundNote = e.refundWallet; }
       else if (o.paymentMethod === "orange_money" || o.paymentMethod === "mtn_momo" || o.paymentMethod === "card") o.refundNote = e.refundMomo;
@@ -1295,6 +1602,8 @@
 
     if (bind === "phone") state.phone = el.value.replace(/[^\d ]/g, "");
     else if (bind === "nameInput") state.nameInput = el.value;
+    else if (/^errand\.(name|price)\.\d+$/.test(bind)) { var bp = bind.split("."), it = state.draft.errand.list[Number(bp[2])]; if (it) it[bp[1]] = bp[1] === "price" ? el.value.replace(/\D/g, "") : el.value; }
+    else if (bind === "profileName") state.profileName = el.value;
     else if (bind === "addrForm.addr") { state.addrForm.addr = el.value; state.addrForm.addrGeo = null; suggest("addr", el.value); }
     else if (bind === "addrForm.label") state.addrForm.label = el.value;
     else if (bind === "payForm.number") state.payForm.number = el.value.replace(/[^\d ]/g, "");
@@ -1466,8 +1775,10 @@
     if (!srv()) return base.confirmPay();
     var draft = state.draft; if (state.payPending) return;
     state.payPending = true; render();
-    WAPI.post("/orders", { service: draft.service, pickup: draft.pickup, dropoff: draft.dropoff, pickupGeo: draft.pickupGeo || geoOf(draft.pickup),
-      dropoffGeo: draft.dropoffGeo || geoOf(draft.dropoff), weightKg: draft.weightKg, vehicle: draft.vehicle, note: draft.note, paymentMethod: draft.payMethod })
+    var fd = finalDrop(draft), det = orderDetails(draft);
+    WAPI.post("/orders", { service: draft.service, pickup: draft.pickup, dropoff: fd.text, pickupGeo: draft.pickupGeo || geoOf(draft.pickup),
+      dropoffGeo: fd.geo || geoOf(fd.text), weightKg: draft.weightKg, vehicle: draft.vehicle, note: draft.note, paymentMethod: draft.payMethod,
+      scheduledAt: whenAt(draft.when), laundry: det.laundry, errand: det.errand, ride: det.ride })
       .then(function (r) {
         state.payPending = false; state.wallet.balance = r.wallet.balance; replaceOrder(r.order);
         var st0 = stack(); state.tabStacks[state.activeTab] = [st0[0], { screen: "track", orderId: r.order.id }];
@@ -1538,15 +1849,16 @@
     }, 800);
   }
 
-  /* suivi : la commande affichée est relue toutes les 5 secondes */
+  /* suivi : la commande affichée est relue toutes les 15 secondes, tant qu'elle est en cours */
   setInterval(function () {
     if (!srv() || !state.loggedIn || document.hidden) return;
     var c = cur(); if (c.screen !== "track" || !c.orderId) return;
+    var cur0 = findOrder(c.orderId); if (cur0 && (cur0.status === "delivered" || cur0.status === "cancelled")) return;
     WAPI.get("/orders/" + c.orderId).then(function (r) {
       var old = findOrder(r.order.id);
       if (!old || old.status !== r.order.status || old.stage !== r.order.stage) { replaceOrder(r.order); render(); }
     }).catch(function () {});
-  }, 5000);
+  }, 15000);
 
   /* Persistance locale (cache de l'app ; en mode serveur, le serveur fait foi) */
   var KEEP = ["lang", "loggedIn", "phone", "user", "wallet", "settings", "orders", "seq", "chatByOrder", "addresses", "payAccounts", "defaultPay", "notifPrefs", "disputes"];

@@ -77,7 +77,9 @@ await page.click('[data-action="popScreen"]');
 // ---- Commande payée par défaut (MTN), puis annulation
 await page.click('[data-action="switchTab"][data-arg="home"]');
 await page.click('[data-action="pickService"][data-arg="parcel"]');
-for(let i=0;i<3;i++) await page.click('[data-action="orderNext"]');
+await page.click('[data-action="pickQuartier"][data-arg="Akwa"]');
+await page.click('[data-action="orderNext"]'); await page.click('[data-action="setWhen"][data-arg="tomorrow"]');
+for(let i=0;i<2;i++) await page.click('[data-action="orderNext"]');
 ok('Le moyen par défaut est présélectionné',await page.getAttribute('[data-action="pickPay"][data-arg="mtn_momo"]','style').then(s=>s.includes('#101010')));
 await page.click('[data-action="pickPay"][data-arg="wallet"]');
 await page.click('[data-action="confirmPay"]');
@@ -90,13 +92,15 @@ await page.click('[data-action="pickCancelReason"][data-arg="1"]');
 await page.click('[data-action="confirmCancel"]');
 await page.waitForSelector('text=Commande annulée');
 const st=await store();
-ok('Commande annulée et remboursée sur le portefeuille',st.orders[0].status==='cancelled' && st.wallet.balance===balBefore+2500,`${balBefore} → ${st.wallet.balance}`);
+ok('Commande annulée et remboursée sur le portefeuille',st.orders[0].status==='cancelled' && st.wallet.balance===balBefore+st.orders[0].price.net,`${balBefore} → ${st.wallet.balance}`);
 await shot('25-commande-annulee');
 
 // ---- Commande livrée puis litige
 await page.click('[data-action="switchTab"][data-arg="home"]');
 await page.click('[data-action="pickService"][data-arg="laundry"]');
-for(let i=0;i<3;i++) await page.click('[data-action="orderNext"]');
+await page.click('[data-action="orderNext"]');
+await page.click('[data-action="laundryItem"][data-arg="shirt|1"]'); await page.click('[data-action="setWhen"][data-arg="tomorrow"]');
+for(let i=0;i<2;i++) await page.click('[data-action="orderNext"]');
 await page.click('[data-action="pickPay"][data-arg="cash"]');
 await page.click('[data-action="confirmPay"]');
 await page.waitForSelector('[data-action="advanceOrder"]');

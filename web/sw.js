@@ -1,9 +1,9 @@
 /* WunaGo — service worker
    Réseau d'abord : on sert toujours la dernière version publiée ;
    le cache ne sert qu'en secours, hors connexion. */
-const CACHE = "wunago-v7";
+const CACHE = "wunago-v8";
 const SHELL = [
-  "./", "index.html", "styles.css", "config.js", "app.js", "geo.js", "map.js", "gmaps.js", "api.js", "manifest.webmanifest",
+  "./", "index.html", "styles.css", "config.js", "app.js", "pricing.mjs", "geo.js", "map.js", "gmaps.js", "api.js", "manifest.webmanifest",
   "vendor/leaflet/leaflet.js", "vendor/leaflet/leaflet.css",
   "fonts/Manrope-200-800.woff2", "fonts/IBMPlexMono-400.woff2", "fonts/IBMPlexMono-500.woff2", "fonts/IBMPlexMono-600.woff2",
   "icons/icon-192.png", "icons/icon-512.png", "icons/apple-touch-icon.png"
