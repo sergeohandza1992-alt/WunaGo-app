@@ -8,6 +8,8 @@
   /* Numéro du service client WunaGo — À REMPLACER par le vrai numéro */
   var SUPPORT_PHONE = "+237600000000", SUPPORT_PHONE_LABEL = "+237 6 00 00 00 00";
   var STORE_KEY = "wunago.client.v1";
+  /* Version affichée dans Réglages : à changer avec CACHE dans sw.js à chaque mise en ligne */
+  var APP_VERSION = "14 · 17/11/2026";
   var deferredInstall = null;
   var lastScreenKey = "";
   var installDismissed = false;
@@ -1078,6 +1080,8 @@
         '<button data-action="toggleShowActive" style="border:0;width:44px;height:26px;border-radius:99px;background:' + (state.settings.showActiveOrder ? "#101010" : "rgba(16,16,16,.15)") + ';position:relative;cursor:pointer">' +
         '<span style="position:absolute;top:3px;left:' + (state.settings.showActiveOrder ? "21px" : "3px") + ';width:20px;height:20px;border-radius:99px;background:#FFD700;transition:left .15s"></span></button></div>' +
       '<button class="btn btn-outline" data-action="logOut" style="margin-top:6px">' + esc(d.logOut) + '</button>' +
+      '<div class="col" style="gap:8px;align-items:center;padding-top:6px"><span class="mono" style="font-size:10.5px;color:rgba(16,16,16,.5)">' + (state.lang === "en" ? "Version " : "Version ") + APP_VERSION + '</span>' +
+      '<button class="btn" data-action="forceUpdate" style="height:44px;background:transparent;font-weight:700;font-size:12.5px;text-decoration:underline">' + (state.lang === "en" ? "Check for updates" : "Rechercher une mise à jour") + '</button></div>' +
     '</div></div>';
   }
 
@@ -1743,9 +1747,22 @@
   }
 
   function offlineBar() {
-    if (navigator.onLine !== false) return "";
-    return '<div class="offline-bar" role="status">' + esc(p().offline) + '</div>';
+    if (navigator.onLine === false) return '<div class="offline-bar" role="status">' + esc(p().offline) + '</div>';
+    /* réseau présent mais serveur WunaGo injoignable (certains réseaux mobiles bloquent l'adresse) : on le dit clairement */
+    if (window.WAPI && WAPI.status.unreachable && location.protocol === "https:") return '<div class="offline-bar" role="status" style="display:flex;align-items:center;gap:8px;justify-content:center;flex-wrap:wrap">' +
+      esc(state.lang === "en" ? "WunaGo server unreachable on this network: the app may be outdated. Try Wi-Fi." : "Serveur WunaGo injoignable sur ce réseau : l'app peut être ancienne. Essayez en Wi-Fi.") +
+      '<button class="btn" data-action="retryServer" style="height:30px;border-radius:99px;padding:0 12px;background:#FFD700;color:#101010;font-size:11px;font-weight:700">' + (state.lang === "en" ? "Retry" : "Réessayer") + '</button></div>';
+    return "";
   }
+  actions.retryServer = function () { WAPI.check().then(function (on) { if (on) location.reload(); else { render(); toast(state.lang === "en" ? "Still unreachable." : "Toujours injoignable."); } }); };
+  /* mise à jour forcée : supprime l'ancienne version gardée par le téléphone puis recharge */
+  actions.forceUpdate = function () {
+    toast(state.lang === "en" ? "Updating…" : "Mise à jour…");
+    var jobs = [];
+    if (navigator.serviceWorker && navigator.serviceWorker.getRegistrations) jobs.push(navigator.serviceWorker.getRegistrations().then(function (rs) { return Promise.all(rs.map(function (r) { return r.unregister(); })); }));
+    if (window.caches) jobs.push(caches.keys().then(function (ks) { return Promise.all(ks.map(function (k) { return caches.delete(k); })); }));
+    Promise.all(jobs).catch(function () {}).then(function () { location.replace(location.pathname + "?maj=" + Date.now()); });
+  };
 
   actions.doInstall = function () {
     if (!deferredInstall) return;
@@ -2559,7 +2576,7 @@
   render();
 
   if (window.WAPI && location.protocol !== "file:") WAPI.check().then(function (on) {
-    if (!on) return;
+    if (!on) { if (WAPI.status.unreachable) render(); return; }
     if (WAPI.token()) { if (state.loggedIn) syncAll(); else forceLogin(); }
     else if (state.loggedIn) forceLogin(); /* données de démo locales : on passe au vrai compte */
   });
