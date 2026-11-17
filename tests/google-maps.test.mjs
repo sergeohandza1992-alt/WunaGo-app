@@ -1,4 +1,5 @@
 // Mode Google Maps : vérifié avec une version simulée de l'API Google (pas de clé ni de réseau requis).
+import { fixClock, fixNode } from './horloge.mjs'; fixNode();
 import { chromium } from 'playwright';
 import { spawn } from 'node:child_process';
 const server=spawn('python3',['-m','http.server','8766','--directory','web'],{stdio:'ignore'});
@@ -22,7 +23,7 @@ const STUB=`(function(){
   setTimeout(function(){window.__wgGmapsReady()},10);
 })();`;
 const browser=await chromium.launch(process.env.CHROME_PATH?{executablePath:process.env.CHROME_PATH}:{});
-const ctx=await browser.newContext({viewport:{width:390,height:844},isMobile:true,hasTouch:true,locale:'fr-FR',geolocation:{latitude:4.03,longitude:9.69},permissions:['geolocation']});
+const ctx=await browser.newContext({viewport:{width:390,height:844},isMobile:true,hasTouch:true,locale:'fr-FR',geolocation:{latitude:4.03,longitude:9.69},permissions:['geolocation']}); await fixClock(ctx);
 await ctx.addInitScript(()=>{window.WG_CONFIG={googleMapsKey:'CLE-DE-TEST'}});
 let loadedKey=null;
 await ctx.route('https://maps.googleapis.com/**',r=>{loadedKey=new URL(r.request().url()).searchParams.get('key');return r.fulfill({status:200,contentType:'text/javascript',body:STUB})});

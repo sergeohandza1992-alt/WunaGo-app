@@ -1,4 +1,5 @@
 // Deuxième livraison : backoffice, vrai livreur (position en direct), messagerie client / livreur / service client, notifications.
+import { fixClock, fixNode } from './horloge.mjs'; fixNode();
 import { chromium } from 'playwright';
 import { spawn } from 'node:child_process';
 const srv=spawn('node',['tests/dev-server.mjs','8772'],{stdio:['ignore','pipe','inherit'],env:{...process.env,ADMIN_PHONES:'690000001',WG_PUSH_DRY:'1'}});
@@ -10,7 +11,7 @@ const results=[]; const ok=(n,c,info='')=>{const l=`${c?'PASS':'FAIL'}  ${n}${in
 const browser=await chromium.launch(process.env.CHROME_PATH?{executablePath:process.env.CHROME_PATH}:{});
 const pages=[];
 async function open(opts={}){
-  const ctx=await browser.newContext({viewport:{width:390,height:844},isMobile:true,hasTouch:true,locale:'fr-FR',serviceWorkers:'block',...opts});
+  const ctx=await browser.newContext({viewport:{width:390,height:844},isMobile:true,hasTouch:true,locale:'fr-FR',serviceWorkers:'block',...opts}); await fixClock(ctx);
   await ctx.route('https://*.tile.openstreetmap.org/**',r=>r.abort());
   await ctx.route('https://tile.openstreetmap.org/**',r=>r.abort());
   await ctx.route('https://photon.komoot.io/**',r=>r.fulfill({status:200,contentType:'application/json',body:'{"features":[]}'}));
@@ -61,6 +62,7 @@ ok('Livreur : en ligne',true);
 
 /* 3. Client : commande sans livreur → « recherche d'un livreur » */
 const CLI=await open();
+await CLI.context().addInitScript(()=>{ try { Object.defineProperty(navigator,'contacts',{value:{select:async()=>[{name:['Paul Mbarga'],tel:['+237 677 11 22 33']}]}}); } catch(e){} });
 await login(CLI,'6 99 00 00 03','Ariane Ngono');
 await CLI.waitForSelector('text=Ariane Ngono');
 await sub(CLI,'client');
@@ -72,7 +74,9 @@ await CLI.click('[data-action="setRecipient"][data-arg="other"]');
 ok('Client : prix affiché dès le choix des adresses',/Continuer · [\d\s\u202f]+ FCFA/.test(await CLI.locator('[data-action="orderNext"]').textContent()));
 await CLI.click('[data-action="orderNext"]');
 ok('Client : destinataire obligatoire quand ce n\'est pas le client',await CLI.isVisible('[data-bind="draft.rname"]'));
-await CLI.fill('[data-bind="draft.rname"]','Paul Mbarga'); await CLI.fill('[data-bind="draft.rphone"]','677112233');
+await CLI.click('[data-action="pickContact"]');
+await CLI.waitForFunction(()=>document.querySelector('[data-bind="draft.rphone"]')?.value==='677112233');
+ok('Client : destinataire choisi dans les contacts du téléphone',(await CLI.inputValue('[data-bind="draft.rname"]'))==='Paul Mbarga');
 for(let i=0;i<3;i++) await CLI.click('[data-action="orderNext"]');
 await CLI.click('[data-action="pickPay"][data-arg="cash"]');
 await CLI.click('[data-action="confirmPay"]');
@@ -96,10 +100,13 @@ await shot(CLI,'01-client-suivi-vrai-livreur');
 ok('Client : invitation à activer les notifications',await CLI.isVisible('text=Soyez prévenu sur votre téléphone'));
 ok('Client : code de remise affiché avec bouton de partage',/^\d{4}$/.test((await CLI.locator('.mono[style*="letter-spacing:.3em"]').textContent()).trim())&&await CLI.isVisible('[data-action="shareTracking"]'));
 const myOrder=(await CLI.evaluate(async()=>(await (await fetch('/api/orders',{headers:{authorization:'Bearer '+WAPI.token()}})).json()).orders))[0];
-const PUB=await open();
+const PUB=await open({geolocation:{latitude:4.0962,longitude:9.7415},permissions:['geolocation']});
 await PUB.goto(URL+'suivi.html?c='+myOrder.trackToken);
 await PUB.waitForSelector('text=Marcel',{timeout:T});
 ok('Lien de suivi public (sans compte) : livreur et repère visibles',await PUB.isVisible('text=Pour Paul Mbarga')&&await PUB.isVisible('text=Portail bleu après la pharmacie'));
+await PUB.click('#share-pos');
+await PUB.waitForSelector('text=Position exacte reçue ✓',{timeout:T});
+ok('Destinataire : position exacte envoyée depuis le lien de suivi',true);
 await shot(PUB,'17-suivi-public');
 ok('Client : vrai livreur affiché (nom, plaque, appel)',await CLI.isVisible('text=LT 123 AB')&&await CLI.isVisible('a[href="tel:+237677000002"]'));
 ok('Client : plus de bouton de simulation quand un livreur réel est assigné',!(await CLI.isVisible('[data-action="advanceOrder"]')));
@@ -128,6 +135,8 @@ await LIV.click('[data-arg$="|arrived"]');
 await LIV.waitForSelector('text=Client prévenu de votre arrivée');
 await PUB.waitForSelector('text=Votre livreur est arrivé',{timeout:T});
 ok('Livreur « Je suis arrivé » : client et destinataire prévenus',true);
+await LIV.waitForSelector('text=Position exacte envoyée par le destinataire',{timeout:T});
+ok('Livreur : position exacte du destinataire signalée',true);
 ok('Livreur : destinataire et repère affichés',await LIV.isVisible('text=Paul Mbarga')&&await LIV.isVisible('text=Portail bleu après la pharmacie')&&await LIV.isVisible('a[href="tel:+237677112233"]'));
 await LIV.click('[data-action="startProof"]');
 await LIV.fill('[data-bind="proofCode"]',myOrder.deliveryCode==='0000'?'1111':String((Number(myOrder.deliveryCode)+1)%10000).padStart(4,'0'));
@@ -311,6 +320,9 @@ const farOffers=(await call('/courier/offers','GET',null,farTok)).offers, nearOf
 ok('Nouvelle course proposée d\'abord aux livreurs proches',!farOffers.some(o=>o.dropoff==='Deido')&&nearOffers.some(o=>o.dropoff==='Deido'));
 const al=await call('/admin/run-alerts','POST',{},admTok);
 ok('Alertes automatiques : rien à signaler avant 3 / 10 minutes',al.broadcast===0&&al.late===0);
+await CLI.click('[data-action="switchTab"][data-arg="home"]'); await CLI.click('[data-action="switchTab"][data-arg="home"]');
+await CLI.waitForSelector('text=Vos trajets récents');
+ok('Client : trajets récents sur l\'accueil, recommandables en un geste',await CLI.isVisible('button[data-action="reorder"]:has-text("Akwa → Bonamoussadi")'));
 await CLI.click('[data-action="switchTab"][data-arg="orders"]'); await CLI.click('[data-action="switchTab"][data-arg="orders"]');
 await CLI.click('[data-action="openOrder"] >> nth=-1');
 await CLI.waitForSelector('[data-action="reorder"]');
@@ -334,6 +346,15 @@ await ADM.click('[data-a="noSave"]');
 await ADM.waitForSelector('text=Commande enregistrée ✓');
 ok('Backoffice : commande créée pour un client par téléphone, lien WhatsApp prêt',/wa\.me\/237699000005/.test(await ADM.locator('.drawer a.btn-yellow').getAttribute('href')));
 await ADM.click('[data-a="closeDrawer"] >> nth=1');
+
+/* 11 septies. Prix visible sans compte, depuis l'écran de connexion */
+const VIS=await open();
+await VIS.goto(URL); await VIS.waitForFunction(()=>window.WAPI&&WAPI.status.checked);
+await VIS.click('[data-action="openPrice"]');
+await VIS.locator('select[data-sim="from"]').selectOption('Akwa'); await VIS.locator('select[data-sim="to"]').selectOption('Makepe');
+await VIS.waitForSelector('text=PRIX ESTIMÉ');
+ok('Visiteur : prix affiché sans compte',/[1-9][\d\s\u202f]* FCFA/.test(await VIS.locator('#app').innerText()));
+await shot(VIS,'18-prix-sans-compte');
 
 /* 12. Notifications envoyées (mode test, sans envoi réel) */
 const log=await CLI.evaluate(async()=>(await (await fetch('/api/push/_log',{headers:{authorization:'Bearer '+WAPI.token()}})).json()).log);

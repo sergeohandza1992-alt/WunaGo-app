@@ -1,4 +1,5 @@
 // Parcours dédiés (pressing, courses, déplacement), solde insuffisant, filtres, Mon profil.
+import { fixClock, fixNode } from './horloge.mjs'; fixNode();
 import { chromium } from 'playwright';
 import { spawn } from 'node:child_process';
 import { mkdirSync } from 'node:fs';
@@ -8,7 +9,7 @@ process.on('exit',()=>server.kill());
 await new Promise(r=>setTimeout(r,800));
 const results=[]; const ok=(n,c,info='')=>{const l=`${c?'PASS':'FAIL'}  ${n}${info?' — '+info:''}`;results.push(l);if(process.env.WG_VERBOSE)console.error(l)};
 const browser=await chromium.launch(process.env.CHROME_PATH?{executablePath:process.env.CHROME_PATH}:{});
-const ctx=await browser.newContext({viewport:{width:390,height:844},deviceScaleFactor:2,isMobile:true,hasTouch:true,locale:'fr-FR',serviceWorkers:'block'});
+const ctx=await browser.newContext({viewport:{width:390,height:844},deviceScaleFactor:2,isMobile:true,hasTouch:true,locale:'fr-FR',serviceWorkers:'block'}); await fixClock(ctx);
 await ctx.route('**/api/**',r=>r.fulfill({status:200,contentType:'application/json',body:'{"ok":false}'}));
 await ctx.route('https://tile.openstreetmap.org/**',r=>r.abort());
 await ctx.route('https://photon.komoot.io/**',r=>r.fulfill({status:200,contentType:'application/json',body:'{"features":[]}'}));

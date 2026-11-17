@@ -1,4 +1,5 @@
 // Serveur local pour les tests : sert web/ et fait tourner la fonction /api/* sur une base Postgres locale.
+import { fixNode } from './horloge.mjs'; fixNode();
 import http from "node:http";
 import { readFile, readdir } from "node:fs/promises";
 import { extname, join, normalize } from "node:path";

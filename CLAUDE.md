@@ -29,9 +29,11 @@ Porteur du projet : Serge-Venant OHANDZA. Langue de travail et de l'interface : 
   Courses proposées d'abord aux 3 livreurs les plus proches (8 km), puis à tous après 3 min ; alerte au backoffice après 10 min sans livreur :
   fonction planifiée `netlify/functions/alertes.mts` (toutes les 2 min, `netlify/lib/alerts.mts`). Versements des livreurs : table `courier_payments`.
   « Je suis arrivé » (étape `arrived`, `orders.arrived_at`) ; commande saisie par l'équipe pour un client (`POST /api/admin/orders`, `orders.created_by`, colis ou déplacement).
+  Le destinataire peut envoyer sa position exacte depuis le lien de suivi (`POST /api/suivi/:token/position`, 2,5 km max de l'adresse, prix inchangé) ;
+  trajets récents sur l'accueil ; destinataire depuis les contacts (Android) ; « Combien ça coûte ? » sans compte (écran de connexion).
   Version affichée : `APP_VERSION` (app.js) et pied du menu (admin.js), à changer avec `CACHE` (sw.js).
 - Tests : `livraison2` (multi-acteurs : backoffice, livreur, clients, messagerie, notifications), `tarifs` (grille, sans navigateur), `services` (parcours dédiés, profil), `parcours` (mode local), `google-maps` (API Google simulée), `ecrans-compte` (étape 3), `serveur` (API + Postgres local
-  via `tests/dev-server.mjs`). Lancer : `npm install && npx playwright install chromium && npm test`. Serveur local : `npm run dev`.
+  via `tests/dev-server.mjs`). Les tests décalent l'heure à midi la nuit (`tests/horloge.mjs`). Lancer : `npm install && npx playwright install chromium && npm test`. Serveur local : `npm run dev`.
 - Mise en ligne : Netlify (projet `wunago-app` → https://wunago-app.netlify.app).
   GitHub Actions est bloqué tant que le compte GitHub a un problème de facturation (ticket ouvert).
 

@@ -1,3 +1,4 @@
+import { fixClock, fixNode } from './horloge.mjs'; fixNode();
 import { chromium } from 'playwright';
 import { quote } from '../web/pricing.mjs';
 const tomorrow8=(()=>{const d=new Date(Date.now()+3600000);return Date.UTC(d.getUTCFullYear(),d.getUTCMonth(),d.getUTCDate()+1)-3600000+8*3600000})();
@@ -11,7 +12,7 @@ const URL='http://localhost:8765/';
 const results=[]; const ok=(n,c,info='')=>{results.push(`${c?'PASS':'FAIL'}  ${n}${info?' — '+info:''}`)};
 const browser=await chromium.launch(process.env.CHROME_PATH?{executablePath:process.env.CHROME_PATH}:{});
 const ctx=await browser.newContext({viewport:{width:390,height:844},deviceScaleFactor:2,isMobile:true,hasTouch:true,locale:'fr-FR',
-  geolocation:{latitude:4.0612,longitude:9.7295},permissions:['geolocation']});
+  geolocation:{latitude:4.0612,longitude:9.7295},permissions:['geolocation']}); await fixClock(ctx);
 // Services externes simulés (tuiles OpenStreetMap, recherche Photon) : le test ne dépend pas du réseau
 const TILE=Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8/5+hHgAHggJ/PchI7wAAAABJRU5ErkJggg==','base64');
 // Mode local (sans serveur) : l'API répond qu'elle n'est pas disponible

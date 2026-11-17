@@ -1,4 +1,5 @@
 // Étape 4 : l'app branchée sur l'API (Postgres local), parcours complet et données conservées côté serveur.
+import { fixClock, fixNode } from './horloge.mjs'; fixNode();
 import { chromium } from 'playwright';
 import { spawn } from 'node:child_process';
 const srv=spawn('node',['tests/dev-server.mjs','8771'],{stdio:['ignore','pipe','inherit']});
@@ -9,7 +10,7 @@ const URL='http://localhost:8771/';
 const results=[]; const ok=(n,c,info='')=>{const l=`${c?'PASS':'FAIL'}  ${n}${info?' — '+info:''}`;results.push(l);console.error(l)};
 const browser=await chromium.launch(process.env.CHROME_PATH?{executablePath:process.env.CHROME_PATH}:{});
 async function phone(){
-  const ctx=await browser.newContext({viewport:{width:390,height:844},deviceScaleFactor:2,isMobile:true,hasTouch:true,locale:'fr-FR',serviceWorkers:'block'});
+  const ctx=await browser.newContext({viewport:{width:390,height:844},deviceScaleFactor:2,isMobile:true,hasTouch:true,locale:'fr-FR',serviceWorkers:'block'}); await fixClock(ctx);
   await ctx.route('https://tile.openstreetmap.org/**',r=>r.abort());
   await ctx.route('https://photon.komoot.io/**',r=>r.fulfill({status:200,contentType:'application/json',body:'{"features":[]}'}));
   const page=await ctx.newPage(); page.errors=[]; page.on('pageerror',e=>page.errors.push(e.message)); return page;
