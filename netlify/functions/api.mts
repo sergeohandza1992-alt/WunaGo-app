@@ -574,6 +574,15 @@ async function shareDropoff(token: string, b: Row) {
   return json({ ok: true, dropoffGeo: { lat: rows[0].dropoff_lat, lng: rows[0].dropoff_lng } });
 }
 
+/* Les fonctions planifiées ne tournent qu'en production. En version de test (deploy preview), les alertes
+   sont aussi déclenchées par l'activité : écrans du backoffice et des livreurs (au plus une fois par minute et par instance). */
+let lastAlerts = 0;
+function maybeAlerts() {
+  if (Date.now() - lastAlerts < 60000) return;
+  lastAlerts = Date.now();
+  later(runAlerts(db()));
+}
+
 /* ---------- livreur ---------- */
 async function withClient(o: Row, viewer: Row) {
   const c = (await db().sql`SELECT name, phone FROM users WHERE id = ${o.user_id}`)[0] || {};
@@ -597,6 +606,7 @@ async function courierRoutes(req: Request, user: Row, path: string, m: string): 
   }
   if (path === "/courier/history" && m === "GET") return json(await courierHistory(user.id, new URL(req.url).searchParams));
   if (path === "/courier/offers" && m === "GET") {
+    maybeAlerts();
     const rows = await db().sql`
       SELECT * FROM orders WHERE courier_id IS NULL AND status = 'received'
         AND (scheduled_at IS NULL OR scheduled_at <= NOW() + INTERVAL '2 hours')
@@ -838,6 +848,7 @@ async function adminRoutes(req: Request, user: Row, path: string, m: string, url
     return json({ ok: true }, 201);
   }
   if (path === "/admin/stats") {
+    maybeAlerts();
     const s = await db().sql`
       SELECT
         (SELECT COUNT(*) FROM orders WHERE created_at >= date_trunc('day', NOW() AT TIME ZONE 'Africa/Douala') AT TIME ZONE 'Africa/Douala') AS orders_today,
