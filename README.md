@@ -69,3 +69,6 @@ Les données sont gardées dans le navigateur (`localStorage`) en attendant l'AP
 
 ## Backoffice
 Adresse : `/admin.html` (ex. https://wunago-app.netlify.app/admin.html). Connexion par code, réservée aux numéros de la variable Netlify `ADMIN_PHONES`.
+
+## Code WunaGo et commande éclair
+Adresse en 6 caractères (`WG-XXXX`) avec QR code, carnet de codes et envoi en un écran depuis l'accueil.
