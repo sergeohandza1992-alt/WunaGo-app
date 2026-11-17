@@ -407,7 +407,7 @@
       '<div class="col fill" style="background:#FFD700;padding:calc(30px + var(--sat)) 24px 30px;gap:16px">' +
         '<div class="brand-row"><svg width="26" height="33" viewBox="0 0 60 76"><path d="M30 4C14.5 4 4 15.4 4 29.5C4 47 30 72 30 72C30 72 56 47 56 29.5C56 15.4 45.5 4 30 4Z" fill="#101010"/><rect x="20" y="20" width="20" height="20" rx="3" fill="#FFD700"/></svg><span class="brand-name" style="font-size:21px">WunaGo</span></div>' +
         '<div style="font-weight:600;font-size:12.5px;line-height:1.4;color:rgba(16,16,16,.7)">' + esc(d.otpSentPrefix) + " +237 " + esc(state.phone) + '</div>' +
-        (DEMO ? '<div style="background:rgba(16,16,16,.08);border-radius:11px;padding:9px 12px;font-family:var(--mono);font-size:11px;line-height:1.5;color:rgba(16,16,16,.75)">' + esc(d.demoCode) + ' <b style="letter-spacing:.1em">' + state.generatedOtp + '</b></div>' : '') +
+        (DEMO && state.generatedOtp ? '<div style="background:rgba(16,16,16,.08);border-radius:11px;padding:9px 12px;font-family:var(--mono);font-size:11px;line-height:1.5;color:rgba(16,16,16,.75)">' + esc(d.demoCode) + ' <b style="letter-spacing:.1em">' + state.generatedOtp + '</b></div>' : '') +
         '<div class="fx" style="gap:8px">' + cells + '</div>' +
         '<div style="display:grid;grid-template-columns:repeat(3,1fr);gap:7px">' + pad + '</div>' +
         '<div style="text-align:center"><button data-action="resendOtp" style="background:none;border:0;font-weight:600;font-size:12px;text-decoration:underline;color:#101010;cursor:pointer">' + esc(d.resend) + '</button></div>' +
@@ -975,7 +975,7 @@
     var root = document.getElementById("app");
     var html = "";
     if (!state.loggedIn) {
-      html = offlineBar() + '<div class="screen-body">' + (state.authScreen === "otp" ? screenOtp() : screenLogin()) + '</div>';
+      html = offlineBar() + '<div class="screen-body">' + (state.authScreen === "otp" ? screenOtp() : state.authScreen === "name" ? screenName() : screenLogin()) + '</div>';
     } else {
       var c = cur();
       var body;
@@ -1294,6 +1294,7 @@
     if (!bind) return;
 
     if (bind === "phone") state.phone = el.value.replace(/[^\d ]/g, "");
+    else if (bind === "nameInput") state.nameInput = el.value;
     else if (bind === "addrForm.addr") { state.addrForm.addr = el.value; state.addrForm.addrGeo = null; suggest("addr", el.value); }
     else if (bind === "addrForm.label") state.addrForm.label = el.value;
     else if (bind === "payForm.number") state.payForm.number = el.value.replace(/[^\d ]/g, "");
@@ -1372,10 +1373,186 @@
     else if (e.key === "Backspace") actions.otpKey(null, "back");
   });
 
-  /* Persistance locale (sera remplacée par l'API WunaGo) */
+  /* ============================== mode serveur (API WunaGo) ============================== */
+  /* Si l'API répond, comptes, commandes, portefeuille et réclamations sont enregistrés sur le serveur.
+     Sinon, l'app garde le mode local (démo) d'origine. */
+  var NAME_STR = { fr: { title: "Comment vous appelle-t-on ?", sub: "Votre prénom et votre nom, pour le livreur et le service client.", ph: "Ex. Ariane Ngono", go: "Continuer", need: "Indiquez au moins 2 lettres." },
+                   en: { title: "What's your name?", sub: "First and last name, for the courier and support.", ph: "e.g. Ariane Ngono", go: "Continue", need: "Enter at least 2 letters." } };
+  function srv() { return !!(window.WAPI && WAPI.status.on); }
+  function errToast(e) { toast((e && e.message) || "Erreur."); }
+  function prettyPhone(p) { return String(p || "").replace(/^(\d)(\d{2})(\d{2})(\d{2})(\d{2})$/, "$1 $2 $3 $4 $5"); }
+  var PREF_FIELDS = ["addresses", "payAccounts", "defaultPay", "notifPrefs"];
+  var lastPrefs = null, prefsTimer = null;
+  function prefsSnapshot() { var o = {}; PREF_FIELDS.forEach(function (k) { o[k] = state[k]; }); o.lang = state.lang; o.settings = state.settings; return JSON.stringify(o); }
+  function applyUser(u) {
+    var name = u.name || "";
+    state.user = { id: u.id, name: name || (state.lang === "en" ? "WunaGo customer" : "Client WunaGo"), initials: initials(name || "W G") };
+    state.phone = prettyPhone(u.phone);
+    state.wallet = { balance: u.wallet.balance };
+    var p = u.prefs || {};
+    PREF_FIELDS.forEach(function (k) { if (p[k] !== undefined) state[k] = p[k]; });
+    if (p.settings) state.settings = Object.assign({}, state.settings, p.settings);
+    if (p.lang) { state.lang = p.lang; document.documentElement.lang = p.lang; }
+    lastPrefs = prefsSnapshot();
+  }
+  function replaceOrder(o) {
+    for (var i = 0; i < state.orders.length; i++) if (state.orders[i].id === o.id) { state.orders[i] = o; return; }
+    state.orders.unshift(o);
+  }
+  function syncAll() {
+    return Promise.all([WAPI.get("/me"), WAPI.get("/orders"), WAPI.get("/disputes")]).then(function (r) {
+      applyUser(r[0].user); state.orders = r[1].orders; state.disputes = r[2].disputes; render();
+    }).catch(function (e) { if (e.status === 401) forceLogin(); });
+  }
+  function resetAccountState() {
+    state.orders = []; state.disputes = []; state.addresses = []; state.chatByOrder = {}; state.draft = null;
+    state.payAccounts = []; state.defaultPay = "orange_money"; state.notifPrefs = { orders: true, sms: true, push: false, promos: true };
+    state.tabStacks = { home: [{ screen: "home" }], orders: [{ screen: "history" }], wallet: [{ screen: "wallet" }], support: [{ screen: "chat" }] };
+    state.activeTab = "home";
+  }
+  function forceLogin() {
+    WAPI.setToken(null); state.loggedIn = false; state.authScreen = "login"; state.otpInput = ""; state.generatedOtp = null;
+    resetAccountState(); render();
+  }
+  function enterApp() {
+    state.loggedIn = true; state.authScreen = "login"; state.otpInput = ""; state.generatedOtp = null;
+    resetAccountState(); render(); syncAll();
+  }
+
+  function screenName() {
+    var s = NAME_STR[state.lang] || NAME_STR.fr;
+    return '<div class="col fill" style="background:#FFD700;padding:calc(30px + var(--sat)) 26px 40px;justify-content:space-between">' +
+      '<div class="col" style="gap:14px"><div class="brand-row"><svg width="26" height="33" viewBox="0 0 60 76" aria-hidden="true"><path d="M30 4C14.5 4 4 15.4 4 29.5C4 47 30 72 30 72C30 72 56 47 56 29.5C56 15.4 45.5 4 30 4Z" fill="#101010"/><rect x="20" y="20" width="20" height="20" rx="3" fill="#FFD700"/></svg><span class="brand-name">WunaGo</span></div>' +
+      '<h1 style="margin:10px 0 0;font-weight:800;font-size:28px;line-height:1.1;letter-spacing:-1px">' + esc(s.title) + '</h1>' +
+      '<p style="margin:0;font-weight:500;font-size:14px;line-height:1.5;color:rgba(16,16,16,.75)">' + esc(s.sub) + '</p></div>' +
+      '<div class="col" style="gap:11px"><input data-bind="nameInput" autocomplete="name" aria-label="' + esc(s.ph) + '" placeholder="' + esc(s.ph) + '" value="' + esc(state.nameInput || "") + '" style="background:#fff;border-radius:16px;padding:0 15px;height:54px;font-weight:600;font-size:15px" />' +
+      '<button class="btn btn-ink" data-action="saveName">' + esc(s.go) + '</button></div></div>';
+  }
+
+  var base = {};
+  ["requestOtp", "resendOtp", "otpKey", "confirmPay", "advanceOrder", "rate", "doTopUp", "doSend", "logOut", "confirmCancel", "sendDispute"].forEach(function (k) { base[k] = actions[k]; });
+
+  actions.requestOtp = function () {
+    if (!srv()) return base.requestOtp();
+    WAPI.post("/auth/request", { phone: state.phone }).then(function (r) {
+      state.generatedOtp = r.demoCode || null; state.otpInput = ""; state.authScreen = "otp"; render();
+    }).catch(errToast);
+  };
+  actions.resendOtp = function () {
+    if (!srv()) return base.resendOtp();
+    WAPI.post("/auth/request", { phone: state.phone }).then(function (r) {
+      state.generatedOtp = r.demoCode || null; state.otpInput = ""; toast(state.lang === "en" ? "New code sent" : "Nouveau code envoyé"); render();
+    }).catch(errToast);
+  };
+  actions.otpKey = function (el, arg) {
+    if (!srv()) return base.otpKey(el, arg);
+    if (arg === "back") { state.otpInput = state.otpInput.slice(0, -1); render(); return; }
+    if (state.otpInput.length >= 4 || state.verifying) return;
+    state.otpInput += arg; render();
+    if (state.otpInput.length < 4) return;
+    state.verifying = true;
+    WAPI.post("/auth/verify", { phone: state.phone, code: state.otpInput }).then(function (r) {
+      state.verifying = false; WAPI.setToken(r.token);
+      if (!r.user.name) { state.authScreen = "name"; state.nameInput = ""; render(); return; }
+      enterApp();
+    }).catch(function (e) { state.verifying = false; state.otpInput = ""; render(); errToast(e); });
+  };
+  actions.saveName = function () {
+    var s = NAME_STR[state.lang] || NAME_STR.fr, name = (state.nameInput || "").trim();
+    if (name.length < 2) { toast(s.need); return; }
+    WAPI.patch("/me", { name: name }).then(function () { enterApp(); }).catch(errToast);
+  };
+  actions.confirmPay = function () {
+    if (!srv()) return base.confirmPay();
+    var draft = state.draft; if (state.payPending) return;
+    state.payPending = true; render();
+    WAPI.post("/orders", { service: draft.service, pickup: draft.pickup, dropoff: draft.dropoff, pickupGeo: draft.pickupGeo || geoOf(draft.pickup),
+      dropoffGeo: draft.dropoffGeo || geoOf(draft.dropoff), weightKg: draft.weightKg, vehicle: draft.vehicle, note: draft.note, paymentMethod: draft.payMethod })
+      .then(function (r) {
+        state.payPending = false; state.wallet.balance = r.wallet.balance; replaceOrder(r.order);
+        var st0 = stack(); state.tabStacks[state.activeTab] = [st0[0], { screen: "track", orderId: r.order.id }];
+        try { history.pushState({ wg: 2 }, ""); } catch (e) {} render();
+      }).catch(function (e) { state.payPending = false; render(); errToast(e); });
+  };
+  actions.advanceOrder = function (el, arg) {
+    if (!srv()) return base.advanceOrder(el, arg);
+    if (state.busy) return; state.busy = true;
+    WAPI.post("/orders/" + arg + "/advance").then(function (r) {
+      state.busy = false; replaceOrder(r.order);
+      if (r.order.proofAt) replaceTop("proof", { orderId: r.order.id }); else render();
+    }).catch(function (e) { state.busy = false; errToast(e); });
+  };
+  actions.rate = function (el, arg) {
+    if (!srv()) return base.rate(el, arg);
+    var parts = arg.split("|"), o = findOrder(parts[0]); o.rating = Number(parts[1]); render();
+    WAPI.post("/orders/" + parts[0] + "/rate", { rating: Number(parts[1]) }).catch(errToast);
+  };
+  actions.doTopUp = function () {
+    if (!srv()) return base.doTopUp();
+    WAPI.post("/wallet/topup", { amount: Number(state.topUpAmount), method: state.topUpMethod }).then(function (r) {
+      state.wallet.balance = r.wallet.balance; state.walletPanel = null; toast(t().toastTopUp);
+    }).catch(errToast);
+  };
+  actions.doSend = function () {
+    if (!srv()) return base.doSend();
+    WAPI.post("/wallet/send", { amount: Number(state.topUpAmount), phone: state.sendPhone }).then(function (r) {
+      state.wallet.balance = r.wallet.balance; state.walletPanel = null; toast(t().toastSent);
+    }).catch(errToast);
+  };
+  actions.confirmCancel = function () {
+    if (!srv()) return base.confirmCancel();
+    var e = t3(), c = state.cancelFor; if (!c || c.reason == null) return;
+    WAPI.post("/orders/" + c.orderId + "/cancel", { reason: e.cancelReasons[c.reason] }).then(function (r) {
+      replaceOrder(r.order); state.wallet.balance = r.wallet.balance; state.cancelFor = null;
+      toast(e.cancelled + " · " + r.order.refundNote);
+    }).catch(function (err) { state.cancelFor = null; render(); errToast(err); });
+  };
+  actions.sendDispute = function () {
+    if (!srv()) return base.sendDispute();
+    var e = t3(), f = state.disputeForm;
+    if (!f.orderId || f.reason == null || (f.desc || "").trim().length < 5) { toast(e.disputeNeed); return; }
+    WAPI.post("/disputes", { orderId: f.orderId, reason: e.disputeReasons[f.reason], desc: f.desc, photo: f.photo }).then(function (r) {
+      var x = r.dispute; state.disputes.unshift(x);
+      var msgs = state.chatByOrder.general || (state.chatByOrder.general = [{ from: "bot", text: t().botGreet }]);
+      msgs.push({ from: "bot", text: e.disputeChat.replace("{code}", x.code).replace("{order}", x.orderCode).replace("{reason}", x.reason) });
+      state.disputeForm = null;
+      var s = stack(); s.pop();
+      if (!s.length || s[s.length - 1].screen !== "help") { state.activeTab = "wallet"; state.tabStacks.wallet = [{ screen: "wallet" }, { screen: "help" }]; }
+      toast(e.disputeSent);
+    }).catch(errToast);
+  };
+  actions.logOut = function () {
+    if (!srv()) return base.logOut();
+    WAPI.post("/auth/logout").catch(function () {});
+    WAPI.setToken(null); resetAccountState(); base.logOut();
+  };
+
+  /* préférences (adresses, numéros, notifications, langue) enregistrées sur le serveur */
+  function syncPrefs() {
+    if (!srv() || !state.loggedIn || !WAPI.token() || lastPrefs === null) return;
+    var snap = prefsSnapshot(); if (snap === lastPrefs) return;
+    clearTimeout(prefsTimer);
+    prefsTimer = setTimeout(function () {
+      var o = JSON.parse(snap); lastPrefs = snap;
+      WAPI.patch("/me", { prefs: o }).catch(function (e) { if (e.status === 401) forceLogin(); else lastPrefs = null; });
+    }, 800);
+  }
+
+  /* suivi : la commande affichée est relue toutes les 5 secondes */
+  setInterval(function () {
+    if (!srv() || !state.loggedIn || document.hidden) return;
+    var c = cur(); if (c.screen !== "track" || !c.orderId) return;
+    WAPI.get("/orders/" + c.orderId).then(function (r) {
+      var old = findOrder(r.order.id);
+      if (!old || old.status !== r.order.status || old.stage !== r.order.stage) { replaceOrder(r.order); render(); }
+    }).catch(function () {});
+  }, 5000);
+
+  /* Persistance locale (cache de l'app ; en mode serveur, le serveur fait foi) */
   var KEEP = ["lang", "loggedIn", "phone", "user", "wallet", "settings", "orders", "seq", "chatByOrder", "addresses", "payAccounts", "defaultPay", "notifPrefs", "disputes"];
   function save() {
     try { var o = {}; KEEP.forEach(function (k) { o[k] = state[k]; }); localStorage.setItem(STORE_KEY, JSON.stringify(o)); } catch (e) {}
+    syncPrefs();
   }
   try {
     var saved = JSON.parse(localStorage.getItem(STORE_KEY) || "null");
@@ -1394,6 +1571,12 @@
   }
 
   render();
+
+  if (window.WAPI && location.protocol !== "file:") WAPI.check().then(function (on) {
+    if (!on) return;
+    if (WAPI.token()) { if (state.loggedIn) syncAll(); else forceLogin(); }
+    else if (state.loggedIn) forceLogin(); /* données de démo locales : on passe au vrai compte */
+  });
 
 })();
 

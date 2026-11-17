@@ -50,6 +50,15 @@ APIs à activer : Maps JavaScript API, Places API (New), Directions API (ou Rout
 Restreindre la clé au site (`https://wunago-app.netlify.app/*`). Sans clé : OpenStreetMap.
 Le bouton « Ouvrir dans Google Maps » fonctionne dans tous les cas.
 
+## Serveur (étape 4)
+
+- API : `netlify/functions/api.mts` (routes `/api/*`), base Postgres Netlify Database (`netlify/database/migrations/`).
+- Comptes par numéro de téléphone + code à 4 chiffres, session de 90 jours.
+- Commandes, prix, portefeuille, annulations et réclamations enregistrés sur le serveur ; même compte sur plusieurs téléphones.
+- Variables Netlify : `SMS_MODE` (`demo` : code affiché, aucun SMS envoyé) et `DEMO_ACTIONS` (`on` : recharge et livreur simulés).
+- Sans serveur disponible, l'app bascule en mode local.
+- Local : `npm run dev` (Postgres local + API) → http://localhost:8080
+
 ## Mode démo
 
 `var DEMO = true;` en tête de `web/app.js` : code SMS affiché à l'écran et bouton
