@@ -7,7 +7,16 @@ await new Promise(r=>setTimeout(r,800));
 const URL='http://localhost:8765/';
 const results=[]; const ok=(n,c,info='')=>{results.push(`${c?'PASS':'FAIL'}  ${n}${info?' — '+info:''}`)};
 const browser=await chromium.launch(process.env.CHROME_PATH?{executablePath:process.env.CHROME_PATH}:{});
-const ctx=await browser.newContext({viewport:{width:390,height:844},deviceScaleFactor:2,isMobile:true,hasTouch:true,locale:'fr-FR'});
+const ctx=await browser.newContext({viewport:{width:390,height:844},deviceScaleFactor:2,isMobile:true,hasTouch:true,locale:'fr-FR',
+  geolocation:{latitude:4.0612,longitude:9.7295},permissions:['geolocation']});
+// Services externes simulés (tuiles OpenStreetMap, recherche Photon) : le test ne dépend pas du réseau
+const TILE=Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8/5+hHgAHggJ/PchI7wAAAABJRU5ErkJggg==','base64');
+await ctx.route('https://tile.openstreetmap.org/**',r=>r.fulfill({status:200,contentType:'image/png',body:TILE}));
+await ctx.route('https://photon.komoot.io/api/**',r=>r.fulfill({status:200,contentType:'application/json',body:JSON.stringify({features:[
+  {geometry:{coordinates:[9.6941,4.0291]},properties:{name:'Pharmacie de Bonapriso',street:'Rue Joss',district:'Bonapriso',city:'Douala'}},
+  {geometry:{coordinates:[9.6990,4.0310]},properties:{street:'Rue Koloko',district:'Bonapriso',city:'Douala'}}]})}));
+await ctx.route('https://photon.komoot.io/reverse**',r=>r.fulfill({status:200,contentType:'application/json',body:JSON.stringify({features:[
+  {geometry:{coordinates:[9.7295,4.0612]},properties:{street:'Rue de la Joie',district:'Bepanda',city:'Douala'}}]})}));
 const page=await ctx.newPage();
 const errors=[]; page.on('pageerror',e=>errors.push(e.message)); page.on('console',m=>{if(m.type()==='error')errors.push(m.text())});
 const shot=async n=>{await page.waitForTimeout(350);await page.screenshot({path:`tests/captures/${n}.png`})};
@@ -35,6 +44,26 @@ await page.waitForTimeout(350); await shot('03-accueil');
 await page.click('[data-action="pickService"][data-arg="parcel"]');
 await shot('04-commande-trajet');
 await page.click('[data-action="pickQuartier"][data-arg="Bonapriso"]');
+ok('Choix du quartier (raccourci)',await page.inputValue('[data-bind="draft.dropoff"]')==='Bonapriso, Douala');
+// Suggestions pendant la frappe : quartier local + résultats OpenStreetMap
+await page.fill('[data-bind="draft.dropoff"]','Bonap');
+await page.waitForSelector('.sg-item:has-text("Pharmacie de Bonapriso")',{timeout:3000});
+ok('Suggestions : quartier de Douala proposé',await page.isVisible('.sg-item:has-text("Bonapriso, Douala")'));
+ok('Suggestions : adresses OpenStreetMap proposées',true);
+await shot('04b-suggestions-adresses');
+await page.click('.sg-item:has-text("Pharmacie de Bonapriso")');
+ok('Adresse choisie dans les suggestions',await page.inputValue('[data-bind="draft.dropoff"]')==='Pharmacie de Bonapriso, Rue Joss, Bonapriso');
+await page.click('[data-action="saveAddress"][data-arg="dropoff"]');
+await page.waitForTimeout(150);
+ok('Adresse enregistrée',await page.evaluate(()=>JSON.parse(localStorage.getItem('wunago.client.v1')).addresses.length===1));
+// Ma position (géolocalisation + adresse retrouvée)
+await page.click('[data-action="useMyLocation"]');
+await page.waitForFunction(()=>document.querySelector('[data-bind="draft.pickup"]').value.includes('Rue de la Joie'),null,{timeout:3000});
+ok('Bouton Ma position : adresse retrouvée',true,await page.inputValue('[data-bind="draft.pickup"]'));
+await shot('04c-ma-position');
+const dist=await page.locator('.mono:has-text("km")').first().textContent();
+ok('Distance et durée estimées affichées',/km · \d+ min/.test(dist),dist.trim());
+await page.click('[data-action="pickQuartier"][data-arg="Bonapriso"]');
 ok('Choix du quartier',await page.inputValue('[data-bind="draft.dropoff"]')==='Bonapriso, Douala');
 await page.click('[data-action="orderNext"]');
 await shot('05-commande-details');
@@ -47,10 +76,19 @@ await page.click('[data-action="orderNext"]');
 await shot('07-paiement');
 await page.click('[data-action="confirmPay"]');
 await page.waitForSelector('text=Marcel K.',{timeout:5000});
+await page.waitForSelector('#track-map .leaflet-container',{timeout:3000});
+ok('Carte OpenStreetMap affichée au suivi',await page.locator('#track-map .leaflet-marker-icon').count()>=3);
+ok('Durée restante affichée',/Arrivée · \d+ min/.test(await page.locator('#track-eta').textContent()));
+await page.click('[data-action="advanceOrder"]'); await page.click('[data-action="advanceOrder"]');
+const p0=await page.evaluate(()=>{const m=document.querySelector('.wg-courier').closest('.leaflet-marker-icon');return m.style.transform});
+await page.waitForTimeout(2300);
+const p1=await page.evaluate(()=>{const m=document.querySelector('.wg-courier').closest('.leaflet-marker-icon');return m.style.transform});
+ok('Le livreur se déplace sur la carte',p0!==p1);
+await shot('08b-suivi-carte');
 ok('Paiement Orange Money puis suivi',true);
 await shot('08-suivi');
 // back button test from track
-for(let i=0;i<4;i++) await page.click('[data-action="advanceOrder"]');
+for(let i=0;i<2;i++) await page.click('[data-action="advanceOrder"]');
 await page.waitForSelector('text=Colis livré');
 await page.click('[data-action="rate"][data-arg$="|5"]');
 await shot('09-livraison');

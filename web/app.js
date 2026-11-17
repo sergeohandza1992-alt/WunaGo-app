@@ -67,6 +67,7 @@
       showActive: "Afficher la commande en cours", tiles: "Tuiles", list: "Liste",
       stepped: "Étapes", singlePage: "Page unique", logOut: "Se déconnecter",
       timeline: ["Commande reçue", "Colis récupéré", "En route", "Livré"],
+      myPosition: "Ma position", locating: "Localisation…", locError: "Position indisponible. Autorisez la localisation ou saisissez l'adresse.", saveAddr: "Enregistrer", saved: "Adresse enregistrée.", searching: "Recherche…", noResult: "Aucun résultat — vous pouvez garder l'adresse saisie.", kindSaved: "Adresse enregistrée", kindQuartier: "Quartier", kindPlace: "OpenStreetMap", distance: "Distance", approx: "≈", fillTarget: "Les raccourcis remplissent :", pickupShort: "Récupération", dropShort: "Livraison", minBy: "min en", mapOffline: "Carte indisponible hors connexion",
       cashNote: "Prévoir l'appoint", paymentNames: { orange_money: "Orange Money", mtn_momo: "MTN MoMo", wallet: "Portefeuille WunaGo", cash: "Espèces à la livraison", card: "Carte bancaire" },
       vehNames: { bike: "Moto", tricycle: "Tricycle", van: "Camionnette" }, min: "min",
       botGreet: "Bonjour, comment pouvons-nous vous aider ?",
@@ -102,6 +103,7 @@
       showActive: "Show active order", tiles: "Tiles", list: "List",
       stepped: "Steps", singlePage: "Single page", logOut: "Log out",
       timeline: ["Order received", "Parcel picked up", "On the way", "Delivered"],
+      myPosition: "My location", locating: "Locating…", locError: "Location unavailable. Allow location or type the address.", saveAddr: "Save", saved: "Address saved.", searching: "Searching…", noResult: "No result — you can keep the typed address.", kindSaved: "Saved address", kindQuartier: "Neighbourhood", kindPlace: "OpenStreetMap", distance: "Distance", approx: "≈", fillTarget: "Shortcuts fill:", pickupShort: "Pickup", dropShort: "Delivery", minBy: "min by", mapOffline: "Map unavailable offline",
       cashNote: "Bring exact change", paymentNames: { orange_money: "Orange Money", mtn_momo: "MTN MoMo", wallet: "WunaGo wallet", cash: "Cash on delivery", card: "Bank card" },
       vehNames: { bike: "Bike", tricycle: "Tricycle", van: "Van" }, min: "min",
       botGreet: "Hi, how can we help?",
@@ -133,6 +135,9 @@
       support: [{ screen: "chat" }]
     },
     chatByOrder: {},
+    addresses: [],
+    addrTarget: "dropoff",
+    suggest: null,
     payPending: false,
     toast: null
   };
@@ -184,6 +189,99 @@
               en: { received: "RECEIVED", picked_up: "PICKED UP", en_route: "ON THE WAY", delivered: "DELIVERED", cancelled: "CANCELLED" } };
     return (L[state.lang] || L.fr)[s] || String(s).toUpperCase();
   }
+  function geoOf(text) { var q = window.WGeo && WGeo.findQuartier(text); return q ? { lat: q.lat, lng: q.lng } : null; }
+  function fmtKm(km) { var s = km < 10 ? km.toFixed(1) : String(Math.round(km)); return (state.lang === "en" ? s : s.replace(".", ",")) + " km"; }
+  function draftRoute(dr) {
+    if (!window.WGeo || !dr.pickupGeo || !dr.dropoffGeo) return null;
+    var km = WGeo.roadKm(dr.pickupGeo, dr.dropoffGeo);
+    return { km: km, min: WGeo.etaMin(km, dr.vehicle) };
+  }
+  var ICON = {
+    star: '<svg width="13" height="13" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12 2.8l2.8 5.9 6.4.8-4.7 4.4 1.2 6.4L12 17.2l-5.7 3.1 1.2-6.4L2.8 9.5l6.4-.8z"/></svg>',
+    starO: '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round" aria-hidden="true"><path d="M12 2.8l2.8 5.9 6.4.8-4.7 4.4 1.2 6.4L12 17.2l-5.7 3.1 1.2-6.4L2.8 9.5l6.4-.8z"/></svg>',
+    pin: '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 21s-7-6.2-7-11.5A7 7 0 0 1 19 9.5C19 14.8 12 21 12 21z"/><circle cx="12" cy="9.5" r="2.5"/></svg>',
+    area: '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linejoin="round" aria-hidden="true"><path d="M4 7l5-3 6 3 5-3v13l-5 3-6-3-5 3z"/><path d="M9 4v13M15 7v13"/></svg>',
+    gps: '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><circle cx="12" cy="12" r="7"/><circle cx="12" cy="12" r="2.2" fill="currentColor"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3"/></svg>',
+    check: '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg>'
+  };
+
+  /* ---------- suggestions d'adresses ---------- */
+  var suggestTimer = null, suggestAbort = null;
+  function isSavedAddr(text) { return (state.addresses || []).some(function (a) { return a.text === text; }); }
+  function suggest(field, q) {
+    var n = window.WGeo ? WGeo.norm(q) : "";
+    if (!n) { state.suggest = null; return; }
+    var saved = (state.addresses || []).filter(function (a) { return WGeo.norm(a.text).indexOf(n) !== -1 || WGeo.norm(a.label).indexOf(n) !== -1; })
+      .slice(0, 3).map(function (a) { return { label: a.text, lat: a.geo.lat, lng: a.geo.lng, kind: "saved" }; });
+    var quart = WGeo.matchQuartiers(q, 4);
+    state.suggest = { field: field, q: q, items: saved.concat(quart), loading: false, remoteDone: false };
+    clearTimeout(suggestTimer);
+    if (suggestAbort) { suggestAbort.abort(); suggestAbort = null; }
+    if (n.length < 3 || navigator.onLine === false) return;
+    state.suggest.loading = true;
+    suggestTimer = setTimeout(function () {
+      var ctl = window.AbortController ? new AbortController() : null; suggestAbort = ctl;
+      WGeo.searchPlaces(q, ctl && ctl.signal).then(function (items) {
+        var s = state.suggest; if (!s || s.field !== field || s.q !== q) return;
+        var known = {}; s.items.forEach(function (i) { known[WGeo.norm(i.label)] = 1; });
+        s.items = s.items.concat(items.filter(function (i) { return !known[WGeo.norm(i.label)]; })).slice(0, 8);
+        s.loading = false; s.remoteDone = true; render();
+      }).catch(function (err) {
+        var s = state.suggest; if (!s || s.q !== q || (err && err.name === "AbortError")) return;
+        s.loading = false; s.remoteDone = true; render();
+      });
+    }, 350);
+  }
+  function suggestList(field) {
+    var s = state.suggest, d = t();
+    if (!s || s.field !== field) return "";
+    var kinds = { saved: [ICON.star, d.kindSaved], quartier: [ICON.area, d.kindQuartier], place: [ICON.pin, d.kindPlace] };
+    var rows = s.items.map(function (it, i) {
+      var k = kinds[it.kind] || kinds.place;
+      return '<button class="sg-item" role="option" data-action="pickSuggest" data-arg="' + i + '">' +
+        '<span class="sg-ic">' + k[0] + '</span><span class="col" style="gap:1px;flex:1;min-width:0"><span class="sg-label">' + esc(it.label) + '</span><span class="sg-kind mono">' + esc(k[1]) + '</span></span></button>';
+    }).join("");
+    var foot = s.loading ? '<div class="sg-note mono">' + esc(d.searching) + '</div>' : (s.remoteDone && !s.items.length ? '<div class="sg-note">' + esc(d.noResult) + '</div>' : "");
+    if (!rows && !foot) return "";
+    return '<div class="sg" role="listbox" aria-label="Suggestions">' + rows + foot + '</div>';
+  }
+  function applyPlace(field, place) {
+    state.draft[field] = place.label;
+    state.draft[field + "Geo"] = { lat: place.lat, lng: place.lng };
+    state.suggest = null;
+  }
+
+  /* ---------- livreur : position (simulée en démo, GPS réel avec le backend) ---------- */
+  var DEMO_RIDE_MS = 45000;
+  function orderGeo(o) {
+    return { pickup: o.pickupGeo || geoOf(o.pickup) || geoOf("Bonamoussadi"), dropoff: o.dropoffGeo || geoOf(o.dropoff) || geoOf("Akwa") };
+  }
+  function courierInfo(o) {
+    var g = orderGeo(o), p = g.pickup, q = g.dropoff, f = 0, pos;
+    if (o.status === "delivered" || o.stage >= 3) { pos = q; f = 1; }
+    else if (o.stage === 2) {
+      f = Math.min(0.97, (Date.now() - (o.enRouteAt || Date.now())) / DEMO_RIDE_MS);
+      pos = { lat: p.lat + (q.lat - p.lat) * f, lng: p.lng + (q.lng - p.lng) * f };
+    }
+    else if (o.stage === 1) pos = p;
+    else pos = { lat: p.lat + 0.006, lng: p.lng + 0.004 };
+    var remainingKm = WGeo.roadKm(pos, q) + (o.stage === 0 ? WGeo.roadKm(pos, p) : 0);
+    return { pos: pos, min: o.status === "delivered" ? 0 : WGeo.etaMin(remainingKm, o.vehicle) };
+  }
+  var trackTimer = null;
+  function afterRender() {
+    clearInterval(trackTimer); trackTimer = null;
+    if (!state.loggedIn || cur().screen !== "track" || !window.WMap) return;
+    var o = findOrder(cur().orderId); if (!o) return;
+    var g = orderGeo(o);
+    if (navigator.onLine === false || !WMap.available()) return;
+    WMap.mount("track-map", { key: o.id, pickup: g.pickup, dropoff: g.dropoff, courier: courierInfo(o).pos });
+    if (o.stage === 2) trackTimer = setInterval(function () {
+      var ci = courierInfo(o); WMap.setCourier(ci.pos);
+      var el = document.getElementById("track-eta"); if (el) el.textContent = t().arriving + " · " + ci.min + " " + t().min;
+    }, 1000);
+  }
+
   function findOrder(id) { return state.orders.filter(function (o) { return o.id === id; })[0]; }
 
   /* ============================== screen: login ============================== */
@@ -303,16 +401,33 @@
       return '<span style="flex:1;height:3px;border-radius:9px;background:' + (n <= step ? "#101010" : "rgba(16,16,16,.13)") + '"></span>';
     }).join("") + '</div>' : "";
 
+    var route = draftRoute(draft);
+    function addrRow(field, ph, dot) {
+      var on = state.addrTarget === field, geo = draft[field + "Geo"], v = draft[field];
+      var right = geo ? (isSavedAddr(v) ? '<span style="color:#101010" title="' + esc(d.kindSaved) + '">' + ICON.star + '</span>'
+        : '<button class="btn" data-action="saveAddress" data-arg="' + field + '" aria-label="' + esc(d.saveAddr) + '" style="height:30px;border-radius:99px;padding:0 9px;background:rgba(16,16,16,.06);font-weight:700;font-size:10.5px;gap:4px">' + ICON.starO + esc(d.saveAddr) + '</button>') : "";
+      return '<div class="fx ac addr-row" style="gap:11px;min-height:52px">' + dot +
+        '<input data-bind="draft.' + field + '" data-field="' + field + '" autocomplete="off" aria-autocomplete="list" aria-label="' + esc(ph) + '" value="' + esc(v) + '" placeholder="' + esc(ph) + '" style="flex:1;min-width:0;font-weight:600;font-size:13.5px;height:52px' + (on ? "" : "") + '" />' +
+        right + '</div>' + suggestList(field);
+    }
+    var chipStyle = 'border:1px solid rgba(16,16,16,.12);background:#fff;border-radius:99px;padding:7px 12px;height:auto;min-height:34px;font-weight:600;font-size:11.5px;color:#101010;gap:5px';
     var addrSection = !showAddr ? "" : (
-      '<div class="col" style="gap:10px"><div style="font-weight:700;font-size:12px;color:rgba(16,16,16,.45)">' + esc(d.route) + '</div>' +
+      '<div class="col" style="gap:10px"><div style="font-weight:700;font-size:12px;color:rgba(16,16,16,.5)">' + esc(d.route) + '</div>' +
       '<div style="background:#fff;border:1px solid var(--hair);border-radius:16px;padding:0 15px">' +
-        '<div class="fx ac" style="gap:11px;height:52px"><span style="width:8px;height:8px;border-radius:99px;background:#FFD700;border:2.5px solid #101010"></span><input data-bind="draft.pickup" aria-label="Adresse de récupération" value="' + esc(draft.pickup) + '" placeholder="' + d.pickupPh + '" style="flex:1;font-weight:600;font-size:13.5px" /></div>' +
+        addrRow("pickup", d.pickupPh, '<span style="width:8px;height:8px;flex:none;border-radius:99px;background:#FFD700;border:2.5px solid #101010"></span>') +
         '<div style="height:1px;background:var(--hair);margin-left:19px"></div>' +
-        '<div class="fx ac" style="gap:11px;height:52px"><span style="width:8px;height:8px;background:#101010"></span><input data-bind="draft.dropoff" aria-label="Adresse de livraison" value="' + esc(draft.dropoff) + '" placeholder="' + d.dropPh + '" style="flex:1;font-weight:600;font-size:13.5px" /></div>' +
+        addrRow("dropoff", d.dropPh, '<span style="width:8px;height:8px;flex:none;background:#101010"></span>') +
       '</div>' +
-      '<div class="fx wrap" style="gap:7px">' + QUARTIERS.map(function (q) {
-        return '<button class="btn" data-action="pickQuartier" data-arg="' + q + '" style="border:1px solid rgba(16,16,16,.12);background:#fff;border-radius:99px;padding:7px 12px;height:auto;font-weight:600;font-size:11.5px;color:#101010">' + q + '</button>';
-      }).join("") + '</div></div>'
+      (route ? '<div class="fx ac mono" style="gap:6px;font-size:11px;color:rgba(16,16,16,.6)">' + ICON.pin + d.approx + ' ' + fmtKm(route.km) + ' · ' + route.min + ' ' + d.minBy + ' ' + esc(d.vehNames[draft.vehicle]).toLowerCase() + '</div>' : '') +
+      '<div class="fx wrap ac" style="gap:7px">' +
+        '<button class="btn" data-action="useMyLocation" style="' + chipStyle + ';background:#101010;color:#FFD700;border-color:#101010">' + ICON.gps + esc(d.myPosition) + '</button>' +
+      '</div>' +
+      '<div class="col" style="gap:7px"><div class="fx ac" style="gap:6px;font-size:11px;font-weight:600;color:rgba(16,16,16,.55)">' + esc(d.fillTarget) +
+        ['pickup', 'dropoff'].map(function (f) { var on = state.addrTarget === f; return '<button class="btn" data-action="setAddrTarget" data-arg="' + f + '" aria-pressed="' + on + '" style="height:26px;border-radius:99px;padding:0 9px;font-weight:700;font-size:10.5px;background:' + (on ? "#101010" : "rgba(16,16,16,.06)") + ';color:' + (on ? "#fff" : "rgba(16,16,16,.65)") + '">' + esc(f === "pickup" ? d.pickupShort : d.dropShort) + '</button>'; }).join("") + '</div>' +
+      '<div class="fx wrap" style="gap:7px">' +
+        (state.addresses || []).map(function (a, i) { return '<button class="btn" data-action="pickSaved" data-arg="' + i + '" style="' + chipStyle + '">' + ICON.star + esc(a.label) + '</button>'; }).join("") +
+        QUARTIERS.map(function (q) { return '<button class="btn" data-action="pickQuartier" data-arg="' + q + '" style="' + chipStyle + '">' + q + '</button>'; }).join("") +
+      '</div></div></div>'
     );
 
     var detSection = !showDet ? "" : (
@@ -336,7 +451,7 @@
       '<div class="col" style="gap:10px"><div style="font-weight:700;font-size:12px;color:rgba(16,16,16,.45)">' + esc(d.estimate) + '</div>' +
       '<div style="background:#101010;border-radius:18px;padding:16px;display:flex;flex-direction:column;gap:12px">' +
         '<div class="fx jb" style="align-items:baseline"><span style="font-weight:500;font-size:12.5px;color:rgba(255,255,255,.6)">' + esc(svcName(draft.service)) + (s.pricing === "weight" ? " · " + fmtW(draft.weightKg) : "") + '</span><span class="mono" style="font-weight:600;font-size:12.5px;color:#fff">' + fmtFcfa(price.gross) + '</span></div>' +
-        '<div class="fx jb" style="align-items:baseline"><span style="font-weight:500;font-size:12.5px;color:rgba(255,255,255,.6)">' + esc(t().vehNames[draft.vehicle]) + '</span><span style="font-size:12.5px;color:rgba(255,255,255,.6)">incl.</span></div>' +
+        '<div class="fx jb" style="align-items:baseline"><span style="font-weight:500;font-size:12.5px;color:rgba(255,255,255,.6)">' + esc(t().vehNames[draft.vehicle]) + (route ? ' · ' + d.approx + ' ' + fmtKm(route.km) : '') + '</span><span style="font-size:12.5px;color:rgba(255,255,255,.6)">incl.</span></div>' +
         '<div class="fx jb" style="align-items:baseline"><span style="font-weight:500;font-size:12.5px;color:rgba(255,255,255,.6)">' + esc(d.loyalty) + '</span><span class="mono" style="font-weight:600;font-size:12.5px;color:' + (price.discount ? "#FFD700" : "rgba(255,255,255,.6)") + '">' + (price.discount ? "– " + fmtFcfa(price.discount) : "—") + '</span></div>' +
         '<div style="height:1px;background:rgba(255,255,255,.14)"></div>' +
         '<div class="fx jb" style="align-items:baseline"><span style="font-weight:700;font-size:14px;color:#fff">' + esc(d.total) + '</span><span style="font-weight:800;font-size:22px;color:#FFD700;letter-spacing:-.5px">' + fmtFcfa(price.net) + '</span></div>' +
@@ -401,19 +516,16 @@
     }).join("");
 
     return (
-      '<div style="height:230px;position:relative;background:#eceae4;overflow:hidden;flex:none">' +
-        '<div style="position:absolute;inset:0;border:1px solid rgba(16,16,16,.06)"></div>' +
-        '<span style="position:absolute;top:48%;left:8%;width:14px;height:14px;margin-left:-7px;margin-top:-7px;border-radius:99px;background:#101010;border:3px solid #FFD700"></span>' +
-        '<span style="position:absolute;top:48%;left:92%;width:13px;height:13px;margin-left:-6px;margin-top:-6px;border-radius:3px;background:#101010"></span>' +
-        '<span style="position:absolute;top:48%;left:' + left + ';width:15px;height:15px;margin-left:-7px;margin-top:-7px;border-radius:99px;background:#101010;border:3.5px solid #FFD700;transition:left .5s ease"></span>' +
-        (DEMO ? '<span style="position:absolute;bottom:10px;left:14px;font-family:var(--mono);font-size:9px;color:rgba(16,16,16,.45)">démo — repère statique</span>' : '') +
-        '<div style="position:absolute;top:calc(14px + var(--sat));left:12px;right:12px;display:flex;align-items:center;gap:9px;background:#101010;border-radius:14px;padding:9px 12px">' +
+      '<div style="height:300px;position:relative;background:#eceae4;overflow:hidden;flex:none">' +
+        '<div id="track-map" style="position:absolute;inset:0 0 18px 0"></div>' +
+        (navigator.onLine === false || !window.L ? '<div class="fx ac jc mono" style="position:absolute;inset:0;font-size:10.5px;color:rgba(16,16,16,.55)">' + esc(d.mapOffline) + '</div>' : '') +
+        '<div style="position:absolute;z-index:600;top:calc(14px + var(--sat));left:12px;right:12px;display:flex;align-items:center;gap:9px;background:#101010;border-radius:14px;padding:9px 12px">' +
           '<button class="backbtn" aria-label="Retour" data-action="popScreen" style="background:rgba(255,255,255,.12);color:#fff;width:26px;height:26px">←</button>' +
           '<span class="mono" style="font-size:10px;color:#FFD700">' + o.code + '</span>' +
-          '<span style="margin-left:auto;font-weight:700;font-size:11px;color:#fff">' + esc(d.arriving) + '</span>' +
+          '<span id="track-eta" style="margin-left:auto;font-weight:700;font-size:11px;color:#fff">' + esc(d.arriving) + (window.WGeo ? ' · ' + courierInfo(o).min + ' ' + d.min : '') + '</span>' +
         '</div>' +
       '</div>' +
-      '<div class="scroll" style="background:#fbfaf7;border-radius:22px 22px 0 0;margin-top:-18px;padding:16px 20px 20px;position:relative"><div class="col" style="gap:16px">' +
+      '<div class="scroll" style="background:#fbfaf7;border-radius:22px 22px 0 0;margin-top:-18px;padding:16px 20px 20px;position:relative;z-index:500"><div class="col" style="gap:16px">' +
         '<div style="width:34px;height:4px;border-radius:9px;background:rgba(16,16,16,.15);margin:0 auto"></div>' +
         '<div class="fx ac" style="gap:11px">' +
           '<div class="fx ac jc" style="width:42px;height:42px;flex:none;border-radius:99px;background:#FFD700;font-weight:800;font-size:13px">MK</div>' +
@@ -506,7 +618,7 @@
     }
 
     var rows = [
-      [d.addresses, "3"], [d.methods, "2"], [d.notifs, "SMS + push"],
+      [d.addresses, String((state.addresses || []).length)], [d.methods, "2"], [d.notifs, "SMS + push"],
       [d.language, state.lang === "en" ? "English" : "Français", "openSettings"],
       [d.help, "", "openChatGeneral"]
     ];
@@ -614,8 +726,15 @@
       html = offlineBar() + '<div class="screen-body' + anim + '">' + body + '</div>' + tabbar();
     }
     if (state.toast) html += '<div class="toast">' + esc(state.toast) + '</div>';
+    var ae = document.activeElement, bindKey = ae && ae.getAttribute && ae.getAttribute("data-bind"), s0 = null, s1 = null;
+    if (bindKey) { try { s0 = ae.selectionStart; s1 = ae.selectionEnd; } catch (e) {} }
     root.innerHTML = html;
     save();
+    if (bindKey) {
+      var nx = root.querySelector('[data-bind="' + bindKey + '"]');
+      if (nx) { nx.focus(); if (typeof s0 === "number" && nx.setSelectionRange) { try { nx.setSelectionRange(s0, s1); } catch (e) {} } }
+    }
+    afterRender();
 
     if (c_isChat()) {
       var sc = document.getElementById("chat-scroll");
@@ -664,17 +783,37 @@
       state.draft = {
         service: arg, step: 1,
         pickup: "Bonamoussadi, rue 4.212", dropoff: "Akwa, av. du Général de Gaulle",
+        pickupGeo: geoOf("Bonamoussadi"), dropoffGeo: geoOf("Akwa"),
         weightKg: 2.5, note: "", vehicle: "bike", payMethod: "orange_money"
       };
       push("order");
     },
-    pickQuartier: function (el, arg) { state.draft.dropoff = arg + ", Douala"; render(); },
+    pickQuartier: function (el, arg) { var f = state.addrTarget || "dropoff"; state.draft[f] = arg + ", Douala"; state.draft[f + "Geo"] = geoOf(arg); state.suggest = null; render(); },
+    pickSaved: function (el, arg) { var a = state.addresses[Number(arg)]; if (!a) return; applyPlace(state.addrTarget || "dropoff", { label: a.text, lat: a.geo.lat, lng: a.geo.lng }); render(); },
+    setAddrTarget: function (el, arg) { state.addrTarget = arg; render(); },
+    pickSuggest: function (el, arg) { var s = state.suggest; if (!s) return; var it = s.items[Number(arg)]; if (!it) return; applyPlace(s.field, it); state.addrTarget = s.field === "pickup" ? "dropoff" : "dropoff"; render(); },
+    saveAddress: function (el, arg) {
+      var dr = state.draft, geo = dr[arg + "Geo"]; if (!geo || !dr[arg] || isSavedAddr(dr[arg])) return;
+      state.addresses.push({ id: "a" + Date.now(), label: dr[arg].split(",")[0], text: dr[arg], geo: geo });
+      toast(t().saved);
+    },
+    useMyLocation: function () {
+      var d = t();
+      if (!navigator.geolocation) { toast(d.locError); return; }
+      state.draft.pickup = d.locating; state.draft.pickupGeo = null; state.suggest = null; render();
+      navigator.geolocation.getCurrentPosition(function (pos) {
+        var g = { lat: pos.coords.latitude, lng: pos.coords.longitude };
+        state.draft.pickupGeo = g; state.draft.pickup = d.myPosition; render();
+        WGeo.reverse(g.lat, g.lng).then(function (label) { if (label && state.draft && state.draft.pickupGeo === g) { state.draft.pickup = label; render(); } }).catch(function () {});
+      }, function () { state.draft.pickup = ""; render(); toast(d.locError); }, { enableHighAccuracy: true, timeout: 10000, maximumAge: 60000 });
+    },
     incWeight: function () { state.draft.weightKg = Math.round((state.draft.weightKg + 0.5) * 10) / 10; render(); },
     decWeight: function () { state.draft.weightKg = Math.max(0.5, Math.round((state.draft.weightKg - 0.5) * 10) / 10); render(); },
     pickVehicle: function (el, arg) { state.draft.vehicle = arg; render(); },
     orderBack: function () { popScreen(); },
     orderNext: function () {
       var stepped = state.settings.orderFlow === "stepped";
+      state.suggest = null;
       if (stepped && state.draft.step < 3) { state.draft.step++; render(); return; }
       push("payment");
     },
@@ -691,6 +830,7 @@
         var order = {
           id: id, code: code, service: draft.service, pickup: draft.pickup, dropoff: draft.dropoff,
           weightKg: draft.weightKg, vehicle: draft.vehicle, note: draft.note,
+          pickupGeo: draft.pickupGeo || geoOf(draft.pickup), dropoffGeo: draft.dropoffGeo || geoOf(draft.dropoff), createdAt: Date.now(),
           paymentMethod: draft.payMethod, paymentStatus: paid ? "paid" : "cod",
           status: "received", stage: 0, rating: null
         };
@@ -718,6 +858,7 @@
         return;
       }
       o.stage++;
+      if (o.stage === 2) o.enRouteAt = Date.now();
       var labels = ["received", "picked_up", "en_route", "delivered"];
       o.status = labels[o.stage];
       render();
@@ -793,26 +934,16 @@
     if (!bind) return;
 
     if (bind === "phone") state.phone = el.value.replace(/[^\d ]/g, "");
-    else if (bind === "draft.pickup") state.draft.pickup = el.value;
-    else if (bind === "draft.dropoff") state.draft.dropoff = el.value;
+    else if (bind === "draft.pickup" || bind === "draft.dropoff") {
+      var fld = bind.slice(6); state.draft[fld] = el.value; state.draft[fld + "Geo"] = null; state.addrTarget = fld; suggest(fld, el.value);
+    }
     else if (bind === "draft.note") state.draft.note = el.value;
     else if (bind === "topUpAmount") state.topUpAmount = el.value.replace(/\D/g, "");
     else if (bind === "sendPhone") state.sendPhone = el.value;
     else if (bind === "chatDraft") state.chatDraft = el.value;
     else return;
 
-    // Re-render (so computed things like the CTA's disabled state stay in
-    // sync), then restore focus + caret — a full innerHTML rebuild would
-    // otherwise steal focus from the field the user is typing in.
-    var selStart = el.selectionStart, selEnd = el.selectionEnd;
     render();
-    var next = document.querySelector('[data-bind="' + bind + '"]');
-    if (next) {
-      next.focus();
-      if (typeof selStart === "number" && next.setSelectionRange) {
-        try { next.setSelectionRange(selStart, selEnd); } catch (err) {}
-      }
-    }
   });
 
   /* ============================== PWA ============================== */
@@ -863,6 +994,12 @@
     var s = stack(); if (s.length > 1) { s.pop(); render(); }
   });
 
+  document.addEventListener("focusin", function (e) {
+    var f = e.target && e.target.getAttribute && e.target.getAttribute("data-field");
+    if (f && state.draft && state.addrTarget !== f) { state.addrTarget = f; if (state.suggest && state.suggest.field !== f) state.suggest = null; render(); }
+  });
+  document.addEventListener("keydown", function (e) { if (e.key === "Escape" && state.suggest) { state.suggest = null; render(); } });
+
   /* Clavier physique pour le code OTP */
   document.addEventListener("keydown", function (e) {
     if (state.loggedIn || state.authScreen !== "otp") return;
@@ -871,7 +1008,7 @@
   });
 
   /* Persistance locale (sera remplacée par l'API WunaGo) */
-  var KEEP = ["lang", "loggedIn", "phone", "user", "wallet", "settings", "orders", "seq", "chatByOrder"];
+  var KEEP = ["lang", "loggedIn", "phone", "user", "wallet", "settings", "orders", "seq", "chatByOrder", "addresses"];
   function save() {
     try { var o = {}; KEEP.forEach(function (k) { o[k] = state[k]; }); localStorage.setItem(STORE_KEY, JSON.stringify(o)); } catch (e) {}
   }

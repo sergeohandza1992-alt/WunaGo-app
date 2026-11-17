@@ -26,7 +26,8 @@ npx playwright install chromium
 npm test
 ```
 
-Le test couvre : installabilité, service worker, connexion par code, commande et tarif,
+Le test couvre : installabilité, service worker, connexion par code, suggestions d'adresses,
+bouton Ma position, adresses enregistrées, carte de suivi, commande et tarif,
 paiement, suivi, livraison, portefeuille, historique, assistance, bouton retour,
 reprise après rechargement, mode hors connexion, petit écran.
 
@@ -34,6 +35,12 @@ reprise après rechargement, mode hors connexion, petit écran.
 
 1. Dépôt GitHub › **Settings › Pages** › Source : **GitHub Actions**.
 2. Chaque mise à jour de `web/` sur `main` publie l'app en HTTPS.
+
+## Carte et adresses
+
+- Carte : [Leaflet](https://leafletjs.com) (inclus dans `web/vendor/`) + tuiles OpenStreetMap — mention « © OpenStreetMap » obligatoire.
+- Recherche et adresse de « Ma position » : [Photon](https://photon.komoot.io) (OpenStreetMap, sans clé). Pour un trafic important, prévoir un serveur Photon dédié ou un service payant.
+- Les centres des quartiers de Douala (`web/geo.js`) sont approximatifs : à affiner sur le terrain.
 
 ## Mode démo
 

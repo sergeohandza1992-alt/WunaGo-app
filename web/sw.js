@@ -1,7 +1,8 @@
 /* WunaGo — service worker : coque de l'app disponible hors connexion */
-const CACHE = "wunago-v3";
+const CACHE = "wunago-v4";
 const SHELL = [
-  "./", "index.html", "styles.css", "app.js", "manifest.webmanifest",
+  "./", "index.html", "styles.css", "app.js", "geo.js", "map.js", "manifest.webmanifest",
+  "vendor/leaflet/leaflet.js", "vendor/leaflet/leaflet.css",
   "fonts/Manrope-200-800.woff2", "fonts/IBMPlexMono-400.woff2", "fonts/IBMPlexMono-500.woff2", "fonts/IBMPlexMono-600.woff2",
   "icons/icon-192.png", "icons/icon-512.png", "icons/apple-touch-icon.png"
 ];
