@@ -1,0 +1,14 @@
+{
+  "name": "wunago-app",
+  "private": true,
+  "version": "0.1.0",
+  "description": "WunaGo — application client (web app installable)",
+  "type": "module",
+  "scripts": {
+    "start": "python3 -m http.server 8080 --directory web",
+    "test": "node tests/parcours.test.mjs"
+  },
+  "devDependencies": {
+    "playwright": "^1.65.1"
+  }
+}

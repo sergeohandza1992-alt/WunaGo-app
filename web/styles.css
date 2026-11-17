@@ -1,0 +1,195 @@
+  @font-face {
+    font-family: 'Manrope';
+    font-weight: 200 800;
+    font-style: normal;
+    font-display: swap;
+    src: url(fonts/Manrope-200-800.woff2) format('woff2');
+  }
+  @font-face {
+    font-family: 'IBM Plex Mono';
+    font-weight: 400;
+    font-style: normal;
+    font-display: swap;
+    src: url(fonts/IBMPlexMono-400.woff2) format('woff2');
+  }
+  @font-face {
+    font-family: 'IBM Plex Mono';
+    font-weight: 500;
+    font-style: normal;
+    font-display: swap;
+    src: url(fonts/IBMPlexMono-500.woff2) format('woff2');
+  }
+  @font-face {
+    font-family: 'IBM Plex Mono';
+    font-weight: 600;
+    font-style: normal;
+    font-display: swap;
+    src: url(fonts/IBMPlexMono-600.woff2) format('woff2');
+  }
+
+  :root {
+    --yellow: #FFD700;
+    --yellow-press: #f5c800;
+    --ink: #101010;
+    --ink-soft: rgba(16,16,16,.55);
+    --ink-faint: rgba(16,16,16,.35);
+    --hair: rgba(16,16,16,.08);
+    --bg: #fbfaf7;
+    --card: #ffffff;
+    --canvas: #0d0c08;
+    --canvas-card: #17150e;
+    --canvas-hair: rgba(245,242,232,.1);
+    --canvas-text: #f4f2e9;
+    --canvas-muted: rgba(244,242,233,.6);
+    --canvas-faint: rgba(244,242,233,.36);
+    --sans: 'Manrope', -apple-system, system-ui, sans-serif;
+    --mono: 'IBM Plex Mono', ui-monospace, Menlo, Consolas, monospace;
+  }
+
+  * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+  button { font-family: inherit; }
+
+  body {
+    margin: 0;
+    background: var(--canvas);
+    color: var(--canvas-text);
+    font-family: var(--sans);
+    -webkit-font-smoothing: antialiased;
+  }
+
+  /* ---------- shared bits ---------- */
+
+  .brand-row { display: flex; align-items: center; gap: 10px; }
+  .brand-name { font-weight: 800; font-size: 21px; letter-spacing: -.5px; color: var(--ink); }
+  .slogan { font-family: var(--mono); font-weight: 600; font-size: 10px; letter-spacing: .12em; color: rgba(16,16,16,.55); text-transform: uppercase; }
+
+  .btn {
+    border: 0;
+    border-radius: 17px;
+    height: 54px;
+    font-weight: 800;
+    font-size: 14.5px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    transition: filter .15s;
+    font-family: var(--sans);
+  }
+  .btn:active { filter: brightness(.94); }
+  .btn:disabled { opacity: .45; cursor: default; }
+  .btn-yellow { background: var(--yellow); color: var(--ink); }
+  .btn-ink { background: var(--ink); color: var(--yellow); }
+  .btn-outline { background: transparent; border: 1.5px solid var(--hair); color: var(--ink); }
+
+  .backbtn {
+    width: 34px; height: 34px; border-radius: 10px; border: 0;
+    background: rgba(16,16,16,.06); color: var(--ink); font-size: 15px; cursor: pointer;
+    display: flex; align-items: center; justify-content: center; flex: none;
+  }
+
+  input, textarea {
+    font-family: var(--sans);
+    border: 0;
+    background: transparent;
+    color: var(--ink);
+    outline: none;
+  }
+  input::placeholder, textarea::placeholder { color: rgba(16,16,16,.4); }
+
+  /* ---------- tabbar ---------- */
+  .tabbar {
+    flex: none;
+    display: flex;
+    background: #fff;
+    border-top: 1px solid var(--hair);
+    padding: 8px 10px 18px;
+  }
+  .tab {
+    flex: 1;
+    border: 0;
+    background: transparent;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 4px;
+    padding: 6px 0;
+    cursor: pointer;
+  }
+  .tab-icon { width: 17px; height: 17px; border: 1.8px solid rgba(16,16,16,.3); }
+  .tab.on .tab-icon { background: var(--yellow); border-color: var(--ink); }
+  .tab-label { font-family: var(--sans); font-weight: 700; font-size: 9.5px; color: rgba(16,16,16,.4); }
+  .tab.on .tab-label { color: var(--ink); }
+
+  ::selection { background: var(--yellow); color: var(--ink); }
+
+  /* ---------- layout utilities (used by app.js templates) ---------- */
+  .col { display: flex; flex-direction: column; }
+  .fx { display: flex; }
+  .ac { align-items: center; }
+  .jc { justify-content: center; }
+  .jb { justify-content: space-between; }
+  .wrap { flex-wrap: wrap; }
+  .fill { flex: 1; min-height: 0; }
+  .mono { font-family: var(--mono); }
+
+  .spinner {
+    width: 15px; height: 15px; border-radius: 99px;
+    border: 2px solid rgba(255,215,0,.3); border-top-color: #FFD700;
+    animation: spin .7s linear infinite;
+  }
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+
+  @media (prefers-reduced-motion: no-preference) {
+    .fade-in { animation: fadeIn .28s ease both; }
+    @keyframes fadeIn { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
+    @keyframes pulse { 0% { opacity: .3; transform: scale(1); } 70% { opacity: 0; transform: scale(2.2); } 100% { opacity: 0; transform: scale(2.2); } }
+  }
+
+  .toast {
+    position: absolute;
+    left: 16px;
+    right: 16px;
+    bottom: 96px;
+    background: var(--ink);
+    color: #fff;
+    font-family: var(--sans);
+    font-weight: 600;
+    font-size: 12.5px;
+    padding: 12px 15px;
+    border-radius: 13px;
+    z-index: 90;
+    box-shadow: 0 12px 28px rgba(0,0,0,.3);
+  }
+
+  /* ---------- web app shell ---------- */
+  :root { --sat: env(safe-area-inset-top, 0px); --sab: env(safe-area-inset-bottom, 0px); }
+  html, body { height: 100%; }
+  body { margin: 0; background: var(--canvas); overscroll-behavior: none; }
+  #app {
+    position: relative; height: 100vh; height: 100dvh; width: 100%;
+    max-width: 480px; margin: 0 auto; overflow: hidden;
+    background: var(--bg); color: var(--ink);
+    display: flex; flex-direction: column;
+  }
+  @media (min-width: 520px) {
+    #app { height: min(100dvh - 48px, 900px); margin-top: 24px; border-radius: 28px; box-shadow: 0 30px 70px rgba(0,0,0,.45); }
+  }
+  .tabbar { padding-bottom: calc(10px + var(--sab)); }
+  .tab { min-height: 44px; }
+  .tab-label { color: rgba(16,16,16,.5); }
+  .backbtn { width: 40px; height: 40px; }
+  .offline-bar {
+    flex: none; background: var(--ink); color: var(--yellow);
+    font-family: var(--mono); font-size: 11px; font-weight: 600; text-align: center;
+    padding: calc(6px + var(--sat)) 16px 6px;
+  }
+  .noscript { color: var(--canvas-text); font-family: var(--sans); padding: 40px 24px; text-align: center; }
+  :focus-visible { outline: 2.5px solid #101010; outline-offset: 2px; }
+  .btn-ink:focus-visible, .install-card :focus-visible { outline-color: var(--yellow); }
+
+  .screen-body { flex: 1; min-height: 0; display: flex; flex-direction: column; overflow: hidden; }
+  .scroll { flex: 1; min-height: 0; overflow-y: auto; -webkit-overflow-scrolling: touch; }
+  .scroll::-webkit-scrollbar { width: 0; }
