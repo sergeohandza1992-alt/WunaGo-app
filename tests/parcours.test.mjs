@@ -1,4 +1,7 @@
 import { chromium } from 'playwright';
+import { quote } from '../web/pricing.mjs';
+const tomorrow8=(()=>{const d=new Date(Date.now()+3600000);return Date.UTC(d.getUTCFullYear(),d.getUTCMonth(),d.getUTCDate()+1)-3600000+8*3600000})();
+
 import { spawn } from 'node:child_process';
 import { mkdirSync } from 'node:fs';
 mkdirSync('tests/captures',{recursive:true});
@@ -64,15 +67,17 @@ await page.waitForFunction(()=>document.querySelector('[data-bind="draft.pickup"
 ok('Bouton Ma position : adresse retrouvée',true,await page.inputValue('[data-bind="draft.pickup"]'));
 await shot('04c-ma-position');
 const dist=await page.locator('.mono:has-text("km")').first().textContent();
-ok('Distance et durée estimées affichées',/km · \d+ min/.test(dist),dist.trim());
+ok('Distance estimée affichée',/≈ [\d,]+ km/.test(dist),dist.trim());
 await page.click('[data-action="pickQuartier"][data-arg="Bonapriso"]');
 ok('Choix du quartier',await page.inputValue('[data-bind="draft.dropoff"]')==='Bonapriso, Douala');
 await page.click('[data-action="orderNext"]');
 await shot('05-commande-details');
-for(let i=0;i<5;i++) await page.click('[data-action="incWeight"]'); // 2.5 -> 5
+for(let i=0;i<5;i++) await page.click('[data-action="incWeight"]'); // 2 -> 4,5 kg
+await page.click('[data-action="setWhen"][data-arg="tomorrow"]');
 await page.click('[data-action="orderNext"]');
 const total=await page.locator('text=Total').locator('xpath=..').textContent();
-ok('Tarif 5 kg colis = 4 000 FCFA (1 kg offert)',/4\s000 FCFA/.test(total),total.trim());
+const expected=quote({service:'parcel',pickupGeo:{lat:4.0612,lng:9.7295},dropoffGeo:{lat:4.03,lng:9.695},weightKg:4.5,vehicle:'bike',scheduledAt:tomorrow8},Date.now()).net;
+ok('Tarif colis 4,5 kg = grille (distance, poids, zone, heure)',total.replace(/\s/g,'').includes(String(expected)+'FCFA'),total.trim()+' / attendu '+expected);
 await shot('06-commande-estimation');
 await page.click('[data-action="orderNext"]');
 await shot('07-paiement');

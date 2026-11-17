@@ -18,7 +18,7 @@ Porteur du projet : Serge-Venant OHANDZA. Langue de travail et de l'interface : 
   `netlify/lib/rules.mts` : règles de prix (le serveur fait foi). Variables : `SMS_MODE` (`demo` par défaut : code renvoyé
   à l'app, aucun SMS), `DEMO_ACTIONS` (`on` par défaut : recharge et avancement de livraison simulés).
 - `netlify/database/migrations/` : schéma Postgres (Netlify Database). Ne jamais modifier une migration déjà appliquée.
-- Tests : `parcours` (mode local), `google-maps` (API Google simulée), `ecrans-compte` (étape 3), `serveur` (API + Postgres local
+- Tests : `tarifs` (grille, sans navigateur), `services` (parcours dédiés, profil), `parcours` (mode local), `google-maps` (API Google simulée), `ecrans-compte` (étape 3), `serveur` (API + Postgres local
   via `tests/dev-server.mjs`). Lancer : `npm install && npx playwright install chromium && npm test`. Serveur local : `npm run dev`.
 - Mise en ligne : Netlify (projet `wunago-app` → https://wunago-app.netlify.app).
   GitHub Actions est bloqué tant que le compte GitHub a un problème de facturation (ticket ouvert).
@@ -30,9 +30,14 @@ Rayons : boutons 17 px, cartes 16–18 px, pilules 99 px. Zones tactiles ≥ 44 
 Design de référence : projet Claude Design « WunaGo — App Client ».
 
 ## Règles métier
-- Colis 1 000 FCFA/kg, pressing 1 300 FCFA/kg : 1 kg offert dès 5 kg, livraison offerte dès 10 kg.
-- Courses 1 000 FCFA, déplacement 700 FCFA (forfaits).
+- **Grille tarifaire unique : `web/pricing.mjs` (objet `TARIFS`)**, utilisée par l'app ET le serveur (le serveur recalcule et fait foi).
+  Prix selon distance (route ≈ vol d'oiseau × 1,35), poids, véhicule, zone (centre / intermédiaire / périphérie),
+  heure (pointe 7 h–9 h 30 et 16 h 30–19 h 30 en semaine +15 %, soirée 20 h 30–22 h +20 %), service 6 h–22 h, arrondi au 50 F.
+- Parcours dédiés : colis (poids, véhicule), pressing (articles, linge au kilo, prestation, délai, collecte + retour),
+  courses (liste d'achats, marché, volume, avance livreur ≤ 50 000 F), déplacement (passagers, moto-taxi / voiture).
+- Pressing : 1 kg offert dès 5 kg, collecte offerte dès 10 kg ou 15 000 F. Adresse de l'atelier : `TARIFS.pressing.atelier` (à renseigner).
 - Codes commande `WUN-AAAA-NNN`. Paiements : Orange Money, MTN MoMo, portefeuille, espèces, carte.
+- Numéro du service client : `SUPPORT_PHONE` en tête de `app.js` (provisoire, à remplacer).
 - `DEMO = true` (en tête de `app.js`) : code SMS affiché, livreur simulé — tant que le backend n'est pas branché.
 
 ## Feuille de route (dans cet ordre)

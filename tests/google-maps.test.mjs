@@ -47,7 +47,8 @@ ok('Lien « Ouvrir dans Google Maps » vers l\'itinéraire',/google\.com\/maps\/
 await page.click('[data-action="useMyLocation"]');
 await page.waitForFunction(()=>document.querySelector('[data-bind="draft.pickup"]').value.includes('Njo-Njo'),null,{timeout:3000});
 ok('Ma position : adresse donnée par Google',true);
-for(let i=0;i<3;i++) await page.click('[data-action="orderNext"]');
+await page.click('[data-action="orderNext"]'); await page.click('[data-action="setWhen"][data-arg="tomorrow"]');
+for(let i=0;i<2;i++) await page.click('[data-action="orderNext"]');
 await page.click('[data-action="confirmPay"]');
 await page.waitForSelector('#track-map [data-gmap]',{timeout:5000});
 ok('Carte Google Maps affichée au suivi',true);

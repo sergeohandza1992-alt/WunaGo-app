@@ -34,6 +34,7 @@
     status: state, check: check, token: token, setToken: setToken,
     get: function (p) { return call("GET", p); },
     post: function (p, b) { return call("POST", p, b || {}); },
-    patch: function (p, b) { return call("PATCH", p, b || {}); }
+    patch: function (p, b) { return call("PATCH", p, b || {}); },
+    del: function (p) { return call("DELETE", p); }
   };
 })();

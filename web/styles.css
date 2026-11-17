@@ -220,3 +220,5 @@
     padding: 12px 20px calc(18px + var(--sab)); display: flex; flex-direction: column; gap: 12px; box-shadow: 0 -12px 40px rgba(0,0,0,.25); }
   @media (prefers-reduced-motion: no-preference) { .sheet { animation: sheetUp .22s ease both; } @keyframes sheetUp { from { transform: translateY(30px); opacity: 0; } to { transform: none; opacity: 1; } } }
   .btn:disabled { opacity: .45; cursor: default; }
+  .hscroll::-webkit-scrollbar { display: none; }
+  .hscroll { scrollbar-width: none; }
