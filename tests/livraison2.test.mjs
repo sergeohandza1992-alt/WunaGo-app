@@ -179,7 +179,7 @@ await shot(CLI,'03-client-service-client');await shot(ADM,'11-backoffice-message
 ok('Client : réponse du service client reçue en direct',await CLI.isVisible('.bubble-author:has-text("Service client WunaGo")'));
 
 /* 9. Discussion directe entre deux clients */
-const CL2=await open();
+const CL2=await open({geolocation:{latitude:4.0921,longitude:9.7388},permissions:['geolocation']});
 await login(CL2,'6 99 00 00 04','Paul Ebode');
 await CL2.waitForSelector('text=Paul Ebode');
 await CLI.click('[data-action="switchTab"][data-arg="support"]');
@@ -355,6 +355,51 @@ await VIS.locator('select[data-sim="from"]').selectOption('Akwa'); await VIS.loc
 await VIS.waitForSelector('text=PRIX ESTIMÉ');
 ok('Visiteur : prix affiché sans compte',/[1-9][\d\s\u202f]* FCFA/.test(await VIS.locator('#app').innerText()));
 await shot(VIS,'18-prix-sans-compte');
+
+/* 11 octies. Code WunaGo : adresse en 6 caractères + QR code */
+await CL2.click('[data-action="switchTab"][data-arg="home"]'); await CL2.click('[data-action="switchTab"][data-arg="home"]');
+await CL2.waitForSelector('text=Votre adresse en 6 caractères');
+await CL2.click('button[data-arg="codeForm"]');
+await CL2.click('[data-action="codeLabel"][data-arg="Maison"]');
+await CL2.fill('[data-bind="codeForm.hint"]','Portail vert, 2e étage');
+await CL2.click('[data-action="createCode"]');
+await CL2.waitForSelector('[data-action="shareCode"]',{timeout:T});
+const myCode=(await CL2.locator('.mono[style*="font-size:34px"]').textContent()).trim();
+ok('Client : Code WunaGo créé avec son QR code',/^WG-[2-9A-HJKMNP-Z]{4}$/.test(myCode)&&await CL2.isVisible('svg'),myCode);
+await shot(CL2,'19-code-wunago');
+const CPUB=await open();
+await CPUB.goto(URL+'code.html?c='+myCode);
+await CPUB.waitForSelector('text=Me faire livrer ici avec WunaGo');
+ok('Page publique du code : QR, nom et quartier (sans numéro ni GPS)',await CPUB.isVisible('text=Paul')&&await CPUB.isVisible('.qr svg')&&!(await CPUB.content()).includes('699000004'));
+await shot(CPUB,'20-code-public');
+await CLI.click('[data-action="switchTab"][data-arg="home"]'); await CLI.click('[data-action="switchTab"][data-arg="home"]');
+await CLI.click('[data-action="pickService"][data-arg="parcel"]');
+await CLI.click('[data-action="setAddrTarget"][data-arg="pickup"]'); await CLI.click('[data-action="pickQuartier"][data-arg="Akwa"]');
+await CLI.click('[data-action="setAddrTarget"][data-arg="dropoff"]');
+await CLI.click('[data-action="openCodeEntry"]');
+await CLI.fill('[data-bind="codeEntry"]',myCode.replace('WG-','').toLowerCase());
+await CLI.click('[data-action="applyCode"]');
+await CLI.waitForFunction(c=>(document.querySelector('[data-bind="draft.dropoff"]')||{}).value?.includes(c),myCode);
+ok('Commande : le code remplit adresse, repère et destinataire',(await CLI.inputValue('[data-bind="draft.hint.dropoff"]'))==='Portail vert, 2e étage'&&(await CLI.inputValue('[data-bind="draft.rname"]'))==='Paul Ebode');
+for(let i=0;i<3;i++) await CLI.click('[data-action="orderNext"]');
+await CLI.click('[data-action="pickPay"][data-arg="cash"]');
+await CLI.click('[data-action="confirmPay"]');
+await CLI.waitForSelector("text=CODE DE REMISE");
+const coded=(await CLI.evaluate(async()=>(await (await fetch('/api/orders',{headers:{authorization:'Bearer '+WAPI.token()}})).json()).orders))[0];
+ok('Commande enregistrée au point exact du code',coded.dropoff.includes(myCode)&&Math.abs(coded.dropoffGeo.lat-4.0921)<1e-6&&coded.details.recipient.phone==='699000004');
+await CLI.evaluate(async(id)=>fetch('/api/orders/'+id+'/cancel',{method:'POST',headers:{'content-type':'application/json',authorization:'Bearer '+WAPI.token()},body:JSON.stringify({reason:'Test'})}),coded.id);
+await CLI.goto(URL+'#code='+myCode);
+await CLI.waitForFunction(c=>(document.querySelector('[data-bind="draft.dropoff"]')||{}).value?.includes(c),myCode,{timeout:T});
+ok('QR code scanné (lien) : nouvelle livraison vers ce code',true);
+await CLI.click('[data-action="orderBack"]');
+await ADM.click('[data-a="nav"][data-v="orders"]'); await ADM.click('[data-a="newOrder"]');
+await ADM.fill('[data-k="drawer.phone"]','699000007');
+await ADM.locator('select[data-k="drawer.pickupQ"]').selectOption('Akwa');
+await ADM.fill('[data-k="drawer.dropoffCode"]',myCode);
+await ADM.click('[data-a="noSave"]');
+await ADM.waitForSelector('text=Commande enregistrée ✓');
+ok('Backoffice : commande par téléphone avec un Code WunaGo',true);
+await ADM.click('[data-a="closeDrawer"] >> nth=1');
 
 /* 12. Notifications envoyées (mode test, sans envoi réel) */
 const log=await CLI.evaluate(async()=>(await (await fetch('/api/push/_log',{headers:{authorization:'Bearer '+WAPI.token()}})).json()).log);

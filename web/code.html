@@ -1,0 +1,67 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <meta name="theme-color" content="#FFD700" />
+  <title>Code WunaGo</title>
+  <link rel="icon" href="icons/icon-192.png" />
+  <style>
+    @font-face { font-family: "Manrope"; src: url("fonts/Manrope-200-800.woff2") format("woff2"); font-weight: 200 800; font-display: swap; }
+    @font-face { font-family: "IBM Plex Mono"; src: url("fonts/IBMPlexMono-600.woff2") format("woff2"); font-weight: 600; font-display: swap; }
+    :root { --y: #FFD700; --k: #101010; --mono: "IBM Plex Mono", ui-monospace, monospace; }
+    * { box-sizing: border-box; }
+    body { margin: 0; min-height: 100vh; background: var(--y); color: var(--k); font-family: "Manrope", system-ui, sans-serif; -webkit-font-smoothing: antialiased;
+      display: flex; align-items: center; justify-content: center; padding: 24px; }
+    .card { width: 100%; max-width: 380px; background: #fff; border-radius: 26px; padding: 26px 22px; display: flex; flex-direction: column; align-items: center; gap: 12px; text-align: center; box-shadow: 0 20px 50px rgba(16,16,16,.15); }
+    .brand { display: flex; align-items: center; gap: 8px; font-weight: 800; font-size: 22px; letter-spacing: -.5px; }
+    .lbl { font-family: var(--mono); font-size: 10.5px; letter-spacing: .1em; text-transform: uppercase; color: rgba(16,16,16,.55); }
+    .code { font-family: var(--mono); font-weight: 600; font-size: 40px; letter-spacing: .08em; }
+    .qr { width: 230px; height: 230px; }
+    .qr svg { width: 100%; height: 100%; }
+    .who { font-weight: 800; font-size: 17px; }
+    .muted { margin: 0; font-size: 13px; line-height: 1.5; color: rgba(16,16,16,.7); }
+    .btn { width: 100%; min-height: 50px; border-radius: 17px; border: 0; display: flex; align-items: center; justify-content: center; font: inherit; font-weight: 800; font-size: 14.5px; text-decoration: none; }
+    .ink { background: var(--k); color: var(--y); } .out { background: #fff; color: var(--k); border: 1.5px solid rgba(16,16,16,.15); }
+    .steps { text-align: left; margin: 0; padding-left: 18px; font-size: 12.5px; line-height: 1.6; color: rgba(16,16,16,.75); }
+    @media print {
+      body { background: #fff; padding: 0; }
+      .card { box-shadow: none; border: 3px solid var(--k); border-radius: 22px; max-width: 9cm; margin: 0 auto; }
+      .noprint { display: none !important; }
+      .band { display: block !important; }
+    }
+    .band { display: none; background: var(--y); width: 100%; border-radius: 12px; padding: 8px; font-weight: 800; font-size: 13px; }
+  </style>
+</head>
+<body>
+  <div class="card" id="card"><p class="muted">Chargement…</p></div>
+  <script src="vendor/qrcode/qrcode.js"></script>
+  <script>
+  (function () {
+    var params = new URLSearchParams(location.search);
+    var raw = String(params.get("c") || "").toUpperCase().replace(/[^0-9A-Z]/g, "").replace(/^WG/, "");
+    var code = raw.length === 4 ? "WG-" + raw : "";
+    var card = document.getElementById("card");
+    function esc(s) { return String(s == null ? "" : s).replace(/[&<>"']/g, function (c) { return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]; }); }
+    var logo = '<svg width="22" height="28" viewBox="0 0 60 76" aria-hidden="true"><path d="M30 4C14.5 4 4 15.4 4 29.5C4 47 30 72 30 72C30 72 56 47 56 29.5C56 15.4 45.5 4 30 4Z" fill="#101010"/><rect x="20" y="20" width="20" height="20" rx="3" fill="#FFD700"/></svg>';
+    if (!code) { card.innerHTML = '<div class="brand">' + logo + 'WunaGo</div><p class="muted">Code WunaGo invalide.</p><a class="btn ink" href="/">Ouvrir WunaGo</a>'; return; }
+    var q = qrcode(0, "M"); q.addData(location.origin + "/code.html?c=" + code); q.make();
+    fetch("/api/code/" + code).then(function (r) { return r.json().then(function (j) { if (!r.ok) throw new Error(j.error || "Code introuvable."); return j; }); })
+      .then(function (d) {
+        var place = (d.placeName ? d.placeName + " · " : "") + d.area;
+        document.title = code + " — Code WunaGo";
+        card.innerHTML = '<div class="brand">' + logo + 'WunaGo</div><span class="lbl">Adresse WunaGo' + (d.label ? " · " + esc(d.label) : "") + '</span>' +
+          '<div class="code">' + code + '</div><div class="qr">' + q.createSvgTag({ cellSize: 6, margin: 1, scalable: true }) + '</div>' +
+          (d.name ? '<div class="who">' + esc(d.name) + '</div>' : '') + '<p class="muted">' + esc(place) + ', Douala</p>' +
+          '<div class="band">Scannez pour me faire livrer · wunago</div>' +
+          '<a class="btn ink noprint" href="/#code=' + code + '">Me faire livrer ici avec WunaGo</a>' +
+          '<ol class="steps noprint"><li>Ouvrez l\'app WunaGo (ou ce bouton).</li><li>Le code remplit l\'adresse, la position exacte et le repère.</li><li>Le livreur arrive directement devant la porte.</li></ol>' +
+          '<button class="btn out noprint" onclick="window.print()">Imprimer l\'autocollant</button>';
+        if (params.get("print") === "1") setTimeout(function () { window.print(); }, 400);
+      }).catch(function (e) {
+        card.innerHTML = '<div class="brand">' + logo + 'WunaGo</div><div class="code">' + code + '</div><p class="muted">' + esc(e.message) + '</p><a class="btn ink" href="/">Ouvrir WunaGo</a>';
+      });
+  })();
+  </script>
+</body>
+</html>
