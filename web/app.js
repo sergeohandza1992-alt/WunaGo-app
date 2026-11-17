@@ -9,7 +9,7 @@
   var SUPPORT_PHONE = "+237600000000", SUPPORT_PHONE_LABEL = "+237 6 00 00 00 00";
   var STORE_KEY = "wunago.client.v1";
   /* Version affichée dans Réglages : à changer avec CACHE dans sw.js à chaque mise en ligne */
-  var APP_VERSION = "17 · 17/11/2026";
+  var APP_VERSION = "18 · 17/11/2026";
   var deferredInstall = null;
   var lastScreenKey = "";
   var installDismissed = false;
@@ -480,7 +480,7 @@
           '<span style="background:#FFD700;color:#101010;border-radius:99px;padding:9px 13px;font-weight:700;font-size:11.5px">' + esc(d.topUp) + '</span>' +
         '</button>' +
       '</div>' +
-      '<div class="scroll">' + installBanner() + '<div style="padding:18px 20px 6px;font-weight:700;font-size:12.5px;color:rgba(16,16,16,.5)">' + esc(d.services) + '</div>' +
+      '<div class="scroll">' + installBanner() + quickHero() + '<div style="padding:18px 20px 6px;font-weight:700;font-size:12.5px;color:rgba(16,16,16,.5)">' + esc(d.services) + '</div>' +
       '<div style="padding:2px 20px 0">' + (state.settings.homeLayout === "tiles" ? '<div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">' + tiles + '</div>' : '<div class="col" style="gap:8px">' + listRows + '</div>') + '</div>' +
       activeCard + codeHomeCard() + recentBlock() +
       (srv() ? '<div style="height:24px"></div>' : '<div style="padding:20px 20px 24px"><div style="border:1px dashed rgba(16,16,16,.2);border-radius:16px;padding:14px;background:repeating-linear-gradient(135deg,rgba(255,215,0,.16) 0 8px,transparent 8px 16px)">' +
@@ -1353,6 +1353,8 @@
         case "profile": body = screenProfile(); break;
         case "inbox": body = screenInbox(); break;
         case "codes": body = screenCodes(); break;
+        case "flash": body = screenFlash(); break;
+        case "codebook": body = screenCodebook(); break;
         case "codeForm": body = screenCodeForm(); break;
         case "newChat": body = screenNewChat(); break;
         case "conv": body = screenConv(c.convId); break;
@@ -1711,6 +1713,8 @@
       var fld = bind.slice(6); state.draft[fld] = el.value; state.draft[fld + "Geo"] = null; state.draft[fld + "Code"] = null; state.addrTarget = fld; suggest(fld, el.value);
     }
     else if (bind === "draft.note") state.draft.note = el.value;
+    else if (bind === "quickCode") { state.quick.value = el.value.toUpperCase(); el.value = state.quick.value; return; }
+    else if (bind === "flashRename") { if (state.flash) state.flash.rename = el.value; return; }
     else if (bind === "codeEntry") { state.codeEntry.value = el.value.toUpperCase(); el.value = state.codeEntry.value; return; }
     else if (bind === "codeForm.placeName" || bind === "codeForm.hint") { state.codeForm[bind.slice(9)] = el.value; return; }
     else if (bind === "draft.hint.pickup" || bind === "draft.hint.dropoff") { (state.draft.hints = state.draft.hints || {})[bind.slice(11)] = el.value; return; }
@@ -2111,6 +2115,7 @@
   function applyCodeTo(field, code, done) {
     WAPI.get("/codes/" + encodeURIComponent(code)).then(function (r) {
       var p = r.place, dr = state.draft; if (!dr) return;
+      bookAdd(p);
       dr[field] = p.address + " · " + p.code; dr[field + "Geo"] = p.geo; dr[field + "Code"] = p.code;
       dr.hints = dr.hints || {}; dr.hints[field] = p.hint || "";
       if (field === "dropoff" && dr.service === "parcel") dr.recipient = p.mine ? { self: true, name: "", phone: "" } : { self: false, name: p.name || "", phone: p.phone || "" };
@@ -2141,6 +2146,179 @@
     render(); applyCodeTo("dropoff", code);
   }
 
+  /* ============================== commande éclair : « Envoyer à… » comme appeler un contact ============================== */
+  var FL = {
+    fr: { parcel: "📦 Envoyer un colis", ride: "🛵 Faire un trajet", toParcel: "Envoyer à…", toRide: "Aller chez…", ph: "Code WunaGo (WG-…)",
+      book: "Mon carnet", empty: "Vos contacts WunaGo apparaîtront ici : tapez le code d'un proche, d'une boutique, d'un bureau…", me: "Moi",
+      from: "DÉPART", to: "ARRIVÉE", myPos: "Ma position actuelle", locating: "Localisation…", size: "Petit colis (jusqu'à 5 kg, à moto)", heavy: "Plus lourd ou volumineux ? Parcours complet",
+      moto: "Moto-taxi", car: "Voiture", pay: "PAIEMENT", send: "Envoyer", book2: "Réserver", rename: "Nom dans mon carnet", saved: "Ajouté à votre carnet ✓",
+      bookTitle: "Mon carnet de codes", bookSub: "Les codes de vos proches, boutiques et bureaux. Touchez un contact pour lui envoyer un colis.", remove: "Retirer", call: "Appeler",
+      noFrom: "Choisissez le départ : votre code ou votre position.", seeAll: "Tout voir" },
+    en: { parcel: "📦 Send a parcel", ride: "🛵 Take a ride", toParcel: "Send to…", toRide: "Go to…", ph: "WunaGo code (WG-…)",
+      book: "My contacts", empty: "Your WunaGo contacts will appear here: type the code of a relative, a shop, an office…", me: "Me",
+      from: "PICKUP", to: "DROP-OFF", myPos: "My current location", locating: "Locating…", size: "Small parcel (up to 5 kg, by motorbike)", heavy: "Heavier or bulky? Full form",
+      moto: "Moto-taxi", car: "Car", pay: "PAYMENT", send: "Send", book2: "Book", rename: "Name in my contacts", saved: "Added to your contacts ✓",
+      bookTitle: "My code contacts", bookSub: "Codes of your relatives, shops and offices. Tap a contact to send them a parcel.", remove: "Remove", call: "Call",
+      noFrom: "Choose the pickup: your code or your location.", seeAll: "See all" }
+  };
+  function tf() { return FL[state.lang] || FL.fr; }
+  state.codebook = state.codebook || [];
+  state.quick = { service: "parcel", value: "" };
+  function bookAdd(p) {
+    if (!p || p.mine) return;
+    var b = state.codebook || (state.codebook = []), e = b.filter(function (x) { return x.code === p.code; })[0];
+    if (e) { e.area = p.area; e.usedAt = Date.now(); }
+    else b.unshift({ code: p.code, name: p.name || p.label || p.code, area: p.area, usedAt: Date.now() });
+    b.sort(function (a, c) { return (c.usedAt || 0) - (a.usedAt || 0); });
+    if (b.length > 50) b.length = 50;
+  }
+  function initials2(n) { var p = String(n || "?").trim().split(/\s+/); return ((p[0] || "?")[0] + ((p[1] || "")[0] || "")).toUpperCase(); }
+  function contactBubble(code, name, sub, mine) {
+    return '<button class="col" data-action="flashTo" data-arg="' + esc(code) + '" style="gap:5px;align-items:center;width:72px;flex:none;border:0;background:transparent;cursor:pointer;color:#101010;padding:0">' +
+      '<span class="fx ac jc" style="width:52px;height:52px;border-radius:99px;background:' + (mine ? "#fff" : "#101010") + ';color:' + (mine ? "#101010" : "#FFD700") + ';border:2px solid #101010;font-weight:800;font-size:15px">' + esc(mine ? "🏠" : initials2(name)) + '</span>' +
+      '<span style="font-weight:700;font-size:11.5px;max-width:72px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">' + esc(name) + '</span>' +
+      '<span class="mono" style="font-size:9px;color:rgba(16,16,16,.55)">' + esc(sub) + '</span></button>';
+  }
+  function quickHero() {
+    if (!srv() || isCourier()) return "";
+    var f = tf(), Q = state.quick, ride = Q.service === "ride";
+    var seg = function (k, label) { var on = Q.service === k; return '<button class="btn" data-action="quickService" data-arg="' + k + '" aria-pressed="' + on + '" style="flex:1;height:40px;border-radius:99px;font-weight:800;font-size:12px;background:' + (on ? "#101010" : "rgba(255,255,255,.55)") + ';color:' + (on ? "#FFD700" : "#101010") + '">' + f[k] + '</button>'; };
+    var scan = "BarcodeDetector" in window ? '<label class="btn" aria-label="' + esc(tw().scan) + '" style="width:48px;height:48px;flex:none;border-radius:14px;background:#fff;padding:0;position:relative;cursor:pointer">' + CAMERA +
+      '<input type="file" accept="image/*" capture="environment" data-file="qrquick" style="position:absolute;width:1px;height:1px;opacity:0"></label>' : '';
+    var people = (state.codebook || []).slice(0, 8).map(function (c) { return contactBubble(c.code, c.name, c.code, false); });
+    var mine = (state.places || []).map(function (p) { return contactBubble(p.code, f.me + " · " + p.label, p.code, true); });
+    var row = people.concat(ride ? [] : mine.slice(1)).concat(ride ? mine : []);
+    return '<div style="padding:14px 20px 0"><div class="col" style="gap:11px;background:#FFD700;border-radius:20px;padding:14px">' +
+      '<div class="fx" style="gap:6px">' + seg("parcel", f.parcel) + seg("ride", f.ride) + '</div>' +
+      '<div class="fx ac" style="gap:7px"><input data-bind="quickCode" autocapitalize="characters" autocomplete="off" enterkeyhint="go" aria-label="' + esc(ride ? f.toRide : f.toParcel) + '" placeholder="' + esc((ride ? f.toRide : f.toParcel) + "  " + f.ph) + '" value="' + esc(Q.value) + '" style="flex:1;min-width:0;height:48px;border-radius:14px;background:#fff;padding:0 14px;font-weight:700;font-size:14px" />' +
+        scan + '<button class="btn btn-ink" data-action="quickGo" aria-label="OK" style="width:48px;height:48px;border-radius:14px;padding:0;font-size:18px">→</button></div>' +
+      (row.length ? '<div class="fx ac jb"><span class="mono" style="font-size:9.5px;letter-spacing:.08em;color:rgba(16,16,16,.65)">' + esc(f.book.toUpperCase()) + '</span>' +
+        '<button class="btn" data-action="openScreen" data-arg="codebook" style="height:30px;padding:0 6px;background:transparent;font-weight:700;font-size:11px;text-decoration:underline">' + esc(f.seeAll) + '</button></div>' +
+        '<div class="fx hscroll" style="gap:6px;overflow-x:auto;margin:0 -14px;padding:0 14px 2px">' + row.join("") + '</div>'
+        : '<span style="font-size:11.5px;line-height:1.45;color:rgba(16,16,16,.72)">' + esc(f.empty) + '</span>') +
+      '</div></div>';
+  }
+  actions.quickService = function (el, arg) { state.quick.service = arg; render(); };
+  actions.quickGo = function () {
+    var c = codeFromText("WG-" + String(state.quick.value || "").toUpperCase().replace(/[^0-9A-Z]/g, "").replace(/^WG/, ""));
+    if (!c) { toast(state.lang === "en" ? "Code: WG- followed by 4 characters." : "Code : WG- suivi de 4 caractères."); return; }
+    actions.flashTo(null, c);
+  };
+  document.addEventListener("keydown", function (e) { if (e.key === "Enter" && e.target && e.target.getAttribute && e.target.getAttribute("data-bind") === "quickCode") { e.preventDefault(); actions.quickGo(); } });
+  document.addEventListener("change", function (ev) {
+    var el = ev.target; if (!el || el.getAttribute("data-file") !== "qrquick" || !el.files || !el.files[0]) return;
+    createImageBitmap(el.files[0]).then(function (bmp) { return new BarcodeDetector({ formats: ["qr_code"] }).detect(bmp); }).then(function (res) {
+      var code = res && res[0] && codeFromText(res[0].rawValue);
+      if (!code) { toast(tw().notFound); return; }
+      actions.flashTo(null, code);
+    }).catch(function () { toast(tw().noScan); });
+  });
+
+  /* écran unique : départ, arrivée, prix, paiement, confirmer */
+  function nearestQuartier(g) {
+    var best = null, bd = 1e9; ((window.WPricing && WPricing.QUARTIERS) || []).forEach(function (q) { var d = WPricing.distanceKm(g, q); if (d < bd) { bd = d; best = q; } });
+    return best ? best.name : "Douala";
+  }
+  actions.flashTo = function (el, code, service) {
+    WAPI.get("/codes/" + encodeURIComponent(code)).then(function (r) {
+      var p = r.place, svc = service || state.quick.service;
+      var mineFirst = (state.places || []).filter(function (x) { return x.code !== p.code; })[0];
+      state.flash = { service: svc, to: p, from: mineFirst ? { type: "code", code: mineFirst.code, text: mineFirst.address, geo: mineFirst.geo, label: mineFirst.label } : null,
+        vehicle: "bike", passengers: 1, pay: state.defaultPay && state.defaultPay !== "wallet" ? state.defaultPay : "cash", rename: "" };
+      if (!p.mine) { bookAdd(p); var e = state.codebook.filter(function (x) { return x.code === p.code; })[0]; state.flash.rename = e ? e.name : ""; }
+      state.quick.value = ""; state.codeEntry = null;
+      state.activeTab = "home"; state.tabStacks.home = [{ screen: "home" }, { screen: "flash" }];
+      try { history.pushState({ wg: 2 }, ""); } catch (e2) {}
+      render();
+      if (!state.flash.from || svc === "ride") actions.flashMyPos(null, null, true);
+    }).catch(errToast);
+  };
+  actions.flashMyPos = function (el, arg, silent) {
+    var F = state.flash; if (!F) return;
+    F.locating = true; render();
+    if (!navigator.geolocation) { F.locating = false; render(); return; }
+    navigator.geolocation.getCurrentPosition(function (p) {
+      var g = { lat: p.coords.latitude, lng: p.coords.longitude };
+      F.locating = false; F.from = { type: "gps", geo: g, text: tf().myPos + " (" + nearestQuartier(g) + ")" }; render();
+    }, function () { F.locating = false; render(); if (!silent) toast(tw().gpsOff); }, { enableHighAccuracy: true, timeout: 15000, maximumAge: 30000 });
+  };
+  actions.flashFrom = function (el, arg) {
+    var p = (state.places || []).filter(function (x) { return x.code === arg; })[0]; if (!p) return;
+    state.flash.from = { type: "code", code: p.code, text: p.address, geo: p.geo, label: p.label }; render();
+  };
+  function flashQuote(F) {
+    if (!F || !F.from || !window.WPricing) return null;
+    return WPricing.quote({ service: F.service, pickup: F.from.text, dropoff: F.to.address, pickupGeo: F.from.geo, dropoffGeo: F.to.geo,
+      vehicle: F.service === "ride" ? F.vehicle : "bike", weightKg: 2, ride: { passengers: F.passengers } }, Date.now());
+  }
+  function screenFlash() {
+    var f = tf(), F = state.flash, d = t();
+    if (!F) return page3(hdr("—"));
+    var ride = F.service === "ride", q = flashQuote(F), to = F.to;
+    var chipS = function (on, action, arg, label) { return '<button class="btn" data-action="' + action + '" data-arg="' + esc(arg) + '" aria-pressed="' + on + '" style="height:auto;min-height:38px;border-radius:99px;padding:7px 12px;font-weight:700;font-size:11.5px;border:1px solid ' + (on ? "#101010" : "rgba(16,16,16,.12)") + ';background:' + (on ? "#101010" : "#fff") + ';color:' + (on ? "#FFD700" : "#101010") + '">' + esc(label) + '</button>'; };
+    var fromChips = (state.places || []).filter(function (p) { return p.code !== to.code; }).map(function (p) { return chipS(F.from && F.from.code === p.code, "flashFrom", p.code, "🏠 " + p.label + " · " + p.code); }).join("") +
+      chipS(F.from && F.from.type === "gps", "flashMyPos", "", F.locating ? f.locating : "📍 " + f.myPos);
+    var payOpts = ["cash", "orange_money", "mtn_momo"].concat(state.wallet.balance >= (q ? q.net : 1e9) ? ["wallet"] : []);
+    var err = q && q.errors.length ? (q.closed ? t4().errs.closed : q.errors.indexOf("distance") >= 0 ? t4().errs.distance : null) : null;
+    return '<div class="scroll"><div class="col" style="padding:calc(18px + var(--sat)) 20px 20px;gap:14px">' +
+      '<div class="fx ac" style="gap:11px"><button class="backbtn" aria-label="Retour" data-action="popScreen">←</button><h1 style="margin:0;font-weight:800;font-size:19px;letter-spacing:-.4px;flex:1">' + esc(ride ? f.ride.slice(3) : f.parcel.slice(3)) + '</h1></div>' +
+      /* destinataire comme une fiche contact */
+      '<div class="fx ac" style="gap:12px;background:#101010;color:#fff;border-radius:18px;padding:14px">' +
+        '<span class="fx ac jc" style="width:52px;height:52px;flex:none;border-radius:99px;background:#FFD700;color:#101010;font-weight:800;font-size:16px">' + esc(to.mine ? "🏠" : initials2(F.rename || to.name)) + '</span>' +
+        '<span class="col" style="gap:2px;flex:1;min-width:0"><span class="mono" style="font-size:9.5px;letter-spacing:.08em;color:rgba(255,255,255,.6)">' + f.to + ' · ' + esc(to.code) + '</span>' +
+        '<span style="font-weight:800;font-size:16px">' + esc(to.mine ? f.me + " · " + to.label : (F.rename || to.name || to.code)) + '</span>' +
+        '<span style="font-size:12px;color:rgba(255,255,255,.75)">' + esc(to.address) + (to.hint ? ' · ' + esc(to.hint) : '') + '</span></span>' +
+        (to.phone && !to.mine ? '<a class="btn" href="tel:+237' + esc(to.phone) + '" aria-label="' + esc(f.call) + '" style="width:44px;height:44px;flex:none;border-radius:12px;background:#FFD700;padding:0;text-decoration:none">' + ICON_PHONE.replace(/#FFD700/g, "#101010") + '</a>' : '') + '</div>' +
+      (to.mine ? '' : '<input data-bind="flashRename" aria-label="' + esc(f.rename) + '" placeholder="' + esc(f.rename) + '" value="' + esc(F.rename) + '" style="' + card + ';height:44px;padding:0 13px;font-weight:600;font-size:13px" />') +
+      '<div class="col" style="gap:7px"><span class="mono" style="font-size:9.5px;letter-spacing:.08em;color:rgba(16,16,16,.55)">' + f.from + (F.from ? ' · ' + esc(F.from.text) : '') + '</span><div class="fx wrap" style="gap:6px">' + fromChips + '</div></div>' +
+      (ride ? '<div class="fx" style="gap:6px">' + chipS(F.vehicle === "bike", "flashVehicle", "bike", f.moto) + chipS(F.vehicle === "car", "flashVehicle", "car", f.car) + '</div>'
+        : '<div class="fx ac" style="gap:8px;font-size:12.5px;font-weight:600"><span style="width:8px;height:8px;border-radius:99px;background:#101010"></span>' + esc(f.size) + '</div>' +
+          '<button class="btn" data-action="flashFull" style="height:36px;align-self:flex-start;padding:0;background:transparent;font-weight:700;font-size:12px;text-decoration:underline">' + esc(f.heavy) + '</button>') +
+      '<div class="col" style="gap:7px"><span class="mono" style="font-size:9.5px;letter-spacing:.08em;color:rgba(16,16,16,.55)">' + f.pay + '</span><div class="fx wrap" style="gap:6px">' +
+        payOpts.map(function (k) { return chipS(F.pay === k, "flashPay", k, d.paymentNames[k]); }).join("") + '</div></div>' +
+      (err ? '<div role="alert" style="background:rgba(255,215,0,.25);border-radius:12px;padding:10px 12px;font-size:12px;font-weight:600">' + esc(err) + '</div>' : '') +
+    '</div></div>' +
+    '<div style="padding:12px 20px 20px"><button class="btn btn-yellow" data-action="flashConfirm" style="width:100%;height:56px;font-size:16px"' + (!q || err || F.busy ? " disabled" : "") + '>' +
+      esc(F.busy ? "…" : (ride ? f.book2 : f.send)) + (q && !err ? ' · ' + fmtFcfa(q.net) : '') + '</button></div>';
+  }
+  actions.flashVehicle = function (el, arg) { state.flash.vehicle = arg; render(); };
+  actions.flashPay = function (el, arg) { state.flash.pay = arg; render(); };
+  actions.flashFull = function () {
+    var F = state.flash; state.draft = newDraft("parcel");
+    if (F.from) { state.draft.pickup = F.from.text; state.draft.pickupGeo = F.from.geo; if (F.from.code) state.draft.pickupCode = F.from.code; }
+    state.tabStacks.home = [{ screen: "home" }, { screen: "order" }]; render(); applyCodeTo("dropoff", F.to.code);
+  };
+  actions.flashConfirm = function () {
+    var F = state.flash; if (!F || F.busy) return;
+    if (!F.from) { toast(tf().noFrom); return; }
+    var q = flashQuote(F); if (!q || q.errors.length) return;
+    F.busy = true; render();
+    var body = { service: F.service, pickup: F.from.text, dropoff: F.to.code, pickupGeo: F.from.geo, dropoffGeo: F.to.geo, dropoffCode: F.to.code,
+      pickupCode: F.from.type === "code" ? F.from.code : undefined, vehicle: F.service === "ride" ? F.vehicle : "bike", weightKg: 2,
+      ride: { passengers: F.passengers }, paymentMethod: F.pay, note: "" };
+    WAPI.post("/orders", body).then(function (r) {
+      F.busy = false; state.wallet.balance = r.wallet.balance; replaceOrder(r.order);
+      var e = state.codebook.filter(function (x) { return x.code === F.to.code; })[0];
+      if (e && String(F.rename || "").trim()) e.name = F.rename.trim();
+      state.flash = null; state.tabStacks.home = [{ screen: "home" }, { screen: "track", orderId: r.order.id }];
+      render();
+    }).catch(function (e) { F.busy = false; render(); errToast(e); });
+  };
+
+  /* carnet de codes */
+  function screenCodebook() {
+    var f = tf(), b = state.codebook || [];
+    return page3(hdr(f.bookTitle) + '<p style="margin:0;font-size:12.5px;line-height:1.5;color:rgba(16,16,16,.7)">' + esc(f.bookSub) + '</p>' +
+      (b.length ? '<div style="' + card + ';padding:2px 12px">' + b.map(function (c, i) {
+        return '<div class="fx ac" style="gap:10px;padding:10px 0;' + (i ? 'border-top:1px solid var(--hair)' : '') + '">' +
+          '<button class="fx ac" data-action="flashTo" data-arg="' + esc(c.code) + '" style="gap:11px;flex:1;min-width:0;border:0;background:transparent;text-align:left;cursor:pointer;padding:0;color:#101010;min-height:44px">' +
+          '<span class="fx ac jc" style="width:42px;height:42px;flex:none;border-radius:99px;background:#101010;color:#FFD700;font-weight:800;font-size:14px">' + esc(initials2(c.name)) + '</span>' +
+          '<span class="col" style="gap:1px;min-width:0"><span style="font-weight:700;font-size:13.5px">' + esc(c.name) + '</span><span class="mono" style="font-size:10px;color:rgba(16,16,16,.55)">' + esc(c.code) + ' · ' + esc(c.area || "") + '</span></span></button>' +
+          '<button class="btn" data-action="bookRemove" data-arg="' + esc(c.code) + '" style="height:36px;padding:0 10px;background:transparent;font-size:11px;font-weight:700;color:rgba(16,16,16,.55)">' + esc(f.remove) + '</button></div>';
+      }).join("") + '</div>' : '<p style="margin:0;font-size:12.5px;color:rgba(16,16,16,.55)">' + esc(f.empty) + '</p>'));
+  }
+  actions.bookRemove = function (el, arg) { state.codebook = (state.codebook || []).filter(function (x) { return x.code !== arg; }); render(); };
+
   /* ============================== mode serveur (API WunaGo) ============================== */
   /* Si l'API répond, comptes, commandes, portefeuille et réclamations sont enregistrés sur le serveur.
      Sinon, l'app garde le mode local (démo) d'origine. */
@@ -2149,7 +2327,7 @@
   function srv() { return !!(window.WAPI && WAPI.status.on); }
   function errToast(e) { toast((e && e.message) || "Erreur."); }
   function prettyPhone(p) { return String(p || "").replace(/^(\d)(\d{2})(\d{2})(\d{2})(\d{2})$/, "$1 $2 $3 $4 $5"); }
-  var PREF_FIELDS = ["addresses", "payAccounts", "defaultPay", "notifPrefs"];
+  var PREF_FIELDS = ["addresses", "payAccounts", "defaultPay", "notifPrefs", "codebook"];
   var lastPrefs = null, prefsTimer = null;
   function prefsSnapshot() { var o = {}; PREF_FIELDS.forEach(function (k) { o[k] = state[k]; }); o.lang = state.lang; o.settings = state.settings; return JSON.stringify(o); }
   function applyUser(u) {
@@ -2185,7 +2363,7 @@
     state.payAccounts = []; state.defaultPay = "orange_money"; state.notifPrefs = { orders: true, sms: true, push: false, promos: true };
     state.tabStacks = { home: [{ screen: "home" }], orders: [{ screen: "history" }], wallet: [{ screen: "wallet" }], support: [{ screen: srv() ? "inbox" : "chat" }],
       courses: [{ screen: "courierHome" }], account: [{ screen: "courierAccount" }] };
-    state.activeTab = "home"; state.convs = []; state.convMsgs = {}; state.places = []; state.codeEntry = null; state.courierData = { offers: [], orders: [] }; state.proofForm = null;
+    state.activeTab = "home"; state.convs = []; state.convMsgs = {}; state.places = []; state.codeEntry = null; state.flash = null; state.codebook = []; state.courierData = { offers: [], orders: [] }; state.proofForm = null;
     if (typeof stopGps === "function") stopGps();
   }
   function forceLogin() {
@@ -2715,7 +2893,7 @@
   function handleHash() {
     if (!state.loggedIn) return;
     var h = location.hash, m1 = h.match(/^#discussion=([\w-]+)/), m2 = h.match(/^#commande=([\w-]+)/), m3 = h.match(/^#code=(WG-?[0-9A-Za-z]{4})/i);
-    if (m3 && srv() && !isCourier()) { try { history.replaceState(null, "", location.pathname); } catch (e) {} openCodeOrder(codeFromText(m3[1])); return; }
+    if (m3 && srv() && !isCourier()) { try { history.replaceState(null, "", location.pathname); } catch (e) {} actions.flashTo(null, codeFromText(m3[1]), "parcel"); return; }
     if (m1 && srv()) { state.activeTab = "support"; state.tabStacks.support = [{ screen: "inbox" }, { screen: "conv", convId: m1[1] }]; loadConvs().then(function () { loadMessages(m1[1], true); }); }
     else if (m2) { var o = findOrder(m2[1]); if (o) { state.activeTab = "orders"; state.tabStacks.orders = [{ screen: "history" }, { screen: o.status === "delivered" ? "proof" : "track", orderId: o.id }]; } }
     else if (h === "#courses" && isCourier()) { state.activeTab = "courses"; }
@@ -2810,7 +2988,7 @@
   });
 
   /* Persistance locale (cache de l'app ; en mode serveur, le serveur fait foi) */
-  var KEEP = ["lang", "loggedIn", "phone", "user", "wallet", "settings", "orders", "seq", "chatByOrder", "addresses", "payAccounts", "defaultPay", "notifPrefs", "disputes"];
+  var KEEP = ["lang", "loggedIn", "phone", "user", "wallet", "settings", "orders", "seq", "chatByOrder", "addresses", "payAccounts", "defaultPay", "notifPrefs", "disputes", "codebook"];
   function save() {
     try { var o = {}; KEEP.forEach(function (k) { o[k] = state[k]; }); localStorage.setItem(STORE_KEY, JSON.stringify(o)); } catch (e) {}
     syncPrefs();
