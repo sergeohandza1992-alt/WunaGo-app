@@ -213,6 +213,7 @@
   function replaceTop(screen, extra) { var s = stack(); s[s.length - 1] = Object.assign({ screen: screen }, extra || {}); render(); }
   function popScreen() { var s = stack(); if (s.length > 1) s.pop(); render(); }
   function switchTab(tab) {
+    if (tab === "orders" && state.spend) { state.spend.list = null; state.spend.err = false; }
     if (tab === "account" && state.cEarn) { state.cEarn.data = null; state.cEarn.err = false; }
     /* toucher l'onglet déjà ouvert ramène à son premier écran */
     if (state.activeTab === tab) { var s = state.tabStacks[tab]; state.tabStacks[tab] = [s[0]]; }
@@ -895,31 +896,96 @@
     );
   }
 
-  /* ============================== screen: history ============================== */
-
+  /* ============================== screen: history (+ dépenses par période) ============================== */
+  var SPEND = {
+    fr: { modes: [["all", "Tout"], ["day", "Jour"], ["week", "Semaine"], ["month", "Mois"], ["year", "Année"]], all: "Toutes mes commandes",
+      spent: "DÉPENSÉ", orders: "commande(s)", delivered: "livrée(s)", cancelled: "annulée(s), non facturée(s)", basket: "Panier moyen", saved: "Économies (remises)",
+      purchases: "dont achats de courses", byService: "Par service", byPay: "Par moyen de paiement", none: "Aucune commande sur cette période.", loading: "Chargement…" },
+    en: { modes: [["all", "All"], ["day", "Day"], ["week", "Week"], ["month", "Month"], ["year", "Year"]], all: "All my orders",
+      spent: "SPENT", orders: "order(s)", delivered: "delivered", cancelled: "cancelled, not charged", basket: "Average order", saved: "Savings (discounts)",
+      purchases: "incl. shopping purchases", byService: "By service", byPay: "By payment method", none: "No order in this period.", loading: "Loading…" }
+  };
+  state.spend = { mode: "all", ref: new Date(Date.now() + 3600000).toISOString().slice(0, 10), list: null, busy: false, err: false };
+  function spendOrders() {
+    var S2 = state.spend;
+    if (S2.mode === "all") return state.orders;
+    if (srv()) {
+      var r = earnRange(S2), key = r.from + "|" + r.to;
+      if ((!S2.list || S2.key !== key) && S2.busy !== key && !S2.err) {
+        S2.busy = key; S2.list = null;
+        WAPI.get("/orders?from=" + r.from + "&to=" + r.to).then(function (d) {
+          if (S2.busy !== key) return; /* réponse d'une période abandonnée */
+          S2.busy = false; S2.key = key; S2.list = d.orders; render();
+        }).catch(function (e) { if (S2.busy !== key) return; S2.busy = false; S2.err = true; errToast(e); });
+      }
+      if (S2.key !== key) return null;
+      return S2.list;
+    }
+    var rr = earnRange(S2);
+    return state.orders.filter(function (o) { var k = new Date((o.createdAt || 0) + 3600000).toISOString().slice(0, 10); return k >= rr.from && k <= rr.to; });
+  }
+  function spendSummary(list) {
+    var s = { n: list.length, spent: 0, delivered: 0, cancelled: 0, purchases: 0, saved: 0, svc: {}, pay: {} };
+    list.forEach(function (o) {
+      if (o.status === "cancelled") { s.cancelled++; return; }
+      var net = orderNet(o);
+      if (o.status === "delivered") s.delivered++;
+      s.spent += net;
+      s.purchases += (o.priceLines || []).filter(function (l) { return l.key === "articles"; }).reduce(function (a, l) { return a + l.amount; }, 0);
+      s.saved += (o.price && o.price.discount) || 0;
+      s.svc[o.service] = (s.svc[o.service] || 0) + net;
+      s.pay[o.paymentMethod] = (s.pay[o.paymentMethod] || 0) + net;
+    });
+    return s;
+  }
+  function spendBars(obj, label) {
+    var keys = Object.keys(obj).sort(function (a, b) { return obj[b] - obj[a]; }), max = Math.max.apply(null, keys.map(function (k) { return obj[k]; }).concat([1]));
+    return keys.map(function (k) {
+      return '<div class="col" style="gap:4px"><div class="fx jb"><span style="font-weight:700;font-size:12.5px">' + esc(label(k)) + '</span><span class="mono" style="font-size:11.5px">' + fmtFcfa(obj[k]) + '</span></div>' +
+        '<div style="height:8px;border-radius:4px;background:rgba(16,16,16,.06);overflow:hidden"><div style="height:100%;width:' + (obj[k] / max * 100).toFixed(1) + '%;background:#101010;border-radius:0 4px 4px 0"></div></div></div>';
+    }).join("");
+  }
   function screenHistory() {
-    var d = t();
+    var d = t(), L = SPEND[state.lang] || SPEND.fr, S2 = state.spend;
     var filter = state.historyFilter || 0;
     var svcFilter = [null, "parcel", "laundry", "errand", "ride"][filter] || null;
-    var orders = state.orders.filter(function (o) { return !svcFilter || o.service === svcFilter; });
+    var base = spendOrders();
+    var periodChips = '<div class="fx" style="gap:6px">' + L.modes.map(function (m) {
+      var on = S2.mode === m[0];
+      return '<button class="btn" data-action="spendMode" data-arg="' + m[0] + '" style="flex:1;height:38px;padding:0 4px;border-radius:99px;font-size:11.5px;font-weight:700;background:' + (on ? "#101010" : "#fff") + ';color:' + (on ? "#FFD700" : "#101010") + ';border:1px solid ' + (on ? "#101010" : "var(--hair)") + '">' + m[1] + '</button>';
+    }).join("") + '</div>';
+    var nav = S2.mode === "all" ? '' : '<div class="fx ac jb"><button class="btn" data-action="spendShift" data-arg="-1" aria-label="Période précédente" style="width:44px;height:44px;border-radius:12px;background:rgba(16,16,16,.06);padding:0">‹</button>' +
+      '<span style="font-weight:800;font-size:15px;text-transform:capitalize">' + esc(earnLabel(S2)) + '</span>' +
+      '<button class="btn" data-action="spendShift" data-arg="1" aria-label="Période suivante" style="width:44px;height:44px;border-radius:12px;background:rgba(16,16,16,.06);padding:0">›</button></div>';
+    if (!base) return '<div class="scroll"><div class="col" style="padding:calc(18px + var(--sat)) 20px 20px;gap:14px"><div style="font-weight:800;font-size:23px;letter-spacing:-.7px">' + esc(d.orders) + '</div>' +
+      periodChips + nav + '<p style="margin:0;text-align:center;color:rgba(16,16,16,.5);font-size:13px">' + (S2.err ? "—" : L.loading) + '</p></div></div>';
+    var orders = base.filter(function (o) { return !svcFilter || o.service === svcFilter; });
+    var sm = spendSummary(orders), valid = sm.n - sm.cancelled;
+    var spendCard = '<div class="col" style="background:#101010;border-radius:19px;padding:17px;gap:6px"><span class="mono" style="font-size:10px;letter-spacing:.08em;color:rgba(255,255,255,.6)">' + L.spent + (S2.mode === "all" ? "" : " · " + esc(earnLabel(S2)).toUpperCase()) + '</span>' +
+      '<span style="font-weight:800;font-size:28px;color:#FFD700">' + fmtFcfa(sm.spent) + '</span>' +
+      '<span class="mono" style="font-size:11px;color:rgba(255,255,255,.75)">' + valid + ' ' + L.orders + ' · ' + sm.delivered + ' ' + L.delivered + (sm.cancelled ? ' · ' + sm.cancelled + ' ' + L.cancelled : '') + '</span></div>';
+    var details = valid ? '<div style="' + card + ';padding:4px 14px">' +
+      '<div class="fx jb" style="padding:10px 0;border-bottom:1px solid var(--hair)"><span style="font-weight:700;font-size:13px">' + L.basket + '</span><span class="mono" style="font-size:12px">' + fmtFcfa(Math.round(sm.spent / valid)) + '</span></div>' +
+      (sm.purchases ? '<div class="fx jb" style="padding:10px 0;border-bottom:1px solid var(--hair)"><span style="font-weight:700;font-size:13px">' + L.purchases + '</span><span class="mono" style="font-size:12px">' + fmtFcfa(sm.purchases) + '</span></div>' : '') +
+      '<div class="fx jb" style="padding:10px 0"><span style="font-weight:700;font-size:13px">' + L.saved + '</span><span class="mono" style="font-size:12px">' + fmtFcfa(sm.saved) + '</span></div></div>' +
+      '<div style="' + card + ';padding:14px;display:flex;flex-direction:column;gap:10px">' + sectionTitle(L.byService) + spendBars(sm.svc, svcName) + '</div>' +
+      '<div style="' + card + ';padding:14px;display:flex;flex-direction:column;gap:10px">' + sectionTitle(L.byPay) + spendBars(sm.pay, function (k) { return (d.paymentNames && d.paymentNames[k]) || k; }) + '</div>' : '';
     var chips = t4().filters.map(function (f, i) {
       var on = filter === i;
       return '<button class="btn" data-action="setHistoryFilter" data-arg="' + i + '" style="border:0;border-radius:99px;padding:8px 13px;height:auto;min-height:36px;flex:none;background:' + (on ? "#101010" : "rgba(16,16,16,.06)") + ';color:' + (on ? "#fff" : "rgba(16,16,16,.6)") + ';font-weight:700;font-size:11.5px">' + esc(f) + '</button>';
     }).join("");
-
     var badgeStyle = { received: ["#FFD700", "#101010"], picked_up: ["#FFD700", "#101010"], en_route: ["#FFD700", "#101010"], delivered: ["#101010", "#FFD700"], cancelled: ["rgba(16,16,16,.07)", "rgba(16,16,16,.5)"] };
     var rows = orders.map(function (o) {
-      var price = { net: orderNet(o) };
       var bs = badgeStyle[o.status] || badgeStyle.cancelled;
       return '<button class="col" data-action="openOrder" data-arg="' + o.id + '" style="width:100%;text-align:left;border:1px solid var(--hair);background:#fff;border-radius:15px;padding:14px;gap:9px;cursor:pointer;margin-bottom:9px">' +
-        '<div class="fx ac" style="gap:8px"><span class="mono" style="font-size:10px;color:rgba(16,16,16,.5)">' + o.code + '</span><span style="margin-left:auto;border-radius:99px;padding:4px 9px;background:' + bs[0] + ';color:' + bs[1] + ';font-family:var(--mono);font-weight:700;font-size:9.5px">' + esc(statusLabel(o.status)) + '</span></div>' +
+        '<div class="fx ac" style="gap:8px"><span class="mono" style="font-size:10px;color:rgba(16,16,16,.5)">' + o.code + (o.createdAt ? ' · ' + fmtTime(o.createdAt) : '') + '</span><span style="margin-left:auto;border-radius:99px;padding:4px 9px;background:' + bs[0] + ';color:' + bs[1] + ';font-family:var(--mono);font-weight:700;font-size:9.5px">' + esc(statusLabel(o.status)) + '</span></div>' +
         '<div style="font-weight:700;font-size:13.5px">' + esc(o.pickup) + (o.dropoff && o.dropoff !== o.pickup ? ' → ' + esc(o.dropoff) : '') + '</div>' +
-        '<div class="fx jb" style="align-items:baseline"><span class="mono" style="font-size:10.5px;color:rgba(16,16,16,.5)">' + esc(svcName(o.service)) + '</span><span style="font-weight:700;font-size:13px">' + fmtFcfa(price.net) + '</span></div>' +
+        '<div class="fx jb" style="align-items:baseline"><span class="mono" style="font-size:10.5px;color:rgba(16,16,16,.5)">' + esc(svcName(o.service)) + '</span><span style="font-weight:700;font-size:13px">' + fmtFcfa(orderNet(o)) + '</span></div>' +
       '</button>';
-    }).join("") || '<div style="padding:30px 0;text-align:center;color:rgba(16,16,16,.4);font-size:13px">—</div>';
-
+    }).join("") || '<div style="padding:24px 0;text-align:center;color:rgba(16,16,16,.45);font-size:13px">' + L.none + '</div>';
     return '<div class="scroll"><div class="col" style="padding:calc(18px + var(--sat)) 20px 20px;gap:14px">' +
       '<div style="font-weight:800;font-size:23px;letter-spacing:-.7px">' + esc(d.orders) + '</div>' +
+      periodChips + nav + spendCard + details +
       '<div class="fx hscroll" style="gap:7px;overflow-x:auto;margin:0 -20px;padding:0 20px 2px">' + chips + '</div>' +
       '<div>' + rows + '</div>' +
     '</div></div>';
@@ -1459,6 +1525,13 @@
       render();
     },
     setHistoryFilter: function (el, arg) { state.historyFilter = Number(arg); render(); },
+    spendMode: function (el, arg) { state.spend.mode = arg; state.spend.list = null; state.spend.err = false; render(); },
+    spendShift: function (el, arg) {
+      var E = state.spend, d = new Date(E.ref + "T00:00:00Z"), n = Number(arg);
+      if (E.mode === "day") d.setUTCDate(d.getUTCDate() + n); else if (E.mode === "week") d.setUTCDate(d.getUTCDate() + 7 * n);
+      else if (E.mode === "month") d = new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth() + n, 1)); else d = new Date(Date.UTC(d.getUTCFullYear() + n, 0, 1));
+      E.ref = d.toISOString().slice(0, 10); E.list = null; E.err = false; render();
+    },
     toggleWalletPanel: function (el, arg) { state.walletPanel = state.walletPanel === arg ? null : arg; state.topUpAmount = ""; state.sendPhone = ""; render(); },
     setTopUpMethod: function (el, arg) { state.topUpMethod = arg; render(); },
     doTopUp: function () {

@@ -1,7 +1,7 @@
 /* WunaGo — service worker
    Réseau d'abord : on sert toujours la dernière version publiée ;
    le cache ne sert qu'en secours, hors connexion. */
-const CACHE = "wunago-v11";
+const CACHE = "wunago-v12";
 const SHELL = [
   "./", "index.html", "styles.css", "config.js", "app.js", "pricing.mjs", "geo.js", "map.js", "gmaps.js", "api.js", "manifest.webmanifest",
   "vendor/leaflet/leaflet.js", "vendor/leaflet/leaflet.css",

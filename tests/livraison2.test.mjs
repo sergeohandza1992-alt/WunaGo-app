@@ -211,8 +211,8 @@ ok('Backoffice : liste des livreurs avec distance au point de départ',/Marcel K
 await ADM.click('[data-a="assign"]');
 await ADM.waitForSelector('text=Livreur assigné');
 await LIV.click('[data-action="switchTab"][data-arg="courses"]'); await LIV.click('[data-action="switchTab"][data-arg="courses"]');
-await LIV.waitForSelector('text=Bonapriso',{timeout:T});
-ok('Livreur : course assignée par le backoffice reçue',await LIV.isVisible('text=Mes courses en cours'));
+await LIV.waitForSelector('text=Mes courses en cours',{timeout:T});
+ok('Livreur : course assignée par le backoffice reçue',await LIV.isVisible('text=Bonapriso'));
 await ADM.click('[data-a="nav"][data-v="dash"]');
 await ADM.waitForSelector("text=Chiffre d'affaires par canal de paiement",{timeout:T});
 await ADM.waitForSelector('.rt td:has-text("Orange Money")',{timeout:T});
@@ -246,6 +246,21 @@ await LIV.click('[data-action="earnMode"][data-arg="month"]');
 await LIV.waitForSelector('text=livrée(s)');
 ok('App livreur : gains du mois',true);
 await shot(LIV,'08-livreur-gains');
+
+/* 11 quater. Client : dépenses par période dans l'historique */
+await CLI.click('[data-action="switchTab"][data-arg="orders"]'); await CLI.click('[data-action="switchTab"][data-arg="orders"]');
+await CLI.waitForSelector('text=DÉPENSÉ');
+let txt=await CLI.evaluate(()=>document.querySelector('#app').innerText);
+ok('Client : total dépensé, par service et par moyen de paiement',/DÉPENSÉ\s*\n?\s*[1-9]/.test(txt)&&txt.includes('Par service')&&txt.includes('Par moyen de paiement'),txt.match(/DÉPENSÉ[^\n]*\n[^\n]*/)?.[0]);
+await CLI.click('[data-action="spendMode"][data-arg="month"]');
+await CLI.waitForSelector('text=Par moyen de paiement');
+txt=await CLI.evaluate(()=>document.querySelector('#app').innerText);
+ok('Client : dépenses du mois',/DÉPENSÉ · [A-ZÉÛ]+ \d{4}/.test(txt),txt.match(/DÉPENSÉ[^\n]*/)?.[0]);
+await shot(CLI,'09-client-depenses');
+await CLI.click('[data-action="spendMode"][data-arg="year"]'); await CLI.click('[data-action="spendShift"][data-arg="-1"]');
+await CLI.waitForSelector('text=Aucune commande sur cette période');
+ok('Client : année précédente sans dépense',(await CLI.evaluate(()=>document.querySelector('#app').innerText)).includes('0 FCFA'));
+await CLI.click('[data-action="spendMode"][data-arg="all"]');
 
 /* 12. Notifications envoyées (mode test, sans envoi réel) */
 const log=await CLI.evaluate(async()=>(await (await fetch('/api/push/_log',{headers:{authorization:'Bearer '+WAPI.token()}})).json()).log);
