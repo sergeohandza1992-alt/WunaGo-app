@@ -72,3 +72,6 @@ Adresse : `/admin.html` (ex. https://wunago-app.netlify.app/admin.html). Connexi
 
 ## Code WunaGo et commande éclair
 Adresse en 6 caractères (`WG-XXXX`) avec QR code, carnet de codes et envoi en un écran depuis l'accueil.
+
+## Version en ligne provisoire
+Tant que les crédits Netlify du mois sont épuisés, la version en ligne est la version de test de la branche `live` (PR permanente, à ne pas fusionner).
