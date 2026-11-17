@@ -23,7 +23,7 @@ Porteur du projet : Serge-Venant OHANDZA. Langue de travail et de l'interface : 
   Notifications : `netlify/lib/push.mts` (Web Push, variables `VAPID_PUBLIC_KEY` / `VAPID_PRIVATE_KEY`, `WG_PUSH_DRY=1` en test). Part livreur : `TARIFS.partLivreur` × lignes de transport (`TARIFS.lignesTransport`, fonction `courierShare`) — jamais sur les articles ni les prestations pressing.
   Rapports du backoffice : `GET /api/admin/reports?from&to` (dates de Douala) et export CSV `GET /api/admin/export`.
   Historique : `GET /api/admin/orders` (filtres status, from, to, service, pay, courier, q, limit, offset + totaux) ; courses et gains d'un livreur :
-  `GET /api/admin/couriers/:id/history` (backoffice) et `GET /api/courier/history` (app livreur, onglet Compte).
+  `GET /api/admin/couriers/:id/history` (backoffice) et `GET /api/courier/history` (app livreur, onglet Compte) ; dépenses du client : `GET /api/orders?from&to` (onglet Commandes, par période).
 - Tests : `livraison2` (multi-acteurs : backoffice, livreur, clients, messagerie, notifications), `tarifs` (grille, sans navigateur), `services` (parcours dédiés, profil), `parcours` (mode local), `google-maps` (API Google simulée), `ecrans-compte` (étape 3), `serveur` (API + Postgres local
   via `tests/dev-server.mjs`). Lancer : `npm install && npx playwright install chromium && npm test`. Serveur local : `npm run dev`.
 - Mise en ligne : Netlify (projet `wunago-app` → https://wunago-app.netlify.app).

@@ -960,7 +960,13 @@ export default async (req: Request, context: Context) => {
       return json({ ok: true });
     }
     if (path === "/orders" && m === "GET") {
-      const rows = await db().sql`SELECT * FROM orders WHERE user_id = ${user.id} ORDER BY created_at DESC LIMIT 100`;
+      /* historique du client sur une période (dates de Douala) ; sans période : les 100 dernières */
+      const iso = /^\d{4}-\d{2}-\d{2}$/, f = url.searchParams.get("from") || "", t2 = url.searchParams.get("to") || "";
+      const rows = iso.test(f) && iso.test(t2)
+        ? await db().sql`SELECT * FROM orders WHERE user_id = ${user.id}
+            AND created_at >= (${f}::date)::timestamp AT TIME ZONE 'Africa/Douala' AND created_at < (${t2}::date + 1)::timestamp AT TIME ZONE 'Africa/Douala'
+            ORDER BY created_at DESC LIMIT 500`
+        : await db().sql`SELECT * FROM orders WHERE user_id = ${user.id} ORDER BY created_at DESC LIMIT 100`;
       return json({ orders: await enrich(rows, user) });
     }
     if (path === "/orders" && m === "POST") return await createOrder(req, user);
