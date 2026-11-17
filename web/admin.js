@@ -58,13 +58,20 @@
     return { orders: st.unassigned || 0, disputes: st.open_disputes || 0, couriers: st.couriers_online || 0,
       messages: S.convs.reduce(function (s, c) { return s + (c.unread || 0); }, 0) };
   }
+  function lateBanner() {
+    var n = (S.stats || {}).late || 0;
+    document.title = (n ? "(" + n + ") " : "") + "WunaGo — Backoffice";
+    if (!n) return "";
+    return '<div class="late" role="alert"><b>⚠ ' + n + ' commande' + (n > 1 ? 's attendent' : ' attend') + ' un livreur depuis plus de 10 minutes.</b>' +
+      '<button class="btn btn-sm btn-ink" data-a="orderFilter" data-v="unassigned">Assigner maintenant</button></div>';
+  }
   function shell(inner) {
     var c = counts();
     return '<div class="shell"><nav class="side" aria-label="Sections">' +
       '<div class="brand"><svg width="22" height="28" viewBox="0 0 60 76" aria-hidden="true"><path d="M30 4C14.5 4 4 15.4 4 29.5C4 47 30 72 30 72C30 72 56 47 56 29.5C56 15.4 45.5 4 30 4Z" fill="#FFD700"/><rect x="20" y="20" width="20" height="20" rx="3" fill="#101010"/></svg><span>WunaGo<br><small>BACKOFFICE</small></span></div>' +
       NAV.map(function (n) { var k = c[n[0]]; return '<button class="' + (S.view === n[0] || (S.view === "courier" && n[0] === "couriers") ? "on" : "") + '" data-a="nav" data-v="' + n[0] + '">' + n[1] + (k ? '<span class="count">' + k + '</span>' : '') + '</button>'; }).join("") +
       '<div class="foot"><span>' + esc(S.me.name || "Administrateur") + '<br><span class="mono">' + esc(phone(S.me.phone)) + '</span></span><button class="btn btn-sm btn-ghost" style="background:rgba(255,255,255,.1);color:#fff" data-a="logout">Se déconnecter</button></div>' +
-      '</nav><main>' + inner + '</main></div>';
+      '</nav><main>' + lateBanner() + inner + '</main></div>';
   }
   function kpi(label, value, dark) { return '<div class="card kpi' + (dark ? " dark" : "") + '"><span class="lbl">' + label + '</span><b>' + value + '</b></div>'; }
   function dayKey(ms) { return new Date(ms + 3600000).toISOString().slice(0, 10); }
@@ -261,8 +268,10 @@
     return "/admin/orders?status=" + encodeURIComponent(S.orderFilter) + "&q=" + encodeURIComponent(S.orderQ) + "&from=" + r.from + "&to=" + r.to +
       "&service=" + H.service + "&pay=" + H.pay + "&courier=" + encodeURIComponent(H.courier) + "&limit=" + (limit || H.limit) + "&offset=0";
   }
-  function loadHist() {
-    return WAPI.get(histQuery()).then(function (r) { S.orders = r.orders; S.hist.summary = r.summary; S.hist.more = r.more; });
+  function histKey() { var H = S.hist; return JSON.stringify([histRange(H), S.orderFilter, S.orderQ, H.service, H.pay, H.courier]); }
+  function loadHist(limit) {
+    var key = histKey();
+    return WAPI.get(histQuery(limit)).then(function (r) { if (key !== histKey()) return; S.orders = r.orders; S.hist.summary = r.summary; S.hist.more = r.more; });
   }
   function periodBar(H, pre, exportAction) {
     var nav = H.mode === "custom"
@@ -317,7 +326,13 @@
           '<td>' + esc(o.pickup) + (o.dropoff !== o.pickup ? ' → ' + esc(o.dropoff) : '') + '</td><td>' + esc(PAY[o.paymentMethod] || "") + '</td><td class="mono" style="text-align:right">' + F(o.price) + '</td>' +
           '<td class="mono" style="text-align:right"><b>' + (o.status === "delivered" ? F(o.gain) : o.status === "cancelled" ? "—" : '<span style="color:rgba(16,16,16,.5)">' + F(o.estimate) + ' prévu</span>') + '</b></td><td>' + statusPill(o.status) + '</td></tr>';
       }).join("") + '</tbody></table></div>' : '<div class="card empty">Aucune course sur cette période.</div>';
-    return shell(head + periodBar(H, "ch", "chExport") + kp + chart + '<h2 class="sec">Courses</h2>' + rows +
+    var b = d.balance || { cash: 0, earned: 0, paid: 0, due: 0 };
+    var bal = '<div class="card balance' + (b.due > 0 ? " owe" : "") + '"><div><span class="lbl">Caisse du livreur · depuis le début</span><b>' + (b.due >= 0 ? F(b.due) + " à reverser à WunaGo" : F(-b.due) + " à payer au livreur") + '</b>' +
+      '<span class="note">Espèces encaissées ' + F(b.cash) + ' − gains ' + F(b.earned) + ' − versements ' + F(b.paid) + '</span></div><button class="btn btn-ink" data-a="addPayment">Enregistrer un versement</button></div>';
+    var pays = (d.payments || []).length ? card("Versements enregistrés", table(["Date", "Sens", "Montant", "Note", "Par"], d.payments.map(function (p) {
+      return [when(p.at), p.amount > 0 ? "Remis à WunaGo" : "Payé au livreur", F(Math.abs(p.amount)), esc(p.note || "—"), esc(p.by || "")];
+    }))) : '';
+    return shell(head + bal + periodBar(H, "ch", "chExport") + kp + chart + '<h2 class="sec">Courses</h2>' + rows + pays +
       (d.more ? '<div style="text-align:center;margin-top:14px"><button class="btn btn-ink" data-a="chMore">Afficher 50 courses de plus</button></div>' : ''));
   }
   var map = null, markers = [];
@@ -392,7 +407,11 @@
         '<div class="card" style="padding:6px 14px">' +
           [["Service", SVC[o.service]], ["Client", (o.client.name || "") + " · " + phone(o.client.phone)], ["Départ", o.pickup], ["Arrivée", o.dropoff], ["Montant", F(o.price.net) + " · " + (PAY[o.paymentMethod] || o.paymentMethod)],
            ["Distance", o.distanceKm ? o.distanceKm + " km" : "—"], ["Créée", when(o.createdAt)], ["Prévue", o.scheduledAt ? when(o.scheduledAt) : "Dès que possible"], ["Livreur", o.courier ? o.courier.name + " · " + phone(o.courier.phone) : "Non assigné"],
-           ["Reçu par", o.proofName || "—"]].map(function (r) { return '<div class="row2"><span class="lbl">' + r[0] + '</span><span style="text-align:right">' + esc(r[1]) + '</span></div>'; }).join("") + '</div>' +
+           ["Reçu par", o.deliveredWith === "code" ? (o.proofName ? o.proofName + " · " : "") + "remis avec le code ✓" : (o.proofName || "—")],
+           ["Code de remise", o.deliveryCode || "—"],
+           ["Destinataire", (o.details && o.details.recipient) ? (o.details.recipient.name || "") + " · " + phone(o.details.recipient.phone) : "Le client"],
+           ["Repère départ", (o.details && o.details.hints && o.details.hints.pickup) || "—"],
+           ["Repère arrivée", (o.details && o.details.hints && o.details.hints.dropoff) || "—"]].map(function (r) { return '<div class="row2"><span class="lbl">' + r[0] + '</span><span style="text-align:right">' + esc(r[1]) + '</span></div>'; }).join("") + '</div>' +
         (o.note ? '<div class="card" style="padding:12px 14px">« ' + esc(o.note) + ' »</div>' : '') +
         (o.proofPhoto ? '<img src="' + o.proofPhoto + '" alt="Preuve de livraison" style="width:100%;border-radius:16px">' : '') +
         (o.status !== "delivered" && o.status !== "cancelled" ? '<div class="card" style="padding:14px;display:flex;flex-direction:column;gap:10px"><span class="lbl">Assigner un livreur</span>' +
@@ -413,6 +432,12 @@
         '<label class="lbl" for="reply">Réponse au client (envoyée dans sa messagerie)</label><textarea class="f" id="reply" data-k="drawer.reply">' + esc(d.reply || "") + '</textarea>' +
         '<label class="lbl" for="dst">Statut</label><select class="f" id="dst">' + ["open", "review", "closed"].map(function (s) { return '<option value="' + s + '"' + (x.status === s ? " selected" : "") + '>' + DSTATUS[s] + '</option>'; }).join("") + '</select>' +
         '<button class="btn btn-ink" data-a="saveDispute" data-v="' + x.id + '">Enregistrer et répondre</button>';
+    } else if (d.kind === "payment") {
+      body = '<h1 style="margin:0">Enregistrer un versement</h1><p class="note">Pour remettre à zéro la caisse d\'un livreur : notez l\'argent qu\'il vous remet, ou ce que WunaGo lui paie.</p>' +
+        '<div class="tools">' + [["in", "Le livreur remet à WunaGo"], ["out", "WunaGo paie le livreur"]].map(function (x) { return '<button class="chip ' + (d.direction === x[0] ? "on" : "") + '" data-a="payDir" data-v="' + x[0] + '">' + x[1] + '</button>'; }).join("") + '</div>' +
+        '<label class="lbl" for="pa">Montant (FCFA)</label><input class="f mono" id="pa" data-k="drawer.amount" inputmode="numeric" value="' + esc(d.amount || "") + '">' +
+        '<label class="lbl" for="pn">Note (facultatif)</label><input class="f" id="pn" data-k="drawer.note" placeholder="Ex. dépôt Orange Money, espèces au bureau" value="' + esc(d.note || "") + '">' +
+        '<button class="btn btn-ink" data-a="savePayment">Enregistrer</button>';
     } else if (d.kind === "courier") {
       body = '<h1 style="margin:0">Nouveau livreur</h1><p style="margin:0;color:rgba(16,16,16,.7);line-height:1.5">Il se connectera à l\'app WunaGo avec ce numéro et verra directement l\'espace livreur.</p>' +
         '<label class="lbl" for="cn">Nom complet</label><input class="f" id="cn" data-k="drawer.name" value="' + esc(d.name || "") + '">' +
@@ -452,7 +477,7 @@
     var v = S.view, jobs = [WAPI.get("/admin/stats").then(function (r) { S.stats = r.stats; }), WAPI.get("/conversations").then(function (r) { S.convs = r.conversations; })];
     if (v === "dash" && (!S.report || S.forceReport || Date.now() - (S.reportAt || 0) > 60000)) { S.forceReport = false; jobs.push(loadReport()); }
     if (v === "dash") jobs.push(WAPI.get("/admin/orders?status=active&limit=100").then(function (r) { S.orders = r.orders; }));
-    if (v === "orders") jobs.push(WAPI.get(histQuery(Math.max(50, S.orders.length))).then(function (r) { S.orders = r.orders; S.hist.summary = r.summary; S.hist.more = r.more; }));
+    if (v === "orders") jobs.push(loadHist(Math.max(50, S.orders.length)));
     if (v === "couriers" || v === "orders" || v === "dash" || S.drawer) jobs.push(WAPI.get("/admin/couriers").then(function (r) { S.couriers = r.couriers; }));
     if (v === "disputes") jobs.push(WAPI.get("/admin/disputes").then(function (r) { S.disputes = r.disputes; }));
     if (v === "clients") jobs.push(WAPI.get("/admin/clients?q=" + encodeURIComponent(S.clientQ)).then(function (r) { S.clients = r.clients; }));
@@ -493,6 +518,15 @@
     pToday: function (v) { S[v].ref = todayD(); reloadP(v); },
     pRef: function (v) { if (S[v].ref) reloadP(v); },
     pApply: function (v) { var H = S[v]; if (!H.from || !H.to || H.from > H.to) { toast("Choisissez une date de début avant la date de fin."); return; } reloadP(v); },
+    addPayment: function () { var b = S.ch.data && S.ch.data.balance; S.drawer = { kind: "payment", direction: b && b.due < 0 ? "out" : "in", amount: b ? String(Math.abs(b.due)) : "" }; render(); },
+    payDir: function (v) { S.drawer.direction = v; render(); },
+    savePayment: function () {
+      var d = S.drawer, amt = Number(String(d.amount || "").replace(/\D/g, ""));
+      if (!amt) { toast("Indiquez un montant."); return; }
+      WAPI.post("/admin/couriers/" + S.ch.id + "/payments", { amount: amt, direction: d.direction, note: d.note || "" }).then(function () {
+        S.drawer = null; toast("Versement enregistré."); S.ch.data = null; render(); loadCh().then(render);
+      }).catch(err);
+    },
     openCourier: function (id) { S.ch = { id: id, mode: "month", ref: todayD(), from: "", to: "", limit: 50, data: null }; S.view = "courier"; render(); loadCh().then(render).catch(err); },
     chMore: function () { S.ch.limit += 50; loadCh().then(render).catch(err); },
     chExport: function () { var r = histRange(S.ch); if (r.from) exportRange(r.from, r.to); },
@@ -571,8 +605,8 @@
   };
   function reloadP(pre) { if (pre === "hist") A.histReload(); else { S.ch.limit = 50; S.ch.data = null; render(); loadCh().then(render).catch(err); } }
   function loadCh() {
-    var H = S.ch, r = histRange(H);
-    return WAPI.get("/admin/couriers/" + H.id + "/history?from=" + r.from + "&to=" + r.to + "&limit=" + H.limit).then(function (d) { H.data = d; });
+    var H = S.ch, r = histRange(H), key = JSON.stringify([H.id, r]);
+    return WAPI.get("/admin/couriers/" + H.id + "/history?from=" + r.from + "&to=" + r.to + "&limit=" + H.limit).then(function (d) { if (key === JSON.stringify([S.ch.id, histRange(S.ch)])) H.data = d; });
   }
   function exportRange(from, to) {
     fetch("/api/admin/export?from=" + from + "&to=" + to, { headers: { authorization: "Bearer " + WAPI.token() } }).then(function (r) {
