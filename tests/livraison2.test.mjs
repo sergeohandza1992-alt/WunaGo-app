@@ -93,6 +93,7 @@ await LIV.evaluate(()=>fetch('/api/courier/position',{method:'POST',headers:{'co
 /* 5. Client : voit le vrai livreur et sa position */
 await CLI.waitForSelector('text=Marcel Kamga',{timeout:T});
 await shot(CLI,'01-client-suivi-vrai-livreur');
+ok('Client : invitation à activer les notifications',await CLI.isVisible('text=Soyez prévenu sur votre téléphone'));
 ok('Client : code de remise affiché avec bouton de partage',/^\d{4}$/.test((await CLI.locator('.mono[style*="letter-spacing:.3em"]').textContent()).trim())&&await CLI.isVisible('[data-action="shareTracking"]'));
 const myOrder=(await CLI.evaluate(async()=>(await (await fetch('/api/orders',{headers:{authorization:'Bearer '+WAPI.token()}})).json()).orders))[0];
 const PUB=await open();
@@ -123,6 +124,10 @@ await LIV.click('[data-action="switchTab"][data-arg="courses"]');
 if(await LIV.isVisible('[data-action="openCourse"]')) await LIV.click('[data-action="openCourse"]');
 await LIV.click('text=J\'ai récupéré'); await LIV.waitForSelector('text=Je suis en route');
 await LIV.click('text=Je suis en route'); await LIV.waitForSelector('[data-action="startProof"]');
+await LIV.click('[data-arg$="|arrived"]');
+await LIV.waitForSelector('text=Client prévenu de votre arrivée');
+await PUB.waitForSelector('text=Votre livreur est arrivé',{timeout:T});
+ok('Livreur « Je suis arrivé » : client et destinataire prévenus',true);
 ok('Livreur : destinataire et repère affichés',await LIV.isVisible('text=Paul Mbarga')&&await LIV.isVisible('text=Portail bleu après la pharmacie')&&await LIV.isVisible('a[href="tel:+237677112233"]'));
 await LIV.click('[data-action="startProof"]');
 await LIV.fill('[data-bind="proofCode"]',myOrder.deliveryCode==='0000'?'1111':String((Number(myOrder.deliveryCode)+1)%10000).padStart(4,'0'));
@@ -316,10 +321,24 @@ await CLI.click('[data-action="orderBack"]'); await CLI.click('[data-action="ord
 ok('Client : « Recommander » reprend le même trajet et va au récapitulatif',atRecap&&(await CLI.inputValue('[data-bind="draft.dropoff"]')).includes('Bonamoussadi')&&(await CLI.inputValue('[data-bind="draft.rname"]'))==='Paul Mbarga');
 await CLI.click('[data-action="orderBack"]');
 
+/* 11 sexies. Commande saisie par l'équipe pour un client qui appelle */
+await ADM.click('[data-a="nav"][data-v="orders"]');
+await ADM.click('[data-a="newOrder"]');
+await ADM.fill('[data-k="drawer.phone"]','699000005'); await ADM.fill('[data-k="drawer.name"]','Grace Ekane');
+await ADM.locator('select[data-k="drawer.pickupQ"]').selectOption('Akwa');
+await ADM.locator('select[data-k="drawer.dropoffQ"]').selectOption('Deïdo');
+await ADM.fill('[data-k="drawer.hintD"]','Face au marché');
+await ADM.waitForSelector('.drawer .sumbar');
+ok('Backoffice : prix calculé pendant la saisie d\'une commande',/Prix [\d\s\u202f]+ F/.test(await ADM.locator('.drawer .sumbar').textContent()));
+await ADM.click('[data-a="noSave"]');
+await ADM.waitForSelector('text=Commande enregistrée ✓');
+ok('Backoffice : commande créée pour un client par téléphone, lien WhatsApp prêt',/wa\.me\/237699000005/.test(await ADM.locator('.drawer a.btn-yellow').getAttribute('href')));
+await ADM.click('[data-a="closeDrawer"] >> nth=1');
+
 /* 12. Notifications envoyées (mode test, sans envoi réel) */
 const log=await CLI.evaluate(async()=>(await (await fetch('/api/push/_log',{headers:{authorization:'Bearer '+WAPI.token()}})).json()).log);
 const kinds=log.map(l=>l.title+' : '+l.body);
-ok('Notifications : nouvelle course, livreur trouvé, étapes, messages',['Nouvelle course','Livreur trouvé','Colis livré','Bien sûr Ariane'].every(s=>kinds.some(k=>k.includes(s))),log.length+' notifications');
+ok('Notifications : nouvelle course, livreur trouvé, étapes, messages',['Nouvelle course','Livreur trouvé','Votre livreur est arrivé','Colis livré','Bien sûr Ariane'].every(s=>kinds.some(k=>k.includes(s))),log.length+' notifications');
 ok('Accès : un client ne peut pas ouvrir le backoffice',(await CLI.evaluate(async()=>(await fetch('/api/admin/stats',{headers:{authorization:'Bearer '+WAPI.token()}})).status))===403);
 
 ok('Aucune erreur JavaScript',pages.every(p=>!p.errors.length),pages.flatMap(p=>p.errors).join(' | '));

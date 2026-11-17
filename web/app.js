@@ -9,7 +9,7 @@
   var SUPPORT_PHONE = "+237600000000", SUPPORT_PHONE_LABEL = "+237 6 00 00 00 00";
   var STORE_KEY = "wunago.client.v1";
   /* Version affichée dans Réglages : à changer avec CACHE dans sw.js à chaque mise en ligne */
-  var APP_VERSION = "14 · 17/11/2026";
+  var APP_VERSION = "15 · 17/11/2026";
   var deferredInstall = null;
   var lastScreenKey = "";
   var installDismissed = false;
@@ -864,7 +864,7 @@
       '</div>' +
       '<div class="scroll" style="background:#fbfaf7;border-radius:22px 22px 0 0;margin-top:-18px;padding:16px 20px 20px;position:relative;z-index:500"><div class="col" style="gap:16px">' +
         '<div style="width:34px;height:4px;border-radius:9px;background:rgba(16,16,16,.15);margin:0 auto"></div>' +
-        courierBlock(o, orderId) + codeCard(o) +
+        arrivedBanner(o) + courierBlock(o, orderId) + codeCard(o) + notifPrompt() +
         '<div style="height:1px;background:var(--hair)"></div>' +
         '<div class="col">' + timeline + '</div>' +
         gmapsButton(orderGeo(o).pickup, orderGeo(o).dropoff, false) +
@@ -1845,6 +1845,24 @@
     if (r && !r.self && dr.service === "parcel") x.recipient = { name: r.name.trim(), phone: String(r.phone).replace(/\D/g, "") };
     return x;
   }
+  function arrivedBanner(o) {
+    if (!o.arrivedAt || o.status === "delivered" || o.status === "cancelled") return "";
+    var en = state.lang === "en", ride = o.service === "ride";
+    return '<div role="status" class="fx ac" style="gap:10px;background:#101010;color:#fff;border-radius:16px;padding:13px 14px"><span style="font-size:20px" aria-hidden="true">📍</span>' +
+      '<span class="col" style="gap:2px"><b style="color:#FFD700">' + (ride ? (en ? "Your driver has arrived" : "Votre chauffeur est arrivé") : (en ? "Your courier has arrived" : "Votre livreur est arrivé")) + '</b>' +
+      '<span style="font-size:12px;color:rgba(255,255,255,.75)">' + (ride ? (en ? "He is waiting at the pickup point." : "Il vous attend au point de départ.") : (en ? "Give him the delivery code." : "Donnez-lui le code de remise.")) + '</span></span></div>';
+  }
+  /* invitation à activer les notifications, une fois la première commande passée */
+  function notifPrompt() {
+    if (!srv() || !window.Notification || !("serviceWorker" in navigator) || state.notifPrefs.push || Notification.permission === "denied" || state.notifPromptHidden) return "";
+    var en = state.lang === "en";
+    return '<div class="fx ac" style="gap:10px;' + card + ';padding:12px 14px"><span class="col" style="gap:2px;flex:1"><b style="font-size:13px">' + (en ? "Get notified on your phone" : "Soyez prévenu sur votre téléphone") + '</b>' +
+      '<span style="font-size:11.5px;color:rgba(16,16,16,.65);line-height:1.4">' + (en ? "Courier found, on the way, arrived, messages." : "Livreur trouvé, en route, arrivé, messages.") + '</span></span>' +
+      '<button class="btn btn-ink" data-action="enablePush" style="height:40px;border-radius:12px;padding:0 13px;font-size:12px">' + (en ? "Enable" : "Activer") + '</button>' +
+      '<button class="btn" data-action="hideNotifPrompt" aria-label="' + (en ? "Close" : "Fermer") + '" style="width:36px;height:40px;padding:0;background:transparent;font-size:16px">✕</button></div>';
+  }
+  actions.enablePush = function () { actions.toggleNotif(null, "push"); };
+  actions.hideNotifPrompt = function () { state.notifPromptHidden = true; render(); };
   function trackUrl(o) { return o.trackToken ? location.origin + "/suivi.html?c=" + o.trackToken : ""; }
   function shareText(o) {
     var u = tu(), r = (o.details || {}).recipient;
@@ -2283,7 +2301,10 @@
     if (!isCourier()) return Promise.resolve();
     var online = state.user.courier && state.user.courier.online;
     return Promise.all([online ? WAPI.get("/courier/offers") : Promise.resolve({ offers: [] }), WAPI.get("/courier/orders")]).then(function (r) {
-      var before = JSON.stringify(state.courierData);
+      var before = JSON.stringify(state.courierData), known = (state.courierData.offers || []).map(function (o) { return o.id; });
+      var fresh = r[0].offers.filter(function (o) { return known.indexOf(o.id) < 0; });
+      if (fresh.length && state.courierLoaded) { try { navigator.vibrate && navigator.vibrate([200, 100, 200]); } catch (e) {} toast(state.lang === "en" ? "New job available" : "Nouvelle course disponible"); }
+      state.courierLoaded = true;
       state.courierData = { offers: r[0].offers, orders: r[1].orders };
       if (before !== JSON.stringify(state.courierData)) render();
     }).catch(function (e) { if (e.status === 401) forceLogin(); });
@@ -2350,6 +2371,9 @@
         '<button class="btn" data-action="toggleNoCode" style="height:44px;background:transparent;font-weight:700;font-size:12.5px;text-decoration:underline">' + esc(pf.noCode ? tu().cWithCode : tu().cNoCode) + '</button></div>'
       : '<button class="btn btn-ink" data-action="startProof" data-arg="' + o.id + '">' + esc(steps.delivered) + '</button>';
     else if (mine && next) action = '<button class="btn btn-ink" data-action="courseStep" data-arg="' + o.id + '|' + next + '">' + esc(steps[next]) + '</button>';
+    var canArrive = mine && !o.arrivedAt && (o.stage === 2 || (o.service === "ride" && o.stage === 0)) && o.status !== "cancelled";
+    if (canArrive) action = '<button class="btn btn-yellow" data-action="courseStep" data-arg="' + o.id + '|arrived">📍 ' + (state.lang === "en" ? "I've arrived" : "Je suis arrivé") + '</button>' + action;
+    else if (mine && o.arrivedAt && o.status !== "delivered") action = '<div class="mono" style="font-size:11px;text-align:center;color:rgba(16,16,16,.6)">' + (state.lang === "en" ? "Customer notified of your arrival" : "Client prévenu de votre arrivée") + ' ✓</div>' + action;
     var client = o.client || {};
     return page3(hdr(o.code + " · " + svcName(o.service)) +
       '<div style="' + card + ';padding:14px;display:flex;flex-direction:column;gap:10px">' +

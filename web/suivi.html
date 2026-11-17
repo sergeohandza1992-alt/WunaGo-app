@@ -83,7 +83,8 @@
     function show(d) {
       document.getElementById("code").textContent = d.code;
       var steps = TL[d.service] || TL.parcel, done = d.status === "delivered", cancelled = d.status === "cancelled";
-      var title = cancelled ? "Livraison annulée" : done ? "Votre " + SVC[d.service] + " est arrivé" + (d.service === "errand" ? "es" : "") + " !" : steps[Math.min(d.stage, 3)];
+      var title = cancelled ? "Livraison annulée" : done ? "Votre " + SVC[d.service] + " est arrivé" + (d.service === "errand" ? "es" : "") + " !"
+        : d.arrivedAt ? (d.service === "ride" ? "Votre chauffeur est arrivé" : "Votre livreur est arrivé !") : steps[Math.min(d.stage, 3)];
       var tl = steps.map(function (s, i) {
         var cls = done || i < d.stage ? "done" : i === d.stage && !cancelled ? "on" : "";
         return '<div class="st ' + cls + '"><div><div class="dot"></div>' + (i < 3 ? '<div class="bar"></div>' : '') + '</div><span>' + esc(s) + '</span></div>';

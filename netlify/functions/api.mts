@@ -55,6 +55,7 @@ function orderOut(o: Row) {
     cancelReason: o.cancel_reason, refundNote: o.refund_note,
     details: o.details || {}, priceLines: o.price_lines || null, distanceKm: o.distance_km == null ? null : Number(o.distance_km), zone: o.zone,
     scheduledAt: o.scheduled_at ? new Date(o.scheduled_at).getTime() : null,
+    arrivedAt: o.arrived_at ? new Date(o.arrived_at).getTime() : null, byWunago: !!o.created_by,
     createdAt: new Date(o.created_at).getTime(),
   };
 }
@@ -182,8 +183,8 @@ function serviceDetails(service: string, b: Row) {
   return {};
 }
 
-async function createOrder(req: Request, user: Row) {
-  const b = await body(req);
+async function createOrder(req: Request, user: Row) { return createOrderFrom(await body(req), user, null); }
+async function createOrderFrom(b: Row, user: Row, createdBy: string | null) {
   const service = String(b.service);
   if (!(SERVICES as readonly string[]).includes(service)) return fail(400, "Service inconnu.");
   if (!(VEHICLES as readonly string[]).includes(b.vehicle)) return fail(400, "Véhicule inconnu.");
@@ -220,6 +221,7 @@ async function createOrder(req: Request, user: Row) {
           b.paymentMethod, paid ? "paid" : "cod", price.gross, price.discount, price.net, JSON.stringify(details), JSON.stringify(qt.lines),
           qt.distanceKm, qt.zone, scheduledAt ? new Date(scheduledAt).toISOString() : null,
           String(randomInt(1000, 10000)), randomBytes(12).toString("base64url")]);
+      if (createdBy) await q("UPDATE orders SET created_by = $2 WHERE id = $1", [rows[0].id, createdBy]);
       if (b.paymentMethod === "wallet") await q("INSERT INTO wallet_tx (user_id, amount, kind, order_id) VALUES ($1, $2, 'order', $3)", [user.id, -price.net, rows[0].id]);
       return rows[0];
     });
@@ -469,7 +471,8 @@ async function publicTrack(token: string) {
   return json({ code: o.code, service: o.service, status: o.status, stage: o.stage, pickup: o.pickup, dropoff: o.dropoff, hints: d.hints || null,
     recipient: d.recipient ? { name: d.recipient.name || "" } : null, vehicle: o.vehicle,
     pickupGeo: o.pickup_lat != null ? { lat: o.pickup_lat, lng: o.pickup_lng } : null, dropoffGeo: o.dropoff_lat != null ? { lat: o.dropoff_lat, lng: o.dropoff_lng } : null,
-    createdAt: new Date(o.created_at).getTime(), deliveredAt: o.delivered_at ? new Date(o.delivered_at).getTime() : null, courier });
+    createdAt: new Date(o.created_at).getTime(), deliveredAt: o.delivered_at ? new Date(o.delivered_at).getTime() : null,
+    arrivedAt: o.arrived_at && o.status !== "delivered" ? new Date(o.arrived_at).getTime() : null, courier });
 }
 
 /* ---------- livreur ---------- */
@@ -533,6 +536,15 @@ async function courierRoutes(req: Request, user: Row, path: string, m: string): 
     if (!o) return fail(404, "Course introuvable.");
     if (o.status === "cancelled") return fail(409, "Commande annulée par le client.");
     let rows: Row[];
+    if (to === "arrived") {
+      if (!(o.stage === 2 || (o.service === "ride" && o.stage === 0))) return fail(409, "Indiquez votre arrivée une fois sur place.");
+      rows = await db().sql`UPDATE orders SET arrived_at = NOW(), updated_at = NOW() WHERE id = ${o.id} RETURNING *`;
+      const a = rows[0];
+      push([a.user_id], { title: o.service === "ride" ? "Votre chauffeur est arrivé" : "Votre livreur est arrivé",
+        body: (o.service === "ride" ? "Il vous attend au point de départ." : "Il est sur place") + (o.delivery_code && o.service !== "ride" ? ". Code de remise : " + o.delivery_code + "." : "."),
+        url: "/#commande=" + a.id, tag: a.code }, "orders");
+      return json({ order: await withClient(a, user) });
+    }
     if (to === "picked_up" && o.stage === 0) rows = await db().sql`UPDATE orders SET stage = 1, status = 'picked_up', updated_at = NOW() WHERE id = ${o.id} RETURNING *`;
     else if (to === "en_route" && o.stage === 1) rows = await db().sql`UPDATE orders SET stage = 2, status = 'en_route', en_route_at = NOW(), updated_at = NOW() WHERE id = ${o.id} RETURNING *`;
     else if (to === "delivered" && o.stage >= 1) {
@@ -693,6 +705,26 @@ async function messagesRoute(req: Request, user: Row, convId: string, m: string,
 async function adminRoutes(req: Request, user: Row, path: string, m: string, url: URL): Promise<Response | null> {
   if (!path.startsWith("/admin")) return null;
   if (user.role !== "admin") return fail(403, "Espace réservé à l'équipe WunaGo.");
+  if (path === "/admin/orders" && m === "POST") {
+    /* commande passée par téléphone ou WhatsApp : l'équipe la saisit pour le client (créé s'il n'existe pas) */
+    const b = await body(req);
+    const phone = normalizePhone(b.phone);
+    if (!phone) return fail(400, "Numéro du client invalide (9 chiffres, commence par 6).");
+    if (!["parcel", "ride"].includes(b.service)) return fail(400, "Depuis le backoffice : colis ou déplacement.");
+    if (!["cash", "orange_money", "mtn_momo"].includes(b.paymentMethod)) return fail(400, "Paiement : espèces, Orange Money ou MTN MoMo.");
+    const name = String(b.name || "").trim().slice(0, 60);
+    let client = (await db().sql`SELECT * FROM users WHERE phone = ${phone}`)[0];
+    if (!client) client = (await db().sql`INSERT INTO users (phone, name) VALUES (${phone}, ${name || null}) RETURNING *`)[0];
+    else if (!client.name && name) client = (await db().sql`UPDATE users SET name = ${name} WHERE id = ${client.id} RETURNING *`)[0];
+    if (client.deleted_at) return fail(409, "Ce compte client a été supprimé.");
+    const res = await createOrderFrom(b, client, user.id);
+    if (res.status === 201) {
+      const out = await res.clone().json();
+      push([client.id], { title: "Commande " + out.order.code + " enregistrée", body: "WunaGo a enregistré votre commande. Suivez-la dans l'app.", url: "/#commande=" + out.order.id, tag: out.order.code }, "orders");
+      return json({ order: out.order, client: { id: client.id, name: client.name, phone: client.phone } }, 201);
+    }
+    return res;
+  }
   if (path === "/admin/run-alerts" && m === "POST") return json(await runAlerts(db()));
   let rp = path.match(/^\/admin\/couriers\/([A-Za-z0-9-]+)\/payments$/);
   if (rp && m === "POST") {
