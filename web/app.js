@@ -9,7 +9,7 @@
   var SUPPORT_PHONE = "+237600000000", SUPPORT_PHONE_LABEL = "+237 6 00 00 00 00";
   var STORE_KEY = "wunago.client.v1";
   /* Version affichée dans Réglages : à changer avec CACHE dans sw.js à chaque mise en ligne */
-  var APP_VERSION = "16 · 17/11/2026";
+  var APP_VERSION = "17 · 17/11/2026";
   var deferredInstall = null;
   var lastScreenKey = "";
   var installDismissed = false;
@@ -482,9 +482,9 @@
       '</div>' +
       '<div class="scroll">' + installBanner() + '<div style="padding:18px 20px 6px;font-weight:700;font-size:12.5px;color:rgba(16,16,16,.5)">' + esc(d.services) + '</div>' +
       '<div style="padding:2px 20px 0">' + (state.settings.homeLayout === "tiles" ? '<div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">' + tiles + '</div>' : '<div class="col" style="gap:8px">' + listRows + '</div>') + '</div>' +
-      activeCard + recentBlock() +
-      '<div style="padding:20px 20px 24px"><div style="border:1px dashed rgba(16,16,16,.2);border-radius:16px;padding:14px;background:repeating-linear-gradient(135deg,rgba(255,215,0,.16) 0 8px,transparent 8px 16px)">' +
-        '<div class="mono" style="font-size:9.5px;letter-spacing:.08em;color:rgba(16,16,16,.5)">PROMO</div><div style="font-weight:700;font-size:14px;margin-top:5px">' + esc(t4().promo) + '</div></div></div>' +
+      activeCard + codeHomeCard() + recentBlock() +
+      (srv() ? '<div style="height:24px"></div>' : '<div style="padding:20px 20px 24px"><div style="border:1px dashed rgba(16,16,16,.2);border-radius:16px;padding:14px;background:repeating-linear-gradient(135deg,rgba(255,215,0,.16) 0 8px,transparent 8px 16px)">' +
+        '<div class="mono" style="font-size:9.5px;letter-spacing:.08em;color:rgba(16,16,16,.5)">PROMO</div><div style="font-weight:700;font-size:14px;margin-top:5px">' + esc(t4().promo) + '</div></div></div>') +
       '</div>'
     );
   }
@@ -762,7 +762,7 @@
       (dr.service === "parcel" ? recipientBlock(dr) : '') +
       (dr.service === "laundry" ? '<div style="' + card + '">' + toggleRow(e4.sameReturn, WPricing.TARIFS.pressing.atelier.nom, dr.laundry.sameReturn, "toggleSameReturn", "x") + '</div>' : '') +
       (routeKm != null ? '<div class="fx ac jb wrap" style="gap:8px"><div class="fx ac mono" style="gap:6px;font-size:11px;color:rgba(16,16,16,.6)">' + ICON.pin + d.approx + ' ' + fmtKm(routeKm) + '</div>' + gmapsButton(dr.pickupGeo, dr.dropoffGeo, true) + '</div>' : '') +
-      '<div class="fx wrap ac" style="gap:7px"><button class="btn" data-action="useMyLocation" style="' + chipStyle + ';background:#101010;color:#FFD700;border-color:#101010">' + ICON.gps + esc(d.myPosition) + '</button></div>' +
+      '<div class="fx wrap ac" style="gap:7px"><button class="btn" data-action="useMyLocation" style="' + chipStyle + ';background:#101010;color:#FFD700;border-color:#101010">' + ICON.gps + esc(d.myPosition) + '</button>' + codeEntry() + '</div>' +
       (dr.service === "errand" ? '<div class="col" style="gap:7px">' + sectionTitle(e4.markets) + '<div class="fx wrap" style="gap:7px">' +
         MARKETS.map(function (m, i) { return '<button class="btn" data-action="pickMarket" data-arg="' + i + '" style="' + chipStyle + '">' + esc(m[0]) + '</button>'; }).join("") + '</div></div>' : '') +
       '<div class="col" style="gap:7px">' + (targets.length > 1 ? '<div class="fx ac" style="gap:6px;font-size:11px;font-weight:600;color:rgba(16,16,16,.6)">' + esc(d.fillTarget) +
@@ -1022,11 +1022,12 @@
     var rows = [
       [tp().row, "", "openProfile"],
       [d.addresses, String((state.addresses || []).length), "openScreen", "addresses"],
+    ].concat(srv() ? [[tw().title, state.places[0] ? state.places[0].code : "", "openScreen", "codes"]] : []).concat([
       [d.methods, String(2 + (state.payAccounts || []).length), "openScreen", "paymethods"],
       [d.notifs, notifSummary(), "openScreen", "notifs"],
       [d.language, state.lang === "en" ? "English" : "Français", "openSettings"],
       [d.help, (state.disputes || []).filter(function (x) { return x.status !== "closed"; }).length ? String((state.disputes || []).filter(function (x) { return x.status !== "closed"; }).length) : "", "openScreen", "help"]
-    ];
+    ]);
     var rowsHtml = rows.map(function (r, i) {
       return '<button class="fx ac" data-action="' + (r[2] || "noop") + '"' + (r[3] ? ' data-arg="' + r[3] + '"' : '') + ' style="gap:11px;min-height:48px;text-align:left;border:0;background:transparent;padding:13px 12px;cursor:pointer;' + (i < rows.length - 1 ? "border-bottom:1px solid var(--hair)" : "") + '">' +
         '<span style="font-weight:700;font-size:13px;flex:1">' + esc(r[0]) + '</span>' + (r[1] ? '<span class="mono" style="font-size:10.5px;color:rgba(16,16,16,.45)">' + esc(r[1]) + '</span>' : "") + '<span style="color:rgba(16,16,16,.3);font-weight:600">→</span></button>';
@@ -1351,6 +1352,8 @@
         case "dispute": body = screenDispute(); break;
         case "profile": body = screenProfile(); break;
         case "inbox": body = screenInbox(); break;
+        case "codes": body = screenCodes(); break;
+        case "codeForm": body = screenCodeForm(); break;
         case "newChat": body = screenNewChat(); break;
         case "conv": body = screenConv(c.convId); break;
         case "courierHome": body = screenCourierHome(); break;
@@ -1705,9 +1708,11 @@
     else if (bind === "payForm.number") state.payForm.number = el.value.replace(/[^\d ]/g, "");
     else if (bind === "disputeForm.desc") state.disputeForm.desc = el.value;
     else if (bind === "draft.pickup" || bind === "draft.dropoff") {
-      var fld = bind.slice(6); state.draft[fld] = el.value; state.draft[fld + "Geo"] = null; state.addrTarget = fld; suggest(fld, el.value);
+      var fld = bind.slice(6); state.draft[fld] = el.value; state.draft[fld + "Geo"] = null; state.draft[fld + "Code"] = null; state.addrTarget = fld; suggest(fld, el.value);
     }
     else if (bind === "draft.note") state.draft.note = el.value;
+    else if (bind === "codeEntry") { state.codeEntry.value = el.value.toUpperCase(); el.value = state.codeEntry.value; return; }
+    else if (bind === "codeForm.placeName" || bind === "codeForm.hint") { state.codeForm[bind.slice(9)] = el.value; return; }
     else if (bind === "draft.hint.pickup" || bind === "draft.hint.dropoff") { (state.draft.hints = state.draft.hints || {})[bind.slice(11)] = el.value; return; }
     else if (bind === "draft.rname") { state.draft.recipient.name = el.value; return; }
     else if (bind === "draft.rphone") { state.draft.recipient.phone = el.value.replace(/[^\d ]/g, ""); el.value = state.draft.recipient.phone; return; }
@@ -1991,6 +1996,151 @@
     if (k) { state.sim[k] = ev.target.value; render(); }
   });
 
+  /* ============================== Code WunaGo : adresse en 6 caractères + QR code ============================== */
+  var CW = {
+    fr: { title: "Mon Code WunaGo", short: "Code WunaGo", pitch: "Votre adresse en 6 caractères", pitchSub: "Donnez votre code comme votre numéro : on vous livre devant la porte, sans explications.",
+      create: "Créer mon code", createTitle: "Créer mon Code WunaGo", createSub: "Placez-vous devant votre porte (ou votre boutique) : le code retient ce point exact.",
+      label: "C'est…", labels: [["Maison", "Maison"], ["Bureau", "Bureau"], ["Boutique", "Boutique"], ["Autre", "Autre"]], placeName: "Nom du lieu (facultatif) : résidence, immeuble, boutique…",
+      hint: "Repère (ex. portail bleu après la pharmacie)", here: "📍 Je suis devant ma porte : créer le code", locating: "Recherche de votre position…",
+      share: "Partager mon code", print: "Imprimer l'autocollant", move: "Mettre à jour la position (je suis devant)", del: "Supprimer ce code", uses: "livraison(s) avec ce code",
+      shareMsg: "Mon adresse WunaGo : {code} ({area}). Pour me faire livrer, tapez ce code dans WunaGo ou ouvrez : {url}", moved: "Position mise à jour.", deleted: "Code supprimé.",
+      enter: "Code WunaGo", enterPh: "WG-", apply: "OK", scan: "Scanner un QR code", noScan: "Ce téléphone ne lit pas les QR codes : tapez le code.", notFound: "Aucun QR code WunaGo sur la photo.",
+      add: "Ajouter un autre code", applied: "Code {code} : adresse, position et repère remplis ✓", gpsOff: "Activez la localisation, puis réessayez." },
+    en: { title: "My WunaGo Code", short: "WunaGo Code", pitch: "Your address in 6 characters", pitchSub: "Share your code like your phone number: we deliver to your door, no explanations.",
+      create: "Create my code", createTitle: "Create my WunaGo Code", createSub: "Stand in front of your door (or shop): the code remembers this exact spot.",
+      label: "This is…", labels: [["Maison", "Home"], ["Bureau", "Office"], ["Boutique", "Shop"], ["Autre", "Other"]], placeName: "Place name (optional): residence, building, shop…",
+      hint: "Landmark (e.g. blue gate after the pharmacy)", here: "📍 I'm at my door: create the code", locating: "Finding your location…",
+      share: "Share my code", print: "Print the sticker", move: "Update location (I'm at the door)", del: "Delete this code", uses: "delivery(ies) with this code",
+      shareMsg: "My WunaGo address: {code} ({area}). To deliver to me, type this code in WunaGo or open: {url}", moved: "Location updated.", deleted: "Code deleted.",
+      enter: "WunaGo Code", enterPh: "WG-", apply: "OK", scan: "Scan a QR code", noScan: "This phone can't read QR codes: type the code.", notFound: "No WunaGo QR code in the photo.",
+      add: "Add another code", applied: "Code {code}: address, location and landmark filled ✓", gpsOff: "Turn on location, then try again." }
+  };
+  function tw() { return CW[state.lang] || CW.fr; }
+  state.places = state.places || [];
+  function loadPlaces() { if (!srv() || !WAPI.token()) return Promise.resolve(); return WAPI.get("/places").then(function (r) { state.places = r.places; render(); }).catch(function () {}); }
+  function codeUrl(code) { return location.origin + "/code.html?c=" + code; }
+  function qrSvg(text, cell) {
+    if (!window.qrcode) return "";
+    var q = qrcode(0, "M"); q.addData(text); q.make();
+    return q.createSvgTag({ cellSize: cell || 5, margin: 2, scalable: true });
+  }
+  function codeHomeCard() {
+    if (!srv()) return "";
+    var w = tw(), p = state.places[0];
+    if (p) return '<div style="padding:16px 20px 0"><button class="fx ac" data-action="openScreen" data-arg="codes" style="gap:12px;width:100%;text-align:left;background:#101010;color:#fff;border:0;border-radius:16px;padding:13px 14px;cursor:pointer">' +
+      '<span class="col" style="gap:2px;flex:1"><span class="mono" style="font-size:9.5px;letter-spacing:.08em;color:rgba(255,255,255,.6)">' + esc(w.title.toUpperCase()) + '</span><span class="mono" style="font-weight:600;font-size:20px;color:#FFD700;letter-spacing:.06em">' + esc(p.code) + '</span></span>' +
+      '<span style="font-weight:700;font-size:12px;color:#FFD700">' + esc(w.share) + ' →</span></button></div>';
+    return '<div style="padding:16px 20px 0"><button class="col" data-action="openScreen" data-arg="codeForm" style="gap:4px;width:100%;text-align:left;border:1.5px dashed #101010;background:#FFD700;border-radius:16px;padding:14px;cursor:pointer;color:#101010">' +
+      '<span class="mono" style="font-size:9.5px;letter-spacing:.08em">NOUVEAU · ' + esc(w.short.toUpperCase()) + '</span><span style="font-weight:800;font-size:16px">' + esc(w.pitch) + '</span>' +
+      '<span style="font-size:12px;line-height:1.45;color:rgba(16,16,16,.75)">' + esc(w.pitchSub) + '</span><span style="font-weight:800;font-size:13px;margin-top:4px">' + esc(w.create) + ' →</span></button></div>';
+  }
+  function screenCodes() {
+    var w = tw();
+    if (!state.places.length) return screenCodeForm();
+    var cards = state.places.map(function (p) {
+      return '<div class="col" style="gap:12px;' + card + ';padding:16px;align-items:center;text-align:center">' +
+        '<span class="mono" style="font-size:10px;letter-spacing:.08em;color:rgba(16,16,16,.55)">' + esc((p.label || "").toUpperCase()) + '</span>' +
+        '<span class="mono" style="font-weight:600;font-size:34px;letter-spacing:.08em">' + esc(p.code) + '</span>' +
+        '<div style="width:190px;height:190px">' + qrSvg(codeUrl(p.code), 5) + '</div>' +
+        '<span style="font-weight:700;font-size:13.5px">' + esc(p.address) + '</span>' + (p.hint ? '<span style="font-size:12px;color:rgba(16,16,16,.7)">' + esc(p.hint) + '</span>' : '') +
+        '<span class="mono" style="font-size:10.5px;color:rgba(16,16,16,.5)">' + p.uses + ' ' + esc(w.uses) + '</span>' +
+        '<button class="btn btn-ink" data-action="shareCode" data-arg="' + p.code + '" style="width:100%">' + esc(w.share) + '</button>' +
+        '<a class="btn btn-outline" href="' + codeUrl(p.code) + '&print=1" target="_blank" rel="noopener" style="width:100%;color:#101010;text-decoration:none">' + esc(w.print) + '</a>' +
+        '<button class="btn" data-action="moveCode" data-arg="' + p.code + '" style="height:44px;background:transparent;font-weight:700;font-size:12.5px;text-decoration:underline">' + esc(w.move) + '</button>' +
+        '<button class="btn" data-action="deleteCode" data-arg="' + p.code + '" style="height:40px;background:transparent;font-weight:600;font-size:12px;color:rgba(16,16,16,.55)">' + esc(w.del) + '</button></div>';
+    }).join("");
+    return page3(hdr(w.title) + cards + (state.places.length < 5 ? '<button class="btn btn-outline" data-action="openScreen" data-arg="codeForm" style="color:#101010">+ ' + esc(w.add) + '</button>' : ''));
+  }
+  state.codeForm = { label: "Maison", placeName: "", hint: "", busy: false };
+  function screenCodeForm() {
+    var w = tw(), f = state.codeForm;
+    return page3(hdr(w.createTitle) + '<p style="margin:0;font-size:13px;line-height:1.5;color:rgba(16,16,16,.75)">' + esc(w.createSub) + '</p>' +
+      sectionTitle(w.label) + '<div class="fx wrap" style="gap:7px">' + w.labels.map(function (l) { return chip(l[1], f.label === l[0], "codeLabel", l[0]); }).join("") + '</div>' +
+      '<input data-bind="codeForm.placeName" aria-label="' + esc(w.placeName) + '" placeholder="' + esc(w.placeName) + '" value="' + esc(f.placeName) + '" style="' + card + ';height:50px;padding:0 14px;font-weight:600;font-size:13.5px" />' +
+      '<input data-bind="codeForm.hint" aria-label="' + esc(w.hint) + '" placeholder="' + esc(w.hint) + '" value="' + esc(f.hint) + '" style="' + card + ';height:50px;padding:0 14px;font-weight:600;font-size:13.5px" />' +
+      '<button class="btn btn-yellow" data-action="createCode"' + (f.busy ? " disabled" : "") + '>' + esc(f.busy ? w.locating : w.here) + '</button>');
+  }
+  function locate(cb) {
+    if (!navigator.geolocation) { toast(tw().gpsOff); return cb(null); }
+    navigator.geolocation.getCurrentPosition(function (p) { cb({ lat: p.coords.latitude, lng: p.coords.longitude }); },
+      function () { toast(tw().gpsOff); cb(null); }, { enableHighAccuracy: true, timeout: 20000, maximumAge: 0 });
+  }
+  actions.codeLabel = function (el, arg) { state.codeForm.label = arg; render(); };
+  actions.createCode = function () {
+    var f = state.codeForm; if (f.busy) return; f.busy = true; render();
+    locate(function (g) {
+      if (!g) { f.busy = false; render(); return; }
+      WAPI.post("/places", { lat: g.lat, lng: g.lng, label: f.label, placeName: f.placeName, hint: f.hint }).then(function (r) {
+        f.busy = false; f.placeName = ""; f.hint = "";
+        state.places.push(r.place); replaceTop("codes");
+      }).catch(function (e) { f.busy = false; render(); errToast(e); });
+    });
+  };
+  actions.moveCode = function (el, arg) {
+    locate(function (g) {
+      if (!g) return;
+      WAPI.patch("/places/" + arg, { lat: g.lat, lng: g.lng }).then(function (r) {
+        state.places = state.places.map(function (p) { return p.code === arg ? r.place : p; }); toast(tw().moved);
+      }).catch(errToast);
+    });
+  };
+  actions.deleteCode = function (el, arg) {
+    if (state.confirmDelCode !== arg) { state.confirmDelCode = arg; toast(state.lang === "en" ? "Tap again to confirm." : "Touchez encore pour confirmer."); return; }
+    state.confirmDelCode = null;
+    WAPI.del("/places/" + arg).then(function () { state.places = state.places.filter(function (p) { return p.code !== arg; }); toast(tw().deleted); render(); }).catch(errToast);
+  };
+  actions.shareCode = function (el, arg) {
+    var p = state.places.filter(function (x) { return x.code === arg; })[0]; if (!p) return;
+    var text = tw().shareMsg.replace("{code}", p.code).replace("{area}", p.area).replace("{url}", codeUrl(p.code));
+    if (navigator.share) { navigator.share({ text: text }).catch(function () {}); return; }
+    var win = window.open("https://wa.me/?text=" + encodeURIComponent(text), "_blank", "noopener");
+    if (!win && navigator.clipboard) navigator.clipboard.writeText(text).then(function () { toast(tu().copied); });
+  };
+
+  /* saisie d'un code dans une commande (départ ou arrivée) */
+  function codeEntry() {
+    if (!srv()) return "";
+    var w = tw(), ce = state.codeEntry;
+    if (!ce || !ce.open) return '<button class="btn" data-action="openCodeEntry" style="border:1.5px solid #101010;background:#FFD700;border-radius:99px;padding:7px 12px;height:auto;min-height:34px;font-weight:800;font-size:11.5px;color:#101010;gap:5px">🔑 ' + esc(w.enter) + '</button>';
+    var scan = "BarcodeDetector" in window ? '<label class="btn" aria-label="' + esc(w.scan) + '" style="width:44px;height:44px;flex:none;border-radius:12px;background:rgba(16,16,16,.07);padding:0;position:relative;cursor:pointer">' + CAMERA +
+      '<input type="file" accept="image/*" capture="environment" data-file="qrscan" style="position:absolute;width:1px;height:1px;opacity:0"></label>' : '';
+    return '<div class="fx ac" style="gap:7px;width:100%"><input data-bind="codeEntry" autocapitalize="characters" autocomplete="off" aria-label="' + esc(w.enter) + '" placeholder="WG-7K3Q" value="' + esc(ce.value || "") + '" style="flex:1;min-width:0;height:44px;border-radius:12px;border:1.5px solid #101010;background:#fff;padding:0 12px;font-family:var(--mono);font-weight:600;font-size:16px;letter-spacing:.08em" />' +
+      scan + '<button class="btn btn-ink" data-action="applyCode" style="height:44px;border-radius:12px;padding:0 14px">' + esc(w.apply) + '</button></div>';
+  }
+  actions.openCodeEntry = function () { state.codeEntry = { open: true, value: "" }; render(); var el = document.querySelector('[data-bind="codeEntry"]'); if (el) el.focus(); };
+  function applyCodeTo(field, code, done) {
+    WAPI.get("/codes/" + encodeURIComponent(code)).then(function (r) {
+      var p = r.place, dr = state.draft; if (!dr) return;
+      dr[field] = p.address + " · " + p.code; dr[field + "Geo"] = p.geo; dr[field + "Code"] = p.code;
+      dr.hints = dr.hints || {}; dr.hints[field] = p.hint || "";
+      if (field === "dropoff" && dr.service === "parcel") dr.recipient = p.mine ? { self: true, name: "", phone: "" } : { self: false, name: p.name || "", phone: p.phone || "" };
+      state.codeEntry = null; state.suggest = null;
+      if (field === "pickup" && !dr.dropoff && !(dr.service === "laundry" && dr.laundry.sameReturn)) state.addrTarget = "dropoff";
+      render(); toast(tw().applied.replace("{code}", p.code)); if (done) done();
+    }).catch(errToast);
+  }
+  actions.applyCode = function () {
+    var v = String((state.codeEntry || {}).value || "").toUpperCase().replace(/[^0-9A-Z]/g, "").replace(/^WG/, "");
+    if (v.length !== 4) { toast(state.lang === "en" ? "Code: WG- followed by 4 characters." : "Code : WG- suivi de 4 caractères."); return; }
+    var dr = state.draft, field = dr.service === "laundry" && dr.laundry.sameReturn ? "pickup" : (state.addrTarget || "dropoff");
+    applyCodeTo(field, "WG-" + v);
+  };
+  function codeFromText(t) { var m = String(t || "").match(/WG-?([0-9A-Z]{4})/i); return m ? "WG-" + m[1].toUpperCase() : null; }
+  document.addEventListener("change", function (ev) {
+    var el = ev.target; if (!el || el.getAttribute("data-file") !== "qrscan" || !el.files || !el.files[0]) return;
+    createImageBitmap(el.files[0]).then(function (bmp) { return new BarcodeDetector({ formats: ["qr_code"] }).detect(bmp); }).then(function (res) {
+      var code = res && res[0] && codeFromText(res[0].rawValue);
+      if (!code) { toast(tw().notFound); return; }
+      state.codeEntry = { open: true, value: code }; actions.applyCode();
+    }).catch(function () { toast(tw().noScan); });
+  });
+  /* lien ouvert depuis un QR code : /#code=WG-7K3Q → nouvelle livraison vers ce code */
+  function openCodeOrder(code) {
+    state.draft = newDraft("parcel"); state.activeTab = "home"; state.tabStacks.home = [{ screen: "home" }, { screen: "order" }];
+    if (state.settings.orderFlow === "stepped") state.draft.step = 1;
+    render(); applyCodeTo("dropoff", code);
+  }
+
   /* ============================== mode serveur (API WunaGo) ============================== */
   /* Si l'API répond, comptes, commandes, portefeuille et réclamations sont enregistrés sur le serveur.
      Sinon, l'app garde le mode local (démo) d'origine. */
@@ -2027,7 +2177,7 @@
     return Promise.all([WAPI.get("/me"), WAPI.get("/orders"), WAPI.get("/disputes")]).then(function (r) {
       applyUser(r[0].user); state.orders = r[1].orders; state.disputes = r[2].disputes;
       if (state.tabStacks.support[0].screen === "chat") state.tabStacks.support = [{ screen: "inbox" }];
-      render(); loadConvs(); loadCourier(); subscribePush(); handleHash();
+      render(); loadConvs(); loadCourier(); subscribePush(); loadPlaces(); handleHash();
     }).catch(function (e) { if (e.status === 401) forceLogin(); });
   }
   function resetAccountState() {
@@ -2035,7 +2185,7 @@
     state.payAccounts = []; state.defaultPay = "orange_money"; state.notifPrefs = { orders: true, sms: true, push: false, promos: true };
     state.tabStacks = { home: [{ screen: "home" }], orders: [{ screen: "history" }], wallet: [{ screen: "wallet" }], support: [{ screen: srv() ? "inbox" : "chat" }],
       courses: [{ screen: "courierHome" }], account: [{ screen: "courierAccount" }] };
-    state.activeTab = "home"; state.convs = []; state.convMsgs = {}; state.courierData = { offers: [], orders: [] }; state.proofForm = null;
+    state.activeTab = "home"; state.convs = []; state.convMsgs = {}; state.places = []; state.codeEntry = null; state.courierData = { offers: [], orders: [] }; state.proofForm = null;
     if (typeof stopGps === "function") stopGps();
   }
   function forceLogin() {
@@ -2097,7 +2247,8 @@
     var fd = finalDrop(draft), det = orderDetails(draft);
     WAPI.post("/orders", { service: draft.service, pickup: draft.pickup, dropoff: fd.text, pickupGeo: draft.pickupGeo || geoOf(draft.pickup),
       dropoffGeo: fd.geo || geoOf(fd.text), weightKg: draft.weightKg, vehicle: draft.vehicle, note: draft.note, paymentMethod: draft.payMethod,
-      scheduledAt: whenAt(draft.when), laundry: det.laundry, errand: det.errand, ride: det.ride, hints: det.hints, recipient: det.recipient })
+      scheduledAt: whenAt(draft.when), laundry: det.laundry, errand: det.errand, ride: det.ride, hints: det.hints, recipient: det.recipient,
+      pickupCode: draft.pickupCode || undefined, dropoffCode: fd.text === draft.dropoff ? draft.dropoffCode || undefined : undefined })
       .then(function (r) {
         state.payPending = false; state.wallet.balance = r.wallet.balance; replaceOrder(r.order);
         var st0 = stack(); state.tabStacks[state.activeTab] = [st0[0], { screen: "track", orderId: r.order.id }];
@@ -2563,7 +2714,8 @@
   /* liens ouverts depuis une notification : #discussion=… #commande=… #courses */
   function handleHash() {
     if (!state.loggedIn) return;
-    var h = location.hash, m1 = h.match(/^#discussion=([\w-]+)/), m2 = h.match(/^#commande=([\w-]+)/);
+    var h = location.hash, m1 = h.match(/^#discussion=([\w-]+)/), m2 = h.match(/^#commande=([\w-]+)/), m3 = h.match(/^#code=(WG-?[0-9A-Za-z]{4})/i);
+    if (m3 && srv() && !isCourier()) { try { history.replaceState(null, "", location.pathname); } catch (e) {} openCodeOrder(codeFromText(m3[1])); return; }
     if (m1 && srv()) { state.activeTab = "support"; state.tabStacks.support = [{ screen: "inbox" }, { screen: "conv", convId: m1[1] }]; loadConvs().then(function () { loadMessages(m1[1], true); }); }
     else if (m2) { var o = findOrder(m2[1]); if (o) { state.activeTab = "orders"; state.tabStacks.orders = [{ screen: "history" }, { screen: o.status === "delivered" ? "proof" : "track", orderId: o.id }]; } }
     else if (h === "#courses" && isCourier()) { state.activeTab = "courses"; }

@@ -5,7 +5,7 @@
 import type { Config, Context } from "@netlify/functions";
 import { getDatabase } from "@netlify/database";
 import { createHash, randomBytes, randomInt } from "node:crypto";
-import { SERVICES, VEHICLES, PAY_METHODS, STATUSES, quote, normalizePhone, distanceKm, courierShare, TARIFS } from "../lib/rules.mts";
+import { SERVICES, VEHICLES, PAY_METHODS, STATUSES, quote, normalizePhone, distanceKm, courierShare, TARIFS, QUARTIERS } from "../lib/rules.mts";
 import { sendPush, publicKey, pushLog } from "../lib/push.mts";
 import { runAlerts } from "../lib/alerts.mts";
 
@@ -187,6 +187,18 @@ async function createOrder(req: Request, user: Row) { return createOrderFrom(awa
 async function createOrderFrom(b: Row, user: Row, createdBy: string | null) {
   const service = String(b.service);
   if (!(SERVICES as readonly string[]).includes(service)) return fail(400, "Service inconnu.");
+  /* Codes WunaGo : le serveur remplit lui-même adresse, position exacte, repère et destinataire */
+  const usedCodes: string[] = [];
+  for (const f of ["pickup", "dropoff"]) {
+    const code = b[f + "Code"]; if (!code) continue;
+    const p = await findPlace(code);
+    if (!p) return fail(400, "Code WunaGo introuvable : " + String(code).toUpperCase());
+    usedCodes.push(p.code);
+    b[f] = (p.place_name ? p.place_name + ", " : "") + p.area + ", Douala · " + p.code;
+    b[f + "Geo"] = { lat: p.lat, lng: p.lng };
+    b.hints = { ...(b.hints || {}), [f]: p.hint || (b.hints || {})[f] || "" };
+    if (f === "dropoff" && service === "parcel" && p.user_id !== user.id) b.recipient = { name: p.owner_name || "", phone: p.owner_phone };
+  }
   if (!(VEHICLES as readonly string[]).includes(b.vehicle)) return fail(400, "Véhicule inconnu.");
   if (!(PAY_METHODS as readonly string[]).includes(b.paymentMethod)) return fail(400, "Moyen de paiement inconnu.");
   const pickup = String(b.pickup || "").trim().slice(0, 200), dropoff = String(b.dropoff || "").trim().slice(0, 200);
@@ -222,6 +234,7 @@ async function createOrderFrom(b: Row, user: Row, createdBy: string | null) {
           qt.distanceKm, qt.zone, scheduledAt ? new Date(scheduledAt).toISOString() : null,
           String(randomInt(1000, 10000)), randomBytes(12).toString("base64url")]);
       if (createdBy) await q("UPDATE orders SET created_by = $2 WHERE id = $1", [rows[0].id, createdBy]);
+      if (usedCodes.length) await q("UPDATE places SET uses = uses + 1 WHERE code = ANY($1::text[])", [usedCodes]);
       if (b.paymentMethod === "wallet") await q("INSERT INTO wallet_tx (user_id, amount, kind, order_id) VALUES ($1, $2, 'order', $3)", [user.id, -price.net, rows[0].id]);
       return rows[0];
     });
@@ -454,6 +467,73 @@ async function courierHistory(courierId: string, sp: URLSearchParams) {
     createdAt: new Date(o.created_at).getTime(), deliveredAt: o.delivered_at ? new Date(o.delivered_at).getTime() : null }));
   return { period: { from, to }, summary: { ...sum, due: sum.cash - sum.earned }, byDay: Object.values(days).sort((a, b) => a.day < b.day ? -1 : 1),
     orders: out, more: offset + out.length < rows.length, balance, payments };
+}
+
+/* ---------- Code WunaGo : adresse en 6 caractères ---------- */
+const CODE_ALPHA = "23456789ABCDEFGHJKMNPQRSTUVWXYZ";
+const normCode = (c: any) => { const s = String(c || "").toUpperCase().replace(/[^0-9A-Z]/g, "").replace(/^WG/, ""); return s.length === 4 ? "WG-" + s : null; };
+function nearestArea(lat: number, lng: number) {
+  let best: any = null, bd = 1e9;
+  for (const q of QUARTIERS as any[]) { const d = distanceKm({ lat, lng }, q); if (d < bd) { bd = d; best = q; } }
+  return best ? (bd < 1.2 ? best.name : "Près de " + best.name) : "Douala";
+}
+function placeOut(p: Row, owner?: Row) {
+  return { code: p.code, label: p.label, placeName: p.place_name, area: p.area, hint: p.hint, geo: { lat: p.lat, lng: p.lng }, uses: p.uses,
+    address: (p.place_name ? p.place_name + ", " : "") + p.area + ", Douala", name: owner ? owner.name || "" : undefined, phone: owner ? owner.phone : undefined,
+    createdAt: new Date(p.created_at).getTime(), updatedAt: new Date(p.updated_at).getTime() };
+}
+async function findPlace(code: any) {
+  const c = normCode(code); if (!c) return null;
+  const r = (await db().sql`SELECT p.*, u.name AS owner_name, u.phone AS owner_phone FROM places p JOIN users u ON u.id = p.user_id WHERE p.code = ${c} AND u.deleted_at IS NULL`)[0];
+  return r || null;
+}
+async function placesRoutes(req: Request, user: Row, path: string, m: string): Promise<Response | null> {
+  if (path === "/places" && m === "GET") {
+    const rows = await db().sql`SELECT * FROM places WHERE user_id = ${user.id} ORDER BY created_at`;
+    return json({ places: rows.map((p) => placeOut(p, user)) });
+  }
+  if (path === "/places" && m === "POST") {
+    const b = await body(req);
+    const lat = Number(b.lat), lng = Number(b.lng);
+    if (!(Math.abs(lat) <= 90 && Math.abs(lng) <= 180)) return fail(400, "Position introuvable : activez la localisation.");
+    if (distanceKm({ lat, lng }, { lat: 4.05, lng: 9.72 }) > 60) return fail(400, "Le Code WunaGo est disponible à Douala et ses environs.");
+    const count = (await db().sql`SELECT COUNT(*) AS n FROM places WHERE user_id = ${user.id}`)[0].n;
+    if (Number(count) >= 5) return fail(409, "5 codes au maximum par compte.");
+    const label = String(b.label || "Maison").trim().slice(0, 30) || "Maison";
+    for (let i = 0; i < 8; i++) {
+      let c = "WG-"; for (let k = 0; k < 4; k++) c += CODE_ALPHA[randomInt(0, CODE_ALPHA.length)];
+      try {
+        const rows = await db().sql`INSERT INTO places (code, user_id, label, place_name, area, lat, lng, hint)
+          VALUES (${c}, ${user.id}, ${label}, ${String(b.placeName || "").trim().slice(0, 60)}, ${nearestArea(lat, lng)}, ${lat}, ${lng}, ${String(b.hint || "").trim().slice(0, 120)}) RETURNING *`;
+        return json({ place: placeOut(rows[0], user) }, 201);
+      } catch (e: any) { if (!String(e && e.message).includes("duplicate")) throw e; }
+    }
+    return fail(500, "Réessayez dans un instant.");
+  }
+  const r = path.match(/^\/places\/(WG-[0-9A-Z]{4})$/);
+  if (r && m === "PATCH") {
+    const b = await body(req);
+    const p = (await db().sql`SELECT * FROM places WHERE code = ${r[1]} AND user_id = ${user.id}`)[0];
+    if (!p) return fail(404, "Code introuvable.");
+    const lat = b.lat != null ? Number(b.lat) : p.lat, lng = b.lng != null ? Number(b.lng) : p.lng;
+    const rows = await db().sql`UPDATE places SET lat = ${lat}, lng = ${lng}, area = ${nearestArea(lat, lng)},
+      label = ${b.label != null ? String(b.label).trim().slice(0, 30) || p.label : p.label},
+      place_name = ${b.placeName != null ? String(b.placeName).trim().slice(0, 60) : p.place_name},
+      hint = ${b.hint != null ? String(b.hint).trim().slice(0, 120) : p.hint}, updated_at = NOW() WHERE code = ${r[1]} RETURNING *`;
+    return json({ place: placeOut(rows[0], user) });
+  }
+  if (r && m === "DELETE") {
+    await db().sql`DELETE FROM places WHERE code = ${r[1]} AND user_id = ${user.id}`;
+    return json({ ok: true });
+  }
+  const lk = path.match(/^\/codes\/([A-Za-z0-9-]{4,8})$/);
+  if (lk && m === "GET") {
+    const p = await findPlace(lk[1]);
+    if (!p) return fail(404, "Ce Code WunaGo n'existe pas. Vérifiez les 4 caractères après « WG- ».");
+    const out = placeOut(p, { name: p.owner_name, phone: p.owner_phone });
+    return json({ place: { ...out, mine: p.user_id === user.id } });
+  }
+  return null;
 }
 
 /* ---------- suivi public (lien partagé au destinataire, sans compte) ---------- */
@@ -1051,6 +1131,12 @@ export default async (req: Request, context: Context) => {
     if (path === "/auth/request" && m === "POST") return await authRequest(req);
     const sv = path.match(/^\/suivi\/([A-Za-z0-9_-]{10,40})$/);
     if (sv && m === "GET") return await publicTrack(sv[1]);
+    const pc = path.match(/^\/code\/([A-Za-z0-9-]{4,8})$/);
+    if (pc && m === "GET") {
+      const p = await findPlace(pc[1]);
+      if (!p) return fail(404, "Ce Code WunaGo n'existe pas.");
+      return json({ code: p.code, name: String(p.owner_name || "").split(" ")[0] || "", label: p.label, placeName: p.place_name, area: p.area });
+    }
     const sp2 = path.match(/^\/suivi\/([A-Za-z0-9_-]{10,40})\/position$/);
     if (sp2 && m === "POST") return await shareDropoff(sp2[1], await body(req));
     if (path === "/auth/verify" && m === "POST") return await authVerify(req);
@@ -1060,6 +1146,7 @@ export default async (req: Request, context: Context) => {
     if (!user) return fail(401, "Session expirée : reconnectez-vous.");
 
     if (path === "/me" && m === "GET") return json({ user: userOut(user) });
+    const pr = await placesRoutes(req, user, path, m); if (pr) return pr;
     const cr = await courierRoutes(req, user, path, m); if (cr) return cr;
     const ad = await adminRoutes(req, user, path, m, url); if (ad) return ad;
     if (path === "/conversations" && m === "GET") return json({ conversations: await listConversations(user) });

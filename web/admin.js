@@ -70,7 +70,7 @@
     return '<div class="shell"><nav class="side" aria-label="Sections">' +
       '<div class="brand"><svg width="22" height="28" viewBox="0 0 60 76" aria-hidden="true"><path d="M30 4C14.5 4 4 15.4 4 29.5C4 47 30 72 30 72C30 72 56 47 56 29.5C56 15.4 45.5 4 30 4Z" fill="#FFD700"/><rect x="20" y="20" width="20" height="20" rx="3" fill="#101010"/></svg><span>WunaGo<br><small>BACKOFFICE</small></span></div>' +
       NAV.map(function (n) { var k = c[n[0]]; return '<button class="' + (S.view === n[0] || (S.view === "courier" && n[0] === "couriers") ? "on" : "") + '" data-a="nav" data-v="' + n[0] + '">' + n[1] + (k ? '<span class="count">' + k + '</span>' : '') + '</button>'; }).join("") +
-      '<div class="foot"><span class="mono" style="font-size:10px;opacity:.6">Version 16 · 17/11/2026</span><span>' + esc(S.me.name || "Administrateur") + '<br><span class="mono">' + esc(phone(S.me.phone)) + '</span></span><button class="btn btn-sm btn-ghost" style="background:rgba(255,255,255,.1);color:#fff" data-a="logout">Se déconnecter</button></div>' +
+      '<div class="foot"><span class="mono" style="font-size:10px;opacity:.6">Version 17 · 17/11/2026</span><span>' + esc(S.me.name || "Administrateur") + '<br><span class="mono">' + esc(phone(S.me.phone)) + '</span></span><button class="btn btn-sm btn-ghost" style="background:rgba(255,255,255,.1);color:#fff" data-a="logout">Se déconnecter</button></div>' +
       '</nav><main>' + lateBanner() + inner + '</main></div>';
   }
   function kpi(label, value, dark) { return '<div class="card kpi' + (dark ? " dark" : "") + '"><span class="lbl">' + label + '</span><b>' + value + '</b></div>'; }
@@ -344,6 +344,10 @@
       pickupGeo: qGeo(d.pickupQ), dropoffGeo: qGeo(d.dropoffQ), paymentMethod: d.pay, note: d.note || "",
       vehicle: d.service === "ride" ? (d.rideVehicle || "bike") : "bike", weightKg: Number(String(d.weight || "1").replace(",", ".")) || 1,
       ride: { passengers: Number(d.passengers) || 1 }, hints: { pickup: d.hintP || "", dropoff: d.hintD || "" } };
+    var cc = function (v) { var x = String(v || "").toUpperCase().replace(/[^0-9A-Z]/g, "").replace(/^WG/, ""); return x.length === 4 ? "WG-" + x : undefined; };
+    b.pickupCode = cc(d.pickupCode); b.dropoffCode = cc(d.dropoffCode);
+    if (b.pickupCode && !d.pickupQ) b.pickup = b.pickupCode;
+    if (b.dropoffCode && !d.dropoffQ) b.dropoff = b.dropoffCode;
     if (d.service === "parcel" && (d.rname || d.rphone)) b.recipient = { name: d.rname || "", phone: String(d.rphone || "").replace(/\D/g, "") };
     return b;
   }
@@ -359,9 +363,9 @@
       '<label class="lbl" for="no-ph">Téléphone du client</label><input class="f mono" id="no-ph" data-k="drawer.phone" inputmode="numeric" placeholder="6 99 12 34 56" value="' + esc(d.phone || "") + '">' +
       '<label class="lbl" for="no-nm">Nom du client</label><input class="f" id="no-nm" data-k="drawer.name" value="' + esc(d.name || "") + '">' +
       '<span class="lbl">Service</span>' + chipsRow("service", [["parcel", "Colis"], ["ride", "Déplacement"]]) +
-      '<span class="lbl">Départ</span>' + sel("pickupQ", d.pickupQ) + '<input class="f" data-k="drawer.pickupText" placeholder="Rue, immeuble (facultatif)" value="' + esc(d.pickupText || "") + '" aria-label="Précision départ">' +
+      '<span class="lbl">Départ</span><input class="f mono" data-k="drawer.pickupCode" placeholder="Code WunaGo (ex. WG-7K3Q) — ou le quartier ci-dessous" value="' + esc(d.pickupCode || "") + '" aria-label="Code WunaGo de départ">' + sel("pickupQ", d.pickupQ) + '<input class="f" data-k="drawer.pickupText" placeholder="Rue, immeuble (facultatif)" value="' + esc(d.pickupText || "") + '" aria-label="Précision départ">' +
       '<input class="f" data-k="drawer.hintP" placeholder="Repère (ex. après la pharmacie)" value="' + esc(d.hintP || "") + '" aria-label="Repère départ">' +
-      '<span class="lbl">Arrivée</span>' + sel("dropoffQ", d.dropoffQ) + '<input class="f" data-k="drawer.dropoffText" placeholder="Rue, immeuble (facultatif)" value="' + esc(d.dropoffText || "") + '" aria-label="Précision arrivée">' +
+      '<span class="lbl">Arrivée</span><input class="f mono" data-k="drawer.dropoffCode" placeholder="Code WunaGo (ex. WG-7K3Q) — ou le quartier ci-dessous" value="' + esc(d.dropoffCode || "") + '" aria-label="Code WunaGo d\'arrivée">' + sel("dropoffQ", d.dropoffQ) + '<input class="f" data-k="drawer.dropoffText" placeholder="Rue, immeuble (facultatif)" value="' + esc(d.dropoffText || "") + '" aria-label="Précision arrivée">' +
       '<input class="f" data-k="drawer.hintD" placeholder="Repère (ex. portail bleu)" value="' + esc(d.hintD || "") + '" aria-label="Repère arrivée">' +
       (d.service === "parcel"
         ? '<label class="lbl" for="no-kg">Poids (kg)</label><input class="f mono" id="no-kg" data-k="drawer.weight" data-change="noPreview" inputmode="decimal" value="' + esc(d.weight || "1") + '">' +
@@ -573,7 +577,7 @@
     noSave: function () {
       var d = S.drawer, b = newOrderBody(d);
       if (!/^6\d{8}$/.test(b.phone)) { toast("Numéro du client : 9 chiffres commençant par 6."); return; }
-      if (!d.pickupQ || !d.dropoffQ) { toast("Choisissez le quartier de départ et d'arrivée."); return; }
+      if (!(d.pickupQ || b.pickupCode) || !(d.dropoffQ || b.dropoffCode)) { toast("Indiquez un Code WunaGo ou un quartier, au départ et à l'arrivée."); return; }
       if (S.busy) return; S.busy = true;
       WAPI.post("/admin/orders", b).then(function (r) { S.busy = false; S.drawer = { kind: "created", order: r.order, client: r.client }; render(); load(); })
         .catch(function (e) { S.busy = false; err(e); });

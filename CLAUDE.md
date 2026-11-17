@@ -31,6 +31,9 @@ Porteur du projet : Serge-Venant OHANDZA. Langue de travail et de l'interface : 
   « Je suis arrivé » (étape `arrived`, `orders.arrived_at`) ; commande saisie par l'équipe pour un client (`POST /api/admin/orders`, `orders.created_by`, colis ou déplacement).
   Le destinataire peut envoyer sa position exacte depuis le lien de suivi (`POST /api/suivi/:token/position`, 2,5 km max de l'adresse, prix inchangé) ;
   trajets récents sur l'accueil ; destinataire depuis les contacts (Android) ; « Combien ça coûte ? » sans compte (écran de connexion).
+  **Code WunaGo** (`WG-XXXX`, table `places`) : adresse en 6 caractères = point GPS exact + repère + nom/numéro du titulaire. Création « devant la porte »
+  (Portefeuille › Mon Code WunaGo, carte sur l'accueil), QR code (`web/vendor/qrcode/`, MIT), page publique `web/code.html?c=` (nom + quartier seulement,
+  autocollant imprimable), lien `/#code=WG-XXXX`, saisie ou scan dans une commande et au backoffice ; le serveur résout `pickupCode` / `dropoffCode`.
   Version affichée : `APP_VERSION` (app.js) et pied du menu (admin.js), à changer avec `CACHE` (sw.js).
 - Tests : `livraison2` (multi-acteurs : backoffice, livreur, clients, messagerie, notifications), `tarifs` (grille, sans navigateur), `services` (parcours dédiés, profil), `parcours` (mode local), `google-maps` (API Google simulée), `ecrans-compte` (étape 3), `serveur` (API + Postgres local
   via `tests/dev-server.mjs`). Les tests décalent l'heure à midi la nuit (`tests/horloge.mjs`). Lancer : `npm install && npx playwright install chromium && npm test`. Serveur local : `npm run dev`.
