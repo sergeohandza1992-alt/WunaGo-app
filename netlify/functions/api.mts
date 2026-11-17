@@ -385,6 +385,48 @@ async function enrich(rows: Row[], viewer: Row) {
   });
 }
 
+/* historique des courses d'un livreur et ses gains, sur une période (dates de Douala) */
+async function courierHistory(courierId: string, sp: URLSearchParams) {
+  const iso = /^\d{4}-\d{2}-\d{2}$/;
+  const from = iso.test(sp.get("from") || "") ? sp.get("from") : null, to = iso.test(sp.get("to") || "") ? sp.get("to") : null;
+  const limit = Math.min(200, Math.max(1, Number(sp.get("limit")) || 50)), offset = Math.max(0, Number(sp.get("offset")) || 0);
+  const W = `WHERE o.courier_id = $1 AND ($2::date IS NULL OR o.created_at >= ($2::date)::timestamp AT TIME ZONE 'Africa/Douala')
+    AND ($3::date IS NULL OR o.created_at < ($3::date + 1)::timestamp AT TIME ZONE 'Africa/Douala')`;
+  const args = [courierId, from, to];
+  const [all, page] = await Promise.all([
+    db().pool.query(`SELECT o.status, o.payment_method, o.price_net, o.price_lines, o.distance_km, o.rating, o.created_at, o.assigned_at, o.delivered_at FROM orders o ${W}`, args),
+    db().pool.query(`SELECT o.*, u.name AS client_name FROM orders o JOIN users u ON u.id = o.user_id ${W} ORDER BY o.created_at DESC LIMIT ${limit} OFFSET ${offset}`, args)
+  ]);
+  const rows = all.rows as Row[];
+  const art = (o: Row) => (o.price_lines || []).filter((l: Row) => l.key === "articles").reduce((a: number, l: Row) => a + (l.amount || 0), 0);
+  const days: Record<string, Row> = {};
+  const sum = { courses: rows.length, delivered: 0, cancelled: 0, active: 0, earned: 0, cash: 0, revenue: 0, km: 0, rating: null as number | null, ratings: 0, minutes: null as number | null };
+  let rs = 0, ms = 0, mn = 0;
+  for (const o of rows) {
+    if (o.status === "cancelled") { sum.cancelled++; continue; }
+    if (o.status !== "delivered") { sum.active++; continue; }
+    sum.delivered++;
+    const g = courierShare(o.price_lines || []);
+    sum.earned += g; sum.revenue += o.price_net - art(o); sum.km += Number(o.distance_km || 0);
+    if (o.payment_method === "cash") sum.cash += o.price_net;
+    if (o.rating) { rs += o.rating; sum.ratings++; }
+    if (o.assigned_at && o.delivered_at) { ms += (new Date(o.delivered_at).getTime() - new Date(o.assigned_at).getTime()) / 60000; mn++; }
+    const k = new Date(new Date(o.created_at).getTime() + 3600000).toISOString().slice(0, 10);
+    const d = days[k] || (days[k] = { day: k, delivered: 0, earned: 0, cash: 0 });
+    d.delivered++; d.earned += g; if (o.payment_method === "cash") d.cash += o.price_net;
+  }
+  sum.rating = sum.ratings ? Math.round(rs / sum.ratings * 10) / 10 : null;
+  sum.minutes = mn ? Math.round(ms / mn) : null;
+  sum.km = Math.round(sum.km * 10) / 10;
+  const list = page.rows as Row[];
+  const out = list.map((o) => ({ id: o.id, code: o.code, service: o.service, status: o.status, pickup: o.pickup, dropoff: o.dropoff, client: o.client_name || "Client",
+    price: o.price_net, paymentMethod: o.payment_method, gain: o.status === "delivered" ? courierShare(o.price_lines || []) : 0,
+    estimate: courierShare(o.price_lines || []), distanceKm: o.distance_km == null ? null : Number(o.distance_km), rating: o.rating,
+    createdAt: new Date(o.created_at).getTime(), deliveredAt: o.delivered_at ? new Date(o.delivered_at).getTime() : null }));
+  return { period: { from, to }, summary: { ...sum, due: sum.cash - sum.earned }, byDay: Object.values(days).sort((a, b) => a.day < b.day ? -1 : 1),
+    orders: out, more: offset + out.length < rows.length };
+}
+
 /* ---------- livreur ---------- */
 async function withClient(o: Row, viewer: Row) {
   const c = (await db().sql`SELECT name, phone FROM users WHERE id = ${o.user_id}`)[0] || {};
@@ -406,6 +448,7 @@ async function courierRoutes(req: Request, user: Row, path: string, m: string): 
     await db().sql`UPDATE users SET pos_lat = ${lat}, pos_lng = ${lng}, pos_at = NOW() WHERE id = ${user.id}`;
     return json({ ok: true });
   }
+  if (path === "/courier/history" && m === "GET") return json(await courierHistory(user.id, new URL(req.url).searchParams));
   if (path === "/courier/offers" && m === "GET") {
     const rows = await db().sql`
       SELECT * FROM orders WHERE courier_id IS NULL AND status = 'received'
@@ -609,14 +652,43 @@ async function adminRoutes(req: Request, user: Row, path: string, m: string, url
     return json({ stats: Object.fromEntries(Object.entries(x).map(([k, v]) => [k, Number(v)])) });
   }
   if (path === "/admin/orders" && m === "GET") {
-    const st = url.searchParams.get("status") || "", q = (url.searchParams.get("q") || "").trim();
-    const rows = await db().sql`
-      SELECT o.*, u.name AS client_name, u.phone AS client_phone FROM orders o JOIN users u ON u.id = o.user_id
-      WHERE (${st} = '' OR (${st} = 'active' AND o.status IN ('received','picked_up','en_route')) OR (${st} = 'unassigned' AND o.status = 'received' AND o.courier_id IS NULL) OR o.status = ${st})
-        AND (${q} = '' OR o.code ILIKE ${"%" + q + "%"} OR u.phone LIKE ${"%" + q.replace(/\D/g, "") + "%"} OR COALESCE(u.name, '') ILIKE ${"%" + q + "%"})
-      ORDER BY o.created_at DESC LIMIT 200`;
+    /* historique : filtres combinables (statut, période en dates de Douala, service, paiement, livreur, recherche) + pagination */
+    const sp = url.searchParams, iso = /^\d{4}-\d{2}-\d{2}$/;
+    const where: string[] = [], args: any[] = [];
+    const add = (sql: string, ...vals: any[]) => { let k = sql; vals.forEach((v) => { args.push(v); k = k.replace("?", "$" + args.length); }); where.push(k); };
+    const st = sp.get("status") || "";
+    if (st === "active") add("o.status IN ('received','picked_up','en_route')");
+    else if (st === "unassigned") add("o.status = 'received' AND o.courier_id IS NULL");
+    else if (st) add("o.status = ?", st);
+    const from = sp.get("from") || "", to = sp.get("to") || "";
+    if (iso.test(from)) add("o.created_at >= (?::date)::timestamp AT TIME ZONE 'Africa/Douala'", from);
+    if (iso.test(to)) add("o.created_at < (?::date + 1)::timestamp AT TIME ZONE 'Africa/Douala'", to);
+    if (sp.get("service")) add("o.service = ?", sp.get("service"));
+    if (sp.get("pay")) add("o.payment_method = ?", sp.get("pay"));
+    if (sp.get("courier") === "none") add("o.courier_id IS NULL");
+    else if (sp.get("courier")) add("o.courier_id::text = ?", sp.get("courier"));
+    const q = (sp.get("q") || "").trim(), digits = q.replace(/\D/g, "");
+    if (q) {
+      if (digits.length >= 3) add("(o.code ILIKE ? OR u.phone LIKE ? OR COALESCE(u.name, '') ILIKE ?)", "%" + q + "%", "%" + digits + "%", "%" + q + "%");
+      else add("(o.code ILIKE ? OR COALESCE(u.name, '') ILIKE ? OR o.pickup ILIKE ? OR o.dropoff ILIKE ?)", "%" + q + "%", "%" + q + "%", "%" + q + "%", "%" + q + "%");
+    }
+    const W = where.length ? "WHERE " + where.join(" AND ") : "";
+    const limit = Math.min(200, Math.max(1, Number(sp.get("limit")) || 50)), offset = Math.max(0, Number(sp.get("offset")) || 0);
+    const articles = `COALESCE((SELECT SUM((l->>'amount')::int) FROM jsonb_array_elements(COALESCE(o.price_lines,'[]'::jsonb)) l WHERE l->>'key' = 'articles'), 0)`;
+    const [rowsR, sumR] = await Promise.all([
+      db().pool.query(`SELECT o.*, u.name AS client_name, u.phone AS client_phone FROM orders o JOIN users u ON u.id = o.user_id ${W}
+        ORDER BY o.created_at DESC LIMIT ${limit} OFFSET ${offset}`, args),
+      db().pool.query(`SELECT COUNT(*) AS orders, COUNT(*) FILTER (WHERE o.status = 'delivered') AS delivered, COUNT(*) FILTER (WHERE o.status = 'cancelled') AS cancelled,
+          COUNT(*) FILTER (WHERE o.status IN ('received','picked_up','en_route')) AS active,
+          COALESCE(SUM(o.price_net) FILTER (WHERE o.status <> 'cancelled'), 0) AS volume,
+          COALESCE(SUM(o.price_net - ${articles}) FILTER (WHERE o.status <> 'cancelled'), 0) AS revenue
+        FROM orders o JOIN users u ON u.id = o.user_id ${W}`, args)
+    ]);
+    const rows = rowsR.rows;
     const out = await enrich(rows, user);
-    return json({ orders: out.map((o, i) => ({ ...o, client: { name: rows[i].client_name, phone: rows[i].client_phone } })) });
+    const sum = Object.fromEntries(Object.entries(sumR.rows[0]).map(([k, v]) => [k, Number(v)]));
+    return json({ orders: out.map((o, i) => ({ ...o, client: { name: rows[i].client_name, phone: rows[i].client_phone } })), summary: sum, offset, limit,
+      more: offset + rows.length < sum.orders });
   }
   let r = path.match(/^\/admin\/orders\/([A-Za-z0-9-]+)\/(assign|status)$/);
   if (r && m === "POST") {
@@ -708,6 +780,13 @@ async function adminRoutes(req: Request, user: Row, path: string, m: string, url
       ON CONFLICT (phone) DO UPDATE SET role = CASE WHEN users.role = 'admin' THEN 'admin' ELSE 'courier' END, name = EXCLUDED.name, courier = EXCLUDED.courier
       RETURNING *`;
     return json({ courier: { id: rows[0].id, name: rows[0].name, phone: rows[0].phone } }, 201);
+  }
+  r = path.match(/^\/admin\/couriers\/([A-Za-z0-9-]+)\/history$/);
+  if (r && m === "GET") {
+    const c = (await db().sql`SELECT id, name, phone, courier, online, role, created_at FROM users WHERE id::text = ${r[1]}`)[0];
+    if (!c) return fail(404, "Livreur introuvable.");
+    return json({ courier: { id: c.id, name: c.name, phone: c.phone, vehicle: (c.courier || {}).vehicle, plate: (c.courier || {}).plate, online: c.online, active: c.role === "courier", since: new Date(c.created_at).getTime() },
+      ...(await courierHistory(c.id, url.searchParams)) });
   }
   r = path.match(/^\/admin\/couriers\/([A-Za-z0-9-]+)\/deactivate$/);
   if (r && m === "POST") {

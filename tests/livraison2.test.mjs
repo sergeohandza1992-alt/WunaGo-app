@@ -182,7 +182,16 @@ ok('Client : réponse à la réclamation reçue dans la messagerie',true);
 
 /* 11. Backoffice : suivi des commandes et des livreurs */
 await ADM.click('[data-a="nav"][data-v="orders"]');
-await ADM.click('[data-a="orderFilter"][data-v=""]');
+await ADM.waitForSelector('text=Historique des commandes'); await ADM.waitForSelector('.sumbar');
+ok('Historique : jour en cours par défaut, avec totaux',await ADM.isVisible('.plabel:has-text("(aujourd\'hui)")')&&await ADM.isVisible('.sumbar'));
+for(const [m,re] of [['week',/^Semaine du/],['month',/^[A-ZÉ][a-zéû]+ \d{4}$/],['year',/^Année \d{4}$/]]){
+  await ADM.click(`[data-a="pMode"][data-v="hist|${m}"]`); await ADM.waitForSelector('.sumbar');
+  ok('Historique : filtre '+({week:'semaine',month:'mois',year:'année'})[m],re.test((await ADM.locator('.plabel').textContent()).trim()),(await ADM.locator('.plabel').textContent()).trim());
+}
+ok('Historique : commandes regroupées par jour',await ADM.isVisible('tr.dayrow'));
+await ADM.click('[data-a="pShift"][data-v="hist|-1"]'); await ADM.waitForSelector('.sumbar');
+ok('Historique : année précédente sans commande',(await ADM.locator('.sumbar').textContent()).includes('0 commande'));
+await ADM.click('[data-a="pMode"][data-v="hist|day"]'); await ADM.click('[data-a="pToday"][data-v="hist"]'); await ADM.waitForSelector('.sumbar');
 await ADM.waitForSelector('td:has-text("Marcel Kamga")');
 await shot(ADM,'13-backoffice-commandes');
 ok('Backoffice : commande suivie avec client et livreur',await ADM.isVisible('td:has-text("Ariane Ngono")'));
@@ -195,7 +204,7 @@ await shot(ADM,'14-backoffice-livreurs');
 await CLI.evaluate(async()=>fetch('/api/orders',{method:'POST',headers:{'content-type':'application/json',authorization:'Bearer '+WAPI.token()},
   body:JSON.stringify({service:'parcel',pickup:'Akwa',dropoff:'Bonapriso',pickupGeo:{lat:4.0489,lng:9.6996},dropoffGeo:{lat:4.0310,lng:9.6920},weightKg:2,vehicle:'bike',paymentMethod:'orange_money'})}));
 await ADM.click('[data-a="nav"][data-v="orders"]');
-await ADM.click('[data-a="orderFilter"][data-v="unassigned"]');
+await ADM.click('[data-a="histStatus"][data-v="unassigned"]');
 await ADM.waitForSelector('[data-a="quickAssign"]');
 await ADM.click('[data-a="quickAssign"]');
 ok('Backoffice : liste des livreurs avec distance au point de départ',/Marcel Kamga · Moto · en ligne/.test(await ADM.locator('#assign-sel').textContent()));
@@ -218,6 +227,25 @@ ok('Tableau de bord : changement de période',true);
 const [dl]=await Promise.all([ADM.waitForEvent('download'),ADM.click('[data-a="exportCsv"]')]);
 const csv=await (await import('node:fs')).promises.readFile(await dl.path(),'utf8');
 ok('Export Excel (CSV) des commandes',csv.includes('Code;Date;Heure;Service')&&csv.split('\n').length>=3,dl.suggestedFilename());
+
+/* 11 ter. Courses et gains du livreur : backoffice et app livreur */
+await ADM.click('[data-a="nav"][data-v="couriers"]');
+await ADM.click('tr[data-a="openCourier"]');
+await ADM.waitForSelector('text=Gains du livreur',{timeout:T});
+const fiche=await ADM.locator('main').textContent();
+ok('Backoffice : fiche livreur avec gains, espèces et solde',['Espèces encaissées','Solde à reverser','CA généré','Bonamoussadi'].every(x=>fiche.includes(x)));
+await ADM.click('[data-a="pMode"][data-v="ch|week"]'); await ADM.waitForSelector('.plabel:has-text("Semaine du")'); await ADM.waitForSelector('text=Gains du livreur');
+ok('Backoffice : courses du livreur filtrées par semaine',await ADM.isVisible('text=Gains du livreur'));
+await shot(ADM,'16-backoffice-fiche-livreur');
+await LIV.click('[data-action="switchTab"][data-arg="account"]');
+await LIV.waitForSelector('text=Mes courses et mes gains');
+await LIV.waitForFunction(()=>/\d/.test(document.querySelector('#app').textContent.match(/GAINS\s*([^\n]*?F)/)?.[1]||''));
+const g=await LIV.evaluate(()=>document.querySelector('#app').innerText);
+ok('App livreur : gains du jour et courses',/GAINS\s*\n?\s*[1-9][\d\s\u202f]* FCFA/.test(g),g.match(/GAINS[^\n]*\n[^\n]*/)?.[0]);
+await LIV.click('[data-action="earnMode"][data-arg="month"]');
+await LIV.waitForSelector('text=livrée(s)');
+ok('App livreur : gains du mois',true);
+await shot(LIV,'08-livreur-gains');
 
 /* 12. Notifications envoyées (mode test, sans envoi réel) */
 const log=await CLI.evaluate(async()=>(await (await fetch('/api/push/_log',{headers:{authorization:'Bearer '+WAPI.token()}})).json()).log);

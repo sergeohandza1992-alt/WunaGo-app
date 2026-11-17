@@ -213,6 +213,7 @@
   function replaceTop(screen, extra) { var s = stack(); s[s.length - 1] = Object.assign({ screen: screen }, extra || {}); render(); }
   function popScreen() { var s = stack(); if (s.length > 1) s.pop(); render(); }
   function switchTab(tab) {
+    if (tab === "account" && state.cEarn) { state.cEarn.data = null; state.cEarn.err = false; }
     /* toucher l'onglet déjà ouvert ramène à son premier écran */
     if (state.activeTab === tab) { var s = state.tabStacks[tab]; state.tabStacks[tab] = [s[0]]; }
     state.activeTab = tab; state.cancelFor = null; render();
@@ -2153,18 +2154,68 @@
         '<a class="btn btn-ink" href="tel:+237' + esc(client.phone) + '" aria-label="' + esc(tm().call) + '" style="width:44px;height:44px;border-radius:11px;padding:0;text-decoration:none">' + ICON_PHONE + '</a></div>' : '') +
       (mine && o.stage === 0 ? nav(g.pickup, c.route1) : '') + (mine && o.stage >= 1 && next ? nav(g.dropoff, c.route2) : '') + action);
   }
+  /* espace livreur : mes courses et mes gains, par jour / semaine / mois / année */
+  function dUTCa(s) { return new Date(s + "T00:00:00Z"); }
+  function sDa(d) { return d.toISOString().slice(0, 10); }
+  function todayDouala() { return new Date(Date.now() + 3600000).toISOString().slice(0, 10); }
+  function earnRange(E) {
+    var d = dUTCa(E.ref);
+    if (E.mode === "week") { var f = new Date(d); f.setUTCDate(d.getUTCDate() - (d.getUTCDay() + 6) % 7); var l = new Date(f); l.setUTCDate(f.getUTCDate() + 6); return { from: sDa(f), to: sDa(l) }; }
+    if (E.mode === "month") return { from: sDa(new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), 1))), to: sDa(new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth() + 1, 0))) };
+    if (E.mode === "year") return { from: d.getUTCFullYear() + "-01-01", to: d.getUTCFullYear() + "-12-31" };
+    return { from: E.ref, to: E.ref };
+  }
+  function earnLabel(E) {
+    var r = earnRange(E), lg = state.lang === "en" ? "en-GB" : "fr-FR", f = function (s, o) { return dUTCa(s).toLocaleDateString(lg, Object.assign({ timeZone: "UTC" }, o)); };
+    if (E.mode === "week") return f(r.from, { day: "numeric", month: "short" }) + " – " + f(r.to, { day: "numeric", month: "short" });
+    if (E.mode === "month") return f(r.from, { month: "long", year: "numeric" });
+    if (E.mode === "year") return r.from.slice(0, 4);
+    return r.from === todayDouala() ? (state.lang === "en" ? "Today" : "Aujourd'hui") : f(r.from, { weekday: "short", day: "numeric", month: "short" });
+  }
+  state.cEarn = { mode: "day", ref: todayDouala(), data: null, busy: false };
+  function loadEarn() {
+    var E = state.cEarn, r = earnRange(E); if (!srv() || E.busy) return;
+    E.busy = true;
+    WAPI.get("/courier/history?from=" + r.from + "&to=" + r.to + "&limit=100").then(function (d) { E.busy = false; E.data = d; render(); }).catch(function (e) { E.busy = false; E.err = true; errToast(e); });
+  }
+  var EARN = { fr: { title: "Mes courses et mes gains", modes: [["day", "Jour"], ["week", "Semaine"], ["month", "Mois"], ["year", "Année"]], gains: "GAINS", courses: "course(s) livrée(s)",
+      cash: "Espèces encaissées", due: "À reverser à WunaGo", owed: "WunaGo vous doit", none: "Aucune course sur cette période.", planned: "prévu", cancelled: "annulée", km: "km parcourus", rating: "Note" },
+    en: { title: "My jobs and earnings", modes: [["day", "Day"], ["week", "Week"], ["month", "Month"], ["year", "Year"]], gains: "EARNINGS", courses: "job(s) delivered",
+      cash: "Cash collected", due: "To hand over to WunaGo", owed: "WunaGo owes you", none: "No job in this period.", planned: "planned", cancelled: "cancelled", km: "km travelled", rating: "Rating" } };
   function screenCourierAccount() {
-    var c = tc(), cd = state.courierData, p = tp();
-    var today = cd.orders.filter(function (o) { return o.status === "delivered" && o.proofAt && new Date(o.proofAt).toDateString() === new Date().toDateString(); });
-    var earned = today.reduce(function (s, o) { return s + courierGain(o); }, 0), cv = state.user.courier || {};
-    return page3('<div class="fx ac" style="gap:12px">' + avatar(state.user.name) + '<div class="col" style="gap:2px"><span style="font-weight:800;font-size:17px">' + esc(state.user.name) + '</span><span class="mono" style="font-size:11px;color:rgba(16,16,16,.6)">+237 ' + esc(state.phone) + '</span></div></div>' +
-      '<div class="col" style="background:#101010;border-radius:19px;padding:17px;gap:6px"><span class="mono" style="font-size:10px;letter-spacing:.08em;color:rgba(255,255,255,.6)">' + esc(c.earned.toUpperCase()) + '</span><span style="font-weight:800;font-size:28px;color:#FFD700">' + fmtFcfa(earned) + '</span><span class="mono" style="font-size:11px;color:rgba(255,255,255,.7)">' + today.length + ' · ' + esc(c.today.toLowerCase()) + '</span></div>' +
-      '<div style="' + card + ';padding:4px 14px">' +
-        '<div class="fx jb" style="padding:10px 0;border-bottom:1px solid var(--hair)"><span style="font-weight:700;font-size:13px">' + esc(c.vehicle) + '</span><span class="mono" style="font-size:11px">' + esc(t().vehNames[cv.vehicle] || { car: "Voiture" }[cv.vehicle] || "—") + '</span></div>' +
-        '<div class="fx jb" style="padding:10px 0"><span style="font-weight:700;font-size:13px">' + esc(c.plate) + '</span><span class="mono" style="font-size:11px">' + esc(cv.plate || "—") + '</span></div></div>' +
+    var c = tc(), E = state.cEarn, L = EARN[state.lang] || EARN.fr, cv = state.user.courier || {}, d = E.data, sm = d && d.summary;
+    if (!d && !E.busy && !E.err) setTimeout(loadEarn, 0);
+    var modes = '<div class="fx" style="gap:6px">' + L.modes.map(function (m) {
+      var on = E.mode === m[0];
+      return '<button class="btn" data-action="earnMode" data-arg="' + m[0] + '" style="flex:1;height:38px;border-radius:99px;font-size:12px;font-weight:700;background:' + (on ? "#101010" : "#fff") + ';color:' + (on ? "#FFD700" : "#101010") + ';border:1px solid ' + (on ? "#101010" : "var(--hair)") + '">' + m[1] + '</button>';
+    }).join("") + '</div>';
+    var nav = '<div class="fx ac jb"><button class="btn" data-action="earnShift" data-arg="-1" aria-label="Période précédente" style="width:44px;height:44px;border-radius:12px;background:rgba(16,16,16,.06);padding:0">‹</button>' +
+      '<span style="font-weight:800;font-size:15px;text-transform:capitalize">' + esc(earnLabel(E)) + '</span>' +
+      '<button class="btn" data-action="earnShift" data-arg="1" aria-label="Période suivante" style="width:44px;height:44px;border-radius:12px;background:rgba(16,16,16,.06);padding:0">›</button></div>';
+    var big = '<div class="col" style="background:#101010;border-radius:19px;padding:17px;gap:6px"><span class="mono" style="font-size:10px;letter-spacing:.08em;color:rgba(255,255,255,.6)">' + L.gains + '</span>' +
+      '<span style="font-weight:800;font-size:28px;color:#FFD700">' + (sm ? fmtFcfa(sm.earned) : "…") + '</span><span class="mono" style="font-size:11px;color:rgba(255,255,255,.7)">' + (sm ? sm.delivered + " " + L.courses + " · " + String(sm.km).replace(".", ",") + " " + L.km : "") + '</span></div>';
+    var cash = sm ? '<div style="' + card + ';padding:4px 14px">' +
+      '<div class="fx jb" style="padding:10px 0;border-bottom:1px solid var(--hair)"><span style="font-weight:700;font-size:13px">' + L.cash + '</span><span class="mono" style="font-size:12px">' + fmtFcfa(sm.cash) + '</span></div>' +
+      '<div class="fx jb" style="padding:10px 0;border-bottom:1px solid var(--hair)"><span style="font-weight:700;font-size:13px">' + (sm.due >= 0 ? L.due : L.owed) + '</span><span class="mono" style="font-size:12px;font-weight:700">' + fmtFcfa(Math.abs(sm.due)) + '</span></div>' +
+      '<div class="fx jb" style="padding:10px 0"><span style="font-weight:700;font-size:13px">' + L.rating + '</span><span class="mono" style="font-size:12px">' + (sm.rating ? String(sm.rating).replace(".", ",") + " / 5" : "—") + '</span></div></div>' : '';
+    var list = d ? (d.orders.length ? '<div style="' + card + ';padding:2px 14px">' + d.orders.map(function (o, i) {
+      return '<div class="fx ac" style="gap:10px;padding:11px 0;' + (i ? 'border-top:1px solid var(--hair)' : '') + '"><div class="col" style="gap:2px;flex:1;min-width:0">' +
+        '<span class="mono" style="font-size:10px;color:rgba(16,16,16,.55)">' + esc(o.code) + ' · ' + fmtTime(o.createdAt) + '</span>' +
+        '<span style="font-weight:700;font-size:13px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">' + esc(o.pickup) + (o.dropoff !== o.pickup ? ' → ' + esc(o.dropoff) : '') + '</span></div>' +
+        '<span class="mono" style="font-size:12px;font-weight:700;text-align:right">' + (o.status === "delivered" ? fmtFcfa(o.gain) : o.status === "cancelled" ? L.cancelled : fmtFcfa(o.estimate) + '<br><span style="font-weight:500;font-size:10px;color:rgba(16,16,16,.5)">' + L.planned + '</span>') + '</span></div>';
+    }).join("") + '</div>' : '<p style="margin:0;font-size:12.5px;color:rgba(16,16,16,.6);text-align:center">' + L.none + '</p>') : '';
+    return page3('<div class="fx ac" style="gap:12px">' + avatar(state.user.name) + '<div class="col" style="gap:2px"><span style="font-weight:800;font-size:17px">' + esc(state.user.name) + '</span><span class="mono" style="font-size:11px;color:rgba(16,16,16,.6)">+237 ' + esc(state.phone) + ' · ' + esc(t().vehNames[cv.vehicle] || { car: "Voiture" }[cv.vehicle] || "") + (cv.plate ? " · " + esc(cv.plate) : "") + '</span></div></div>' +
+      sectionTitle(L.title) + modes + nav + big + cash + list +
       '<button class="btn btn-outline" data-action="openScreen" data-arg="notifs" style="color:#101010">' + esc(t().notifs) + '</button>' +
       '<button class="btn btn-outline" data-action="logOut" style="color:#101010">' + esc(t().logOut) + '</button>');
   }
+  actions.earnMode = function (el, arg) { state.cEarn.mode = arg; state.cEarn.data = null; state.cEarn.err = false; render(); };
+  actions.earnShift = function (el, arg) {
+    var E = state.cEarn, d = dUTCa(E.ref), n = Number(arg);
+    if (E.mode === "day") d.setUTCDate(d.getUTCDate() + n); else if (E.mode === "week") d.setUTCDate(d.getUTCDate() + 7 * n);
+    else if (E.mode === "month") d = new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth() + n, 1)); else d = new Date(Date.UTC(d.getUTCFullYear() + n, 0, 1));
+    E.ref = sDa(d); E.data = null; E.err = false; render();
+  };
 
   /* ---------- boucles de rafraîchissement (mode serveur) ---------- */
   var tick = 0;

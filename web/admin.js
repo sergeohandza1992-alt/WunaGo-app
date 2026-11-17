@@ -5,7 +5,7 @@
   var root = document.getElementById("admin");
   var S = {
     me: null, view: "dash", login: { phone: "", code: "", step: "phone", demoCode: null },
-    stats: null, orders: [], orderFilter: "active", orderQ: "", couriers: [], disputes: [], clients: [], clientQ: "",
+    stats: null, orders: [], orderFilter: "", orderQ: "", couriers: [], disputes: [], clients: [], clientQ: "",
     convs: [], convId: null, msgs: {}, draft: "", drawer: null, toast: null
   };
   var SVC = { parcel: "Colis", laundry: "Pressing", errand: "Courses", ride: "Déplacement" };
@@ -62,20 +62,26 @@
     var c = counts();
     return '<div class="shell"><nav class="side" aria-label="Sections">' +
       '<div class="brand"><svg width="22" height="28" viewBox="0 0 60 76" aria-hidden="true"><path d="M30 4C14.5 4 4 15.4 4 29.5C4 47 30 72 30 72C30 72 56 47 56 29.5C56 15.4 45.5 4 30 4Z" fill="#FFD700"/><rect x="20" y="20" width="20" height="20" rx="3" fill="#101010"/></svg><span>WunaGo<br><small>BACKOFFICE</small></span></div>' +
-      NAV.map(function (n) { var k = c[n[0]]; return '<button class="' + (S.view === n[0] ? "on" : "") + '" data-a="nav" data-v="' + n[0] + '">' + n[1] + (k ? '<span class="count">' + k + '</span>' : '') + '</button>'; }).join("") +
+      NAV.map(function (n) { var k = c[n[0]]; return '<button class="' + (S.view === n[0] || (S.view === "courier" && n[0] === "couriers") ? "on" : "") + '" data-a="nav" data-v="' + n[0] + '">' + n[1] + (k ? '<span class="count">' + k + '</span>' : '') + '</button>'; }).join("") +
       '<div class="foot"><span>' + esc(S.me.name || "Administrateur") + '<br><span class="mono">' + esc(phone(S.me.phone)) + '</span></span><button class="btn btn-sm btn-ghost" style="background:rgba(255,255,255,.1);color:#fff" data-a="logout">Se déconnecter</button></div>' +
       '</nav><main>' + inner + '</main></div>';
   }
   function kpi(label, value, dark) { return '<div class="card kpi' + (dark ? " dark" : "") + '"><span class="lbl">' + label + '</span><b>' + value + '</b></div>'; }
-  function ordersTable(list, compact) {
+  function dayKey(ms) { return new Date(ms + 3600000).toISOString().slice(0, 10); }
+  function dayTitle(k) { var l = new Date(k + "T12:00:00Z").toLocaleDateString("fr-FR", { weekday: "long", day: "numeric", month: "long", year: "numeric", timeZone: "UTC" }); return l.charAt(0).toUpperCase() + l.slice(1); }
+  function ordersTable(list, compact, grouped) {
     if (!list.length) return '<div class="card empty">Aucune commande.</div>';
+    var cols = compact ? 7 : 8, last = null, totals = {};
+    if (grouped) list.forEach(function (o) { var k = dayKey(o.createdAt), t = totals[k] || (totals[k] = { n: 0, v: 0 }); t.n++; if (o.status !== "cancelled") t.v += o.price.net; });
     return '<div class="card" style="overflow:auto"><table><thead><tr><th class="lbl">Code</th><th class="lbl">Service</th><th class="lbl">Client</th><th class="lbl">Trajet</th>' +
-      (compact ? '' : '<th class="lbl">Montant</th>') + '<th class="lbl">Livreur</th><th class="lbl">Statut</th><th class="lbl">Créée</th></tr></thead><tbody>' +
+      (compact ? '' : '<th class="lbl">Montant</th>') + '<th class="lbl">Livreur</th><th class="lbl">Statut</th><th class="lbl">' + (grouped ? "Heure" : "Créée") + '</th></tr></thead><tbody>' +
       list.map(function (o) {
-        return '<tr class="click" data-a="openOrder" data-v="' + o.id + '"><td class="mono">' + esc(o.code) + '</td><td>' + esc(SVC[o.service]) + '</td><td>' + esc(o.client ? o.client.name || phone(o.client.phone) : "") + '</td>' +
-          '<td>' + esc(o.pickup) + (o.dropoff !== o.pickup ? ' → ' + esc(o.dropoff) : '') + '</td>' + (compact ? '' : '<td class="mono">' + F(o.price.net) + '</td>') +
-          '<td>' + (o.courier ? esc(o.courier.name) : (o.status === "received" ? '<button class="btn btn-sm btn-yellow" data-a="quickAssign" data-v="' + o.id + '">Assigner</button>' : '—')) + '</td><td>' + statusPill(o.status) + '</td><td class="mono">' + when(o.createdAt) + '</td></tr>';
-      }).join("") + '</tbody></table></div>';
+        var k = dayKey(o.createdAt), sep = "";
+        if (grouped && k !== last) { last = k; sep = '<tr class="dayrow"><td colspan="' + cols + '"><b>' + esc(dayTitle(k)) + '</b><span class="mono">' + totals[k].n + ' cmd · ' + F(totals[k].v) + '</span></td></tr>'; }
+        return sep + '<tr class="click" data-a="openOrder" data-v="' + o.id + '"><td class="mono">' + esc(o.code) + '</td><td>' + esc(SVC[o.service]) + '</td><td>' + esc(o.client ? o.client.name || phone(o.client.phone) : "") + '</td>' +
+          '<td>' + esc(o.pickup) + (o.dropoff !== o.pickup ? ' → ' + esc(o.dropoff) : '') + '</td>' + (compact ? '' : '<td class="mono">' + F(o.price.net) + '<br><span style="font-size:10px;color:rgba(16,16,16,.55)">' + esc(PAY[o.paymentMethod] || "") + '</span></td>') +
+          '<td>' + (o.courier ? esc(o.courier.name) : (o.status === "received" ? '<button class="btn btn-sm btn-yellow" data-a="quickAssign" data-v="' + o.id + '">Assigner</button>' : '—')) + '</td><td>' + statusPill(o.status) + '</td><td class="mono">' + (grouped ? new Date(o.createdAt + 3600000).toISOString().slice(11, 16) : when(o.createdAt)) + '</td></tr>';
+      }).join("") + '</tbody></table></div>' + (grouped && Object.keys(totals).length ? '<p class="note" style="margin-top:6px">Totaux par jour calculés sur les commandes affichées.</p>' : '');
   }
   /* ---------- tableau de bord : période, rapports ---------- */
   function ymd(d) { return new Date(d.getTime() + 3600000).toISOString().slice(0, 10); } /* date à Douala (UTC+1) */
@@ -217,22 +223,107 @@
     return WAPI.get("/admin/reports?from=" + S.period.from + "&to=" + S.period.to).then(function (r) { S.report = r; S.reportBusy = false; S.reportAt = Date.now(); })
       .catch(function (e) { S.reportBusy = false; err(e); });
   }
+  /* ---------- historique des commandes : période jour / semaine / mois / année / dates libres / tout ---------- */
+  var MODES = [["day", "Jour"], ["week", "Semaine"], ["month", "Mois"], ["year", "Année"], ["custom", "Dates libres"], ["all", "Tout"]];
+  function dUTC(s) { return new Date(s + "T00:00:00Z"); }
+  function sD(d) { return d.toISOString().slice(0, 10); }
+  function addDays(s, n) { var d = dUTC(s); d.setUTCDate(d.getUTCDate() + n); return sD(d); }
+  function rangeOf(mode, ref) {
+    var d = dUTC(ref);
+    if (mode === "day") return { from: ref, to: ref };
+    if (mode === "week") { var wd = (d.getUTCDay() + 6) % 7, f = addDays(ref, -wd); return { from: f, to: addDays(f, 6) }; }
+    if (mode === "month") return { from: sD(new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), 1))), to: sD(new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth() + 1, 0))) };
+    if (mode === "year") return { from: d.getUTCFullYear() + "-01-01", to: d.getUTCFullYear() + "-12-31" };
+    return null;
+  }
+  function shiftRef(mode, ref, dir) {
+    var d = dUTC(ref);
+    if (mode === "day") return addDays(ref, dir);
+    if (mode === "week") return addDays(ref, 7 * dir);
+    if (mode === "month") return sD(new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth() + dir, 1)));
+    if (mode === "year") return sD(new Date(Date.UTC(d.getUTCFullYear() + dir, 0, 1)));
+    return ref;
+  }
+  var todayD = function () { return ymd(new Date()); };
+  S.hist = { mode: "day", ref: todayD(), from: todayD(), to: todayD(), service: "", pay: "", courier: "", limit: 50, summary: null, more: false };
+  function histRange(P) { var H = P || S.hist; if (H.mode === "custom") return { from: H.from, to: H.to }; if (H.mode === "all") return { from: "", to: "" }; return rangeOf(H.mode, H.ref); }
+  function histLabel(P) {
+    var H = P || S.hist, r = histRange(H), fd = function (s, o) { return dUTC(s).toLocaleDateString("fr-FR", Object.assign({ timeZone: "UTC" }, o)); };
+    if (H.mode === "all") return "Toutes les commandes";
+    if (H.mode === "day") { var l = fd(r.from, { weekday: "long", day: "numeric", month: "long", year: "numeric" }); return l.charAt(0).toUpperCase() + l.slice(1) + (r.from === todayD() ? " (aujourd'hui)" : ""); }
+    if (H.mode === "week") return "Semaine du " + fd(r.from, { day: "numeric", month: "short" }) + " au " + fd(r.to, { day: "numeric", month: "short", year: "numeric" });
+    if (H.mode === "month") { var m = fd(r.from, { month: "long", year: "numeric" }); return m.charAt(0).toUpperCase() + m.slice(1); }
+    if (H.mode === "year") return "Année " + r.from.slice(0, 4);
+    return "Du " + fd(r.from, { day: "numeric", month: "short", year: "numeric" }) + " au " + fd(r.to, { day: "numeric", month: "short", year: "numeric" });
+  }
+  function histQuery(limit) {
+    var H = S.hist, r = histRange();
+    return "/admin/orders?status=" + encodeURIComponent(S.orderFilter) + "&q=" + encodeURIComponent(S.orderQ) + "&from=" + r.from + "&to=" + r.to +
+      "&service=" + H.service + "&pay=" + H.pay + "&courier=" + encodeURIComponent(H.courier) + "&limit=" + (limit || H.limit) + "&offset=0";
+  }
+  function loadHist() {
+    return WAPI.get(histQuery()).then(function (r) { S.orders = r.orders; S.hist.summary = r.summary; S.hist.more = r.more; });
+  }
+  function periodBar(H, pre, exportAction) {
+    var nav = H.mode === "custom"
+      ? '<span class="fx-dates"><label class="lbl">Du</label><input class="f mono" type="date" data-k="' + pre + '.from" value="' + H.from + '" aria-label="Date de début"><label class="lbl">au</label><input class="f mono" type="date" data-k="' + pre + '.to" value="' + H.to + '" aria-label="Date de fin"><button class="btn btn-sm btn-ink" data-a="pApply" data-v="' + pre + '">Appliquer</button></span>'
+      : H.mode === "all" ? '' : '<span class="pnav"><button class="btn btn-sm btn-ghost" data-a="pShift" data-v="' + pre + '|-1" aria-label="Période précédente">‹</button>' +
+        '<input class="f mono" type="date" data-k="' + pre + '.ref" data-change="pRef" data-v="' + pre + '" aria-label="Choisir une date" value="' + H.ref + '"><button class="btn btn-sm btn-ghost" data-a="pShift" data-v="' + pre + '|1" aria-label="Période suivante">›</button>' +
+        '<button class="btn btn-sm btn-ghost" data-a="pToday" data-v="' + pre + '">Aujourd\'hui</button></span>';
+    return '<div class="tools">' + MODES.map(function (f) { return '<button class="chip ' + (H.mode === f[0] ? "on" : "") + '" data-a="pMode" data-v="' + pre + '|' + f[0] + '">' + f[1] + '</button>'; }).join("") + '</div>' +
+      '<div class="tools"><b class="plabel">' + esc(histLabel(H)) + '</b>' + nav +
+      (exportAction ? '<button class="btn btn-sm btn-yellow" style="margin-left:auto" data-a="' + exportAction + '"' + (H.mode === "all" ? ' disabled title="Choisissez une période pour exporter"' : '') + '>Exporter cette période (Excel)</button>' : '') + '</div>';
+  }
+  function chips(list, cur, action) { return list.map(function (f) { return '<button class="chip ' + (cur === f[0] ? "on" : "") + '" data-a="' + action + '" data-v="' + f[0] + '">' + f[1] + '</button>'; }).join(""); }
   function viewOrders() {
-    var F_ = [["active", "En cours"], ["unassigned", "À assigner"], ["delivered", "Livrées"], ["cancelled", "Annulées"], ["", "Toutes"]];
-    return shell('<h1>Commandes</h1><div class="tools">' + F_.map(function (f) { return '<button class="chip ' + (S.orderFilter === f[0] ? "on" : "") + '" data-a="orderFilter" data-v="' + f[0] + '">' + f[1] + '</button>'; }).join("") +
-      '<input class="f" data-k="orderQ" placeholder="Code, téléphone ou nom" value="' + esc(S.orderQ) + '" aria-label="Rechercher une commande"><button class="btn btn-sm btn-ink" data-a="searchOrders">Rechercher</button></div>' +
-      '<div class="tools"><span class="lbl">Service</span>' + [["", "Tous"]].concat(Object.keys(SVC).map(function (k) { return [k, SVC[k]]; })).map(function (f) { return '<button class="chip ' + ((S.svcFilter || "") === f[0] ? "on" : "") + '" data-a="svcFilter" data-v="' + f[0] + '">' + f[1] + '</button>'; }).join("") +
-      '<span class="lbl" style="margin-left:10px">Paiement</span>' + [["", "Tous"]].concat(Object.keys(PAY).map(function (k) { return [k, PAY[k]]; })).map(function (f) { return '<button class="chip ' + ((S.payFilter || "") === f[0] ? "on" : "") + '" data-a="payFilter" data-v="' + f[0] + '">' + f[1] + '</button>'; }).join("") + '</div>' +
-      (function () {
-        var list = S.orders.filter(function (o) { return (!S.svcFilter || o.service === S.svcFilter) && (!S.payFilter || o.paymentMethod === S.payFilter); });
-        var tot = list.filter(function (o) { return o.status !== "cancelled"; }).reduce(function (a, o) { return a + o.price.net; }, 0);
-        return '<div class="mono" style="font-size:11px;color:rgba(16,16,16,.6);margin-bottom:8px">' + list.length + ' commande(s) · ' + F(tot) + ' (hors annulées)</div>' + ordersTable(list);
-      })());
+    var H = S.hist, sm = H.summary, r = histRange();
+    var STAT = [["", "Toutes"], ["active", "En cours"], ["unassigned", "À assigner"], ["delivered", "Livrées"], ["cancelled", "Annulées"]];
+    var courierOpts = '<option value="">Tous les livreurs</option><option value="none"' + (H.courier === "none" ? " selected" : "") + '>Sans livreur</option>' +
+      S.couriers.map(function (c) { return '<option value="' + c.id + '"' + (H.courier === c.id ? " selected" : "") + '>' + esc(c.name) + '</option>'; }).join("");
+    var summary = sm ? '<div class="sumbar"><span><b>' + sm.orders + '</b> commande(s)</span><span>CA WunaGo <b>' + F(sm.revenue) + '</b></span><span>Payé par les clients <b>' + F(sm.volume) + '</b></span>' +
+      '<span>' + sm.delivered + ' livrée(s) · ' + sm.active + ' en cours · ' + sm.cancelled + ' annulée(s)</span></div>' : '';
+    /* regroupement par jour quand la période dépasse une journée */
+    var grouped = H.mode !== "day" && !(H.mode === "custom" && H.from === H.to);
+    return shell('<h1>Historique des commandes</h1>' +
+      periodBar(H, "hist", "histExport") +
+      '<div class="tools">' + chips(STAT, S.orderFilter, "histStatus") +
+        '<input class="f" data-k="orderQ" placeholder="Code, téléphone, nom, quartier" value="' + esc(S.orderQ) + '" aria-label="Rechercher une commande"><button class="btn btn-sm btn-ink" data-a="searchOrders">Rechercher</button></div>' +
+      '<div class="tools"><label class="lbl" for="hs">Service</label><select class="f sel" id="hs" data-k="hist.service" data-change="histReload"><option value="">Tous</option>' + Object.keys(SVC).map(function (k) { return '<option value="' + k + '"' + (H.service === k ? " selected" : "") + '>' + SVC[k] + '</option>'; }).join("") + '</select>' +
+        '<label class="lbl" for="hp">Paiement</label><select class="f sel" id="hp" data-k="hist.pay" data-change="histReload"><option value="">Tous</option>' + Object.keys(PAY).map(function (k) { return '<option value="' + k + '"' + (H.pay === k ? " selected" : "") + '>' + PAY[k] + '</option>'; }).join("") + '</select>' +
+        '<label class="lbl" for="hc">Livreur</label><select class="f sel" id="hc" data-k="hist.courier" data-change="histReload">' + courierOpts + '</select>' +
+        (H.service || H.pay || H.courier || S.orderFilter || S.orderQ ? '<button class="btn btn-sm btn-ghost" data-a="histReset">Effacer les filtres</button>' : '') + '</div>' +
+      summary + ordersTable(S.orders, false, grouped) +
+      (H.more ? '<div style="text-align:center;margin-top:14px"><button class="btn btn-ink" data-a="histMore">Afficher 50 commandes de plus</button></div>' : ''));
+  }
+  function viewCourier() {
+    var H = S.ch, d = H.data, c = d && d.courier, sm = d && d.summary;
+    var head = '<h1><button class="btn btn-sm btn-ghost" data-a="nav" data-v="couriers">← Livreurs</button> ' + (c ? esc(c.name) : "Livreur") +
+      (c ? ' <span class="pill' + (c.online ? " k" : "") + '">' + (c.online ? "● EN LIGNE" : "HORS LIGNE") + '</span>' : '') + '</h1>' +
+      (c ? '<p class="note" style="margin:-8px 0 14px">' + esc(phone(c.phone)) + ' · ' + esc(VEH[c.vehicle] || "") + (c.plate ? ' · ' + esc(c.plate) : '') + ' · livreur depuis le ' + new Date(c.since).toLocaleDateString("fr-FR") + '</p>' : '');
+    if (!d) return shell(head + periodBar(H, "ch", "chExport") + '<div class="card empty">Chargement…</div>');
+    var kp = '<div class="kpis">' +
+      kpiB("Gains du livreur", F(sm.earned), sm.delivered + " course(s) livrée(s)", true) +
+      kpiB("Courses", sm.courses, sm.delivered + " livrées · " + sm.active + " en cours · " + sm.cancelled + " annulées") +
+      kpiB("Espèces encaissées", F(sm.cash), "auprès des clients") +
+      kpiB("Solde à reverser", sm.due >= 0 ? F(sm.due) : "− " + F(-sm.due), sm.due >= 0 ? "le livreur doit à WunaGo" : "WunaGo doit au livreur") +
+      kpiB("CA généré", F(sm.revenue), String(sm.km).replace(".", ",") + " km parcourus") +
+      kpiB("Note moyenne", sm.rating ? String(sm.rating).replace(".", ",") + " / 5" : "—", sm.ratings + " avis") +
+      kpiB("Durée moyenne", mins(sm.minutes), "de l'acceptation à la livraison") + '</div>';
+    var chart = d.byDay.length > 1 ? card("Gains par jour", columns(d.byDay, function (x) { return dayLabel(x.day); }, function (x) { return x.earned; }, F,
+      function (x) { return '<b>' + dayLabel(x.day) + '</b><br>' + F(x.earned) + '<br>' + x.delivered + ' course(s) · espèces ' + F(x.cash); })) : '';
+    var rows = d.orders.length ? '<div class="card" style="overflow:auto"><table><thead><tr><th class="lbl">Code</th><th class="lbl">Date</th><th class="lbl">Service</th><th class="lbl">Client</th><th class="lbl">Trajet</th><th class="lbl">Paiement</th><th class="lbl" style="text-align:right">Prix</th><th class="lbl" style="text-align:right">Gain</th><th class="lbl">Statut</th></tr></thead><tbody>' +
+      d.orders.map(function (o) {
+        return '<tr class="click" data-a="openOrderFromCourier" data-v="' + o.id + '"><td class="mono">' + esc(o.code) + '</td><td class="mono">' + when(o.createdAt) + '</td><td>' + esc(SVC[o.service]) + '</td><td>' + esc(o.client) + '</td>' +
+          '<td>' + esc(o.pickup) + (o.dropoff !== o.pickup ? ' → ' + esc(o.dropoff) : '') + '</td><td>' + esc(PAY[o.paymentMethod] || "") + '</td><td class="mono" style="text-align:right">' + F(o.price) + '</td>' +
+          '<td class="mono" style="text-align:right"><b>' + (o.status === "delivered" ? F(o.gain) : o.status === "cancelled" ? "—" : '<span style="color:rgba(16,16,16,.5)">' + F(o.estimate) + ' prévu</span>') + '</b></td><td>' + statusPill(o.status) + '</td></tr>';
+      }).join("") + '</tbody></table></div>' : '<div class="card empty">Aucune course sur cette période.</div>';
+    return shell(head + periodBar(H, "ch", "chExport") + kp + chart + '<h2 class="sec">Courses</h2>' + rows +
+      (d.more ? '<div style="text-align:center;margin-top:14px"><button class="btn btn-ink" data-a="chMore">Afficher 50 courses de plus</button></div>' : ''));
   }
   var map = null, markers = [];
   function viewCouriers() {
     var rows = S.couriers.map(function (c) {
-      return '<tr><td><b>' + esc(c.name) + '</b><br><span class="mono" style="font-size:11px">' + esc(phone(c.phone)) + '</span></td><td>' + esc(VEH[c.vehicle] || c.vehicle) + (c.plate ? '<br><span class="mono" style="font-size:11px">' + esc(c.plate) + '</span>' : '') + '</td>' +
+      return '<tr class="click" data-a="openCourier" data-v="' + c.id + '"><td><b>' + esc(c.name) + '</b><br><span class="mono" style="font-size:11px">' + esc(phone(c.phone)) + '</span></td><td>' + esc(VEH[c.vehicle] || c.vehicle) + (c.plate ? '<br><span class="mono" style="font-size:11px">' + esc(c.plate) + '</span>' : '') + '</td>' +
         '<td>' + (c.online ? '<span class="pill k">● EN LIGNE</span>' : '<span class="pill">HORS LIGNE</span>') + '</td><td class="mono">' + (c.pos ? ago(c.pos.at) : "—") + '</td>' +
         '<td class="mono">' + c.active + '</td><td class="mono">' + c.delivered + '</td><td class="mono">' + (c.rating ? c.rating + " ★" : "—") + '</td>' +
         '<td><button class="btn btn-sm btn-ghost" data-a="deactivate" data-v="' + c.id + '">Retirer</button></td></tr>';
@@ -341,7 +432,7 @@
     var html;
     if (!S.me) html = viewLogin();
     else if (S.me.role !== "admin") html = viewDenied();
-    else html = ({ dash: viewDash, orders: viewOrders, couriers: viewCouriers, disputes: viewDisputes, messages: viewMessages, clients: viewClients }[S.view])() + drawer();
+    else html = ({ dash: viewDash, orders: viewOrders, courier: viewCourier, couriers: viewCouriers, disputes: viewDisputes, messages: viewMessages, clients: viewClients }[S.view])() + drawer();
     if (S.toast) html += '<div class="toast">' + esc(S.toast) + '</div>';
     if (map && S.view !== "couriers") { map.remove(); map = null; }
     var mapEl = map && map.getContainer();
@@ -360,7 +451,8 @@
     if (!S.me || S.me.role !== "admin") return Promise.resolve();
     var v = S.view, jobs = [WAPI.get("/admin/stats").then(function (r) { S.stats = r.stats; }), WAPI.get("/conversations").then(function (r) { S.convs = r.conversations; })];
     if (v === "dash" && (!S.report || S.forceReport || Date.now() - (S.reportAt || 0) > 60000)) { S.forceReport = false; jobs.push(loadReport()); }
-    if (v === "dash" || v === "orders") jobs.push(WAPI.get("/admin/orders?status=" + (v === "dash" ? "active" : encodeURIComponent(S.orderFilter)) + "&q=" + encodeURIComponent(v === "dash" ? "" : S.orderQ)).then(function (r) { S.orders = r.orders; }));
+    if (v === "dash") jobs.push(WAPI.get("/admin/orders?status=active&limit=100").then(function (r) { S.orders = r.orders; }));
+    if (v === "orders") jobs.push(WAPI.get(histQuery(Math.max(50, S.orders.length))).then(function (r) { S.orders = r.orders; S.hist.summary = r.summary; S.hist.more = r.more; }));
     if (v === "couriers" || v === "orders" || v === "dash" || S.drawer) jobs.push(WAPI.get("/admin/couriers").then(function (r) { S.couriers = r.couriers; }));
     if (v === "disputes") jobs.push(WAPI.get("/admin/disputes").then(function (r) { S.disputes = r.disputes; }));
     if (v === "clients") jobs.push(WAPI.get("/admin/clients?q=" + encodeURIComponent(S.clientQ)).then(function (r) { S.clients = r.clients; }));
@@ -395,14 +487,32 @@
     restart: function () { S.login.step = "phone"; S.login.code = ""; render(); },
     logout: function () { WAPI.post("/auth/logout").catch(function () {}); WAPI.setToken(null); S.me = null; render(); },
     nav: function (v) { S.view = v; S.drawer = null; if (v === "dash") S.forceReport = true; render(); load(); },
-    orderFilter: function (v) { S.orderFilter = v; S.view = "orders"; S.drawer = null; render(); load(); },
+    orderFilter: function (v) { S.orderFilter = v; S.hist.mode = "all"; S.hist.limit = 50; S.orders = []; S.view = "orders"; S.drawer = null; render(); load(); },
+    pMode: function (v) { var p = v.split("|"), H = S[p[0]]; H.mode = p[1]; if (p[1] === "custom") { var r = rangeOf("day", H.ref); H.from = H.from || r.from; H.to = H.to || r.to; } reloadP(p[0]); },
+    pShift: function (v) { var p = v.split("|"), H = S[p[0]]; H.ref = shiftRef(H.mode, H.ref, Number(p[1])); reloadP(p[0]); },
+    pToday: function (v) { S[v].ref = todayD(); reloadP(v); },
+    pRef: function (v) { if (S[v].ref) reloadP(v); },
+    pApply: function (v) { var H = S[v]; if (!H.from || !H.to || H.from > H.to) { toast("Choisissez une date de début avant la date de fin."); return; } reloadP(v); },
+    openCourier: function (id) { S.ch = { id: id, mode: "month", ref: todayD(), from: "", to: "", limit: 50, data: null }; S.view = "courier"; render(); loadCh().then(render).catch(err); },
+    chMore: function () { S.ch.limit += 50; loadCh().then(render).catch(err); },
+    chExport: function () { var r = histRange(S.ch); if (r.from) exportRange(r.from, r.to); },
+    histMode: function (v) { var H = S.hist; H.mode = v; if (v === "custom") { var r = rangeOf("day", H.ref); H.from = H.from || r.from; H.to = H.to || r.to; } A.histReload(); },
+    histShift: function (v) { S.hist.ref = shiftRef(S.hist.mode, S.hist.ref, Number(v)); A.histReload(); },
+    histToday: function () { S.hist.ref = todayD(); A.histReload(); },
+    histApply: function () { var H = S.hist; if (!H.from || !H.to || H.from > H.to) { toast("Choisissez une date de début avant la date de fin."); return; } A.histReload(); },
+    histStatus: function (v) { S.orderFilter = v; A.histReload(); },
+    histReset: function () { var H = S.hist; H.service = H.pay = H.courier = ""; S.orderFilter = ""; S.orderQ = ""; A.histReload(); },
+    histReload: function () { S.hist.limit = 50; S.orders = []; S.hist.summary = null; render(); loadHist().then(render).catch(err); },
+    histMore: function () { S.hist.limit += 50; loadHist().then(render).catch(err); },
+    histExport: function () { var r = histRange(); if (!r.from) return; exportRange(r.from, r.to); },
     preset: function (v) { S.period = Object.assign({ preset: v }, periodOf(v)); S.report = null; S.forceReport = true; render(); load(); },
     customPeriod: function () {
       var P = S.period;
       if (!/^\d{4}-\d{2}-\d{2}$/.test(P.from) || !/^\d{4}-\d{2}-\d{2}$/.test(P.to) || P.from > P.to) { toast("Choisissez une date de début avant la date de fin."); return; }
       P.preset = "custom"; S.report = null; S.forceReport = true; render(); load();
     },
-    exportCsv: function () {
+    exportCsv: function () { exportRange(S.period.from, S.period.to); },
+    _unused: function () {
       var P = S.period;
       fetch("/api/admin/export?from=" + P.from + "&to=" + P.to, { headers: { authorization: "Bearer " + WAPI.token() } }).then(function (r) {
         if (!r.ok) throw new Error("Export impossible.");
@@ -416,8 +526,13 @@
     svcFilter: function (v) { S.svcFilter = v; render(); },
     payFilter: function (v) { S.payFilter = v; render(); },
     quickAssign: function (id) { S.drawer = { kind: "order", id: id }; render(); var el = document.getElementById("assign-sel"); if (el) el.focus(); },
-    searchOrders: function () { load(); },
+    searchOrders: function () { A.histReload(); },
     searchClients: function () { load(); },
+    openOrderFromCourier: function (id) {
+      WAPI.get("/admin/orders?q=" + encodeURIComponent((S.ch.data.orders.filter(function (o) { return o.id === id; })[0] || {}).code || "") + "&limit=1").then(function (r) {
+        if (!r.orders[0]) return; S.orders = [r.orders[0]].concat(S.orders.filter(function (o) { return o.id !== id; })); S.drawer = { kind: "order", id: id }; render();
+      }).catch(err);
+    },
     openOrder: function (id) { S.drawer = { kind: "order", id: id }; render(); if (!S.couriers.length) load(); },
     openDispute: function (id) { S.drawer = { kind: "dispute", id: id, reply: "" }; render(); },
     closeDrawer: function () { S.drawer = null; render(); },
@@ -454,6 +569,21 @@
       WAPI.post("/conversations/" + S.convId + "/messages", { body: text }).then(function (r) { (S.msgs[S.convId] = S.msgs[S.convId] || []).push(r.message); render(); }).catch(err);
     }
   };
+  function reloadP(pre) { if (pre === "hist") A.histReload(); else { S.ch.limit = 50; S.ch.data = null; render(); loadCh().then(render).catch(err); } }
+  function loadCh() {
+    var H = S.ch, r = histRange(H);
+    return WAPI.get("/admin/couriers/" + H.id + "/history?from=" + r.from + "&to=" + r.to + "&limit=" + H.limit).then(function (d) { H.data = d; });
+  }
+  function exportRange(from, to) {
+    fetch("/api/admin/export?from=" + from + "&to=" + to, { headers: { authorization: "Bearer " + WAPI.token() } }).then(function (r) {
+      if (!r.ok) throw new Error("Export impossible.");
+      return r.blob();
+    }).then(function (b) {
+      var a = document.createElement("a"); a.href = URL.createObjectURL(b); a.download = "wunago-commandes-" + from + "-au-" + to + ".csv";
+      document.body.appendChild(a); a.click(); setTimeout(function () { URL.revokeObjectURL(a.href); a.remove(); }, 1000);
+      toast("Fichier téléchargé : il s'ouvre dans Excel.");
+    }).catch(err);
+  }
   function replace(o) {
     var old = S.orders.filter(function (x) { return x.id === o.id; })[0];
     if (old && old.client) o.client = old.client;
@@ -466,7 +596,10 @@
   });
   function setK(k, v) { var p = k.split("."); if (p.length === 2) { if (S[p[0]]) S[p[0]][p[1]] = v; } else S[k] = v; }
   root.addEventListener("input", function (e) { var k = e.target.getAttribute("data-k"); if (k) setK(k, e.target.value); });
-  root.addEventListener("change", function (e) { var k = e.target.getAttribute("data-k"); if (k) setK(k, e.target.value); });
+  root.addEventListener("change", function (e) {
+    var k = e.target.getAttribute("data-k"); if (k) setK(k, e.target.value);
+    var c = e.target.getAttribute("data-change"); if (c && A[c]) A[c](e.target.getAttribute("data-v"));
+  });
   root.addEventListener("keydown", function (e) {
     if (e.key !== "Enter") return;
     var k = e.target.getAttribute && e.target.getAttribute("data-k");
