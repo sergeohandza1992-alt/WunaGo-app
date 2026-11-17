@@ -38,7 +38,7 @@ await ADM.goto(URL+'admin.html');
 await ADM.fill('[data-k="login.phone"]','6 90 00 00 01'); await ADM.click('[data-a="sendCode"]');
 const code=(await ADM.locator('.pill.y').textContent()).replace(/\D/g,'');
 await ADM.fill('[data-k="login.code"]',code); await ADM.click('[data-a="verify"]');
-await ADM.waitForSelector('text=Commandes du jour');
+await ADM.waitForSelector('text=CA WunaGo',{timeout:T});
 ok('Backoffice : connexion administrateur (ADMIN_PHONES)',true);
 await shot(ADM,'10-backoffice-tableau-de-bord');
 await ADM.click('[data-a="nav"][data-v="couriers"]');
@@ -190,6 +190,34 @@ await ADM.click('[data-a="nav"][data-v="couriers"]');
 await ADM.waitForSelector('.leaflet-marker-icon');
 ok('Backoffice : livreurs sur la carte',true);
 await shot(ADM,'14-backoffice-livreurs');
+
+/* 11 bis. Assignation par le backoffice + rapports du tableau de bord */
+await CLI.evaluate(async()=>fetch('/api/orders',{method:'POST',headers:{'content-type':'application/json',authorization:'Bearer '+WAPI.token()},
+  body:JSON.stringify({service:'parcel',pickup:'Akwa',dropoff:'Bonapriso',pickupGeo:{lat:4.0489,lng:9.6996},dropoffGeo:{lat:4.0310,lng:9.6920},weightKg:2,vehicle:'bike',paymentMethod:'orange_money'})}));
+await ADM.click('[data-a="nav"][data-v="orders"]');
+await ADM.click('[data-a="orderFilter"][data-v="unassigned"]');
+await ADM.waitForSelector('[data-a="quickAssign"]');
+await ADM.click('[data-a="quickAssign"]');
+ok('Backoffice : liste des livreurs avec distance au point de départ',/Marcel Kamga · Moto · en ligne/.test(await ADM.locator('#assign-sel').textContent()));
+await ADM.click('[data-a="assign"]');
+await ADM.waitForSelector('text=Livreur assigné');
+await LIV.click('[data-action="switchTab"][data-arg="courses"]'); await LIV.click('[data-action="switchTab"][data-arg="courses"]');
+await LIV.waitForSelector('text=Bonapriso',{timeout:T});
+ok('Livreur : course assignée par le backoffice reçue',await LIV.isVisible('text=Mes courses en cours'));
+await ADM.click('[data-a="nav"][data-v="dash"]');
+await ADM.waitForSelector("text=Chiffre d'affaires par canal de paiement",{timeout:T});
+await ADM.waitForSelector('.rt td:has-text("Orange Money")',{timeout:T});
+const dash=await ADM.locator('main').textContent();
+ok('Tableau de bord : CA par canal de paiement',/Espèces/.test(dash)&&/Orange Money/.test(dash));
+ok('Tableau de bord : CA par service, jour, heure, zone',['Chiffre d\'affaires par service','Évolution du chiffre d\'affaires','Commandes par heure','Par zone de livraison'].every(x=>dash.includes(x)));
+ok('Tableau de bord : caisse des livreurs, clients, portefeuille, réclamations',['Performance et caisse des livreurs','Meilleurs clients','Portefeuille clients','Réclamations par motif','Marge brute','Panier moyen'].every(x=>dash.includes(x)));
+await shot(ADM,'15-backoffice-rapports');
+await ADM.click('[data-a="preset"][data-v="30"]');
+await ADM.waitForSelector('text=Indicateurs · du');
+ok('Tableau de bord : changement de période',true);
+const [dl]=await Promise.all([ADM.waitForEvent('download'),ADM.click('[data-a="exportCsv"]')]);
+const csv=await (await import('node:fs')).promises.readFile(await dl.path(),'utf8');
+ok('Export Excel (CSV) des commandes',csv.includes('Code;Date;Heure;Service')&&csv.split('\n').length>=3,dl.suggestedFilename());
 
 /* 12. Notifications envoyées (mode test, sans envoi réel) */
 const log=await CLI.evaluate(async()=>(await (await fetch('/api/push/_log',{headers:{authorization:'Bearer '+WAPI.token()}})).json()).log);

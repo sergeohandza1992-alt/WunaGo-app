@@ -15,6 +15,9 @@
   var DSTATUS = { open: "OUVERTE", review: "EN COURS", closed: "RÉSOLUE" };
   var REASONS = { damaged: "Colis endommagé", missing: "Article manquant", late: "Retard important", courier: "Comportement du livreur", payment: "Problème de paiement", other: "Autre" };
 
+  function geoKm(a, b) { var R = 6371, dLa = (b.lat - a.lat) * Math.PI / 180, dLo = (b.lng - a.lng) * Math.PI / 180;
+    var x = Math.sin(dLa / 2) * Math.sin(dLa / 2) + Math.cos(a.lat * Math.PI / 180) * Math.cos(b.lat * Math.PI / 180) * Math.sin(dLo / 2) * Math.sin(dLo / 2);
+    return 2 * R * Math.asin(Math.sqrt(x)) * 1.35; }
   function esc(s) { return String(s == null ? "" : s).replace(/[&<>"']/g, function (c) { return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]; }); }
   function F(n) { return String(Math.round(n || 0)).replace(/\B(?=(\d{3})+(?!\d))/g, " ") + " F"; }
   function phone(p) { return p ? "+237 " + String(p).replace(/^(\d)(\d{2})(\d{2})(\d{2})(\d{2})$/, "$1 $2 $3 $4 $5") : "—"; }
@@ -71,21 +74,160 @@
       list.map(function (o) {
         return '<tr class="click" data-a="openOrder" data-v="' + o.id + '"><td class="mono">' + esc(o.code) + '</td><td>' + esc(SVC[o.service]) + '</td><td>' + esc(o.client ? o.client.name || phone(o.client.phone) : "") + '</td>' +
           '<td>' + esc(o.pickup) + (o.dropoff !== o.pickup ? ' → ' + esc(o.dropoff) : '') + '</td>' + (compact ? '' : '<td class="mono">' + F(o.price.net) + '</td>') +
-          '<td>' + (o.courier ? esc(o.courier.name) : '<span class="pill y">À ASSIGNER</span>') + '</td><td>' + statusPill(o.status) + '</td><td class="mono">' + when(o.createdAt) + '</td></tr>';
+          '<td>' + (o.courier ? esc(o.courier.name) : (o.status === "received" ? '<button class="btn btn-sm btn-yellow" data-a="quickAssign" data-v="' + o.id + '">Assigner</button>' : '—')) + '</td><td>' + statusPill(o.status) + '</td><td class="mono">' + when(o.createdAt) + '</td></tr>';
       }).join("") + '</tbody></table></div>';
   }
+  /* ---------- tableau de bord : période, rapports ---------- */
+  function ymd(d) { return new Date(d.getTime() + 3600000).toISOString().slice(0, 10); } /* date à Douala (UTC+1) */
+  function periodOf(preset) {
+    var now = new Date(), today = ymd(now), d0 = new Date(today + "T00:00:00Z");
+    var back = function (n) { return ymd(new Date(d0.getTime() - n * 86400000 - 3600000)); };
+    if (preset === "yesterday") return { from: back(1), to: back(1) };
+    if (preset === "7") return { from: back(6), to: today };
+    if (preset === "30") return { from: back(29), to: today };
+    if (preset === "month") return { from: today.slice(0, 8) + "01", to: today };
+    if (preset === "lastmonth") { var f = new Date(Date.UTC(d0.getUTCFullYear(), d0.getUTCMonth() - 1, 1)), l = new Date(Date.UTC(d0.getUTCFullYear(), d0.getUTCMonth(), 0));
+      return { from: f.toISOString().slice(0, 10), to: l.toISOString().slice(0, 10) }; }
+    if (preset === "year") return { from: today.slice(0, 5) + "01-01", to: today };
+    return { from: today, to: today };
+  }
+  S.period = Object.assign({ preset: "today" }, periodOf("today"));
+  S.report = null; S.reportBusy = false;
+  var PRESETS = [["today", "Aujourd'hui"], ["yesterday", "Hier"], ["7", "7 jours"], ["30", "30 jours"], ["month", "Ce mois"], ["lastmonth", "Mois dernier"], ["year", "Cette année"]];
+  var ZONES = { 0: "Non précisée", 1: "Centre", 2: "Intermédiaire", 3: "Périphérie" };
+  function pct(a, b) { return b ? Math.round(a / b * 1000) / 10 : 0; }
+  function fmtPct(x) { return String(x).replace(".", ",") + " %"; }
+  function evol(cur, prev) {
+    if (!prev) return cur ? '<span class="pill y">NOUVEAU</span>' : '';
+    var p = Math.round((cur - prev) / prev * 100);
+    return '<span class="pill ' + (p >= 0 ? "k" : "r") + '">' + (p >= 0 ? "▲ +" : "▼ ") + p + ' % vs période préc.</span>';
+  }
+  function mins(m) { if (m == null) return "—"; m = Math.round(m); return m < 60 ? m + " min" : Math.floor(m / 60) + " h " + String(m % 60).padStart(2, "0"); }
+  function card(title, inner, extra) { return '<section class="card rep"' + (extra || "") + '><h2>' + title + '</h2>' + inner + '</section>'; }
+  /* barres horizontales : une seule mesure, une seule couleur, valeur écrite à côté */
+  function hbars(rows, label, value, fmt) {
+    var max = Math.max.apply(null, rows.map(value).concat([1]));
+    if (!rows.length) return '<div class="empty">Aucune donnée sur la période.</div>';
+    return '<div class="hbars">' + rows.map(function (r) {
+      var v = value(r);
+      return '<div class="hb" title="' + esc(label(r) + " : " + fmt(v)) + '"><span class="hb-l">' + esc(label(r)) + '</span><span class="hb-t"><span class="hb-b" style="width:' + Math.max(v > 0 ? 2 : 0, v / max * 100).toFixed(1) + '%"></span></span><span class="hb-v mono">' + fmt(v) + '</span></div>';
+    }).join("") + '</div>';
+  }
+  /* colonnes : évolution dans le temps (une mesure), infobulle au survol */
+  function columns(rows, label, value, fmt, tip) {
+    if (!rows.length) return '<div class="empty">Aucune donnée.</div>';
+    var max = Math.max.apply(null, rows.map(value).concat([1])), every = Math.ceil(rows.length / 12);
+    return '<div class="cols" role="img" aria-label="Graphique en colonnes">' + rows.map(function (r, i) {
+      var v = value(r);
+      return '<div class="col-w" tabindex="0"><div class="col-tip">' + tip(r) + '</div><div class="col-b" style="height:' + (v ? Math.max(2, v / max * 100) : 0).toFixed(1) + '%"></div>' +
+        '<span class="col-x mono">' + (i % every === 0 ? esc(label(r)) : "") + '</span></div>';
+    }).join("") + '</div><div class="mono" style="font-size:10px;color:rgba(16,16,16,.55);margin-top:6px">Maximum : ' + fmt(max) + '</div>';
+  }
+  function table(head, rows) {
+    if (!rows.length) return '<div class="empty">Aucune donnée sur la période.</div>';
+    return '<div style="overflow:auto"><table class="rt"><thead><tr>' + head.map(function (h, i) { return '<th class="lbl"' + (i ? ' style="text-align:right"' : '') + '>' + h + '</th>'; }).join("") + '</tr></thead><tbody>' +
+      rows.map(function (r) { return '<tr>' + r.map(function (c, i) { return '<td' + (i ? ' class="mono" style="text-align:right"' : '') + '>' + c + '</td>'; }).join("") + '</tr>'; }).join("") + '</tbody></table></div>';
+  }
+  function dayLabel(k) { var p = k.split("-"); return p[2] + "/" + p[1]; }
   function viewDash() {
-    var s = S.stats || {};
+    var s = S.stats || {}, r = S.report, P = S.period;
     var live = S.orders.filter(function (o) { return ["received", "picked_up", "en_route"].indexOf(o.status) >= 0; });
-    return shell('<h1>Tableau de bord <span class="pill">' + new Date().toLocaleDateString("fr-FR", { weekday: "long", day: "numeric", month: "long" }) + '</span></h1>' +
-      '<div class="kpis">' + kpi("Commandes du jour", s.orders_today || 0) + kpi("Chiffre du jour", F(s.revenue_today), true) + kpi("En cours", s.in_progress || 0) +
-      kpi("À assigner", s.unassigned || 0) + kpi("Livreurs en ligne", (s.couriers_online || 0) + " / " + (s.couriers || 0)) + kpi("Réclamations ouvertes", s.open_disputes || 0) + kpi("Clients", s.clients || 0) + '</div>' +
-      '<h1 style="font-size:17px">Commandes en cours</h1>' + ordersTable(live, true));
+    var head = '<h1>Tableau de bord</h1>' +
+      '<div class="tools">' + PRESETS.map(function (p) { return '<button class="chip ' + (P.preset === p[0] ? "on" : "") + '" data-a="preset" data-v="' + p[0] + '">' + p[1] + '</button>'; }).join("") +
+        '<span class="fx-dates"><label class="lbl" for="pf">Du</label><input class="f mono" type="date" id="pf" data-k="period.from" value="' + P.from + '"><label class="lbl" for="pt">au</label><input class="f mono" type="date" id="pt" data-k="period.to" value="' + P.to + '">' +
+        '<button class="btn btn-sm btn-ink" data-a="customPeriod">Appliquer</button></span>' +
+        '<button class="btn btn-sm btn-yellow" data-a="exportCsv" style="margin-left:auto">Exporter les commandes (Excel)</button></div>';
+    /* temps réel */
+    var ops = '<div class="kpis">' +
+      kpiA("En cours maintenant", s.in_progress || 0, "orderFilter", "active") +
+      kpiA("À assigner", s.unassigned || 0, "orderFilter", "unassigned", (s.unassigned ? " warn" : "")) +
+      kpiA("Livreurs en ligne", (s.couriers_online || 0) + " / " + (s.couriers || 0), "nav", "couriers") +
+      kpiA("Réclamations ouvertes", s.open_disputes || 0, "nav", "disputes", (s.open_disputes ? " warn" : "")) +
+      kpiA("Messages non lus", counts().messages, "nav", "messages", (counts().messages ? " warn" : "")) + '</div>';
+    if (!r) return shell(head + '<h2 class="sec">Opérations en direct</h2>' + ops + '<div class="card empty">' + (S.reportBusy ? "Calcul des rapports…" : "Rapports indisponibles.") + '</div>');
+    var t = r.totals, valid = t.orders - t.cancelled;
+    var kpis = '<div class="kpis">' +
+      kpiB("CA WunaGo", F(t.revenue), evol(t.revenue, r.previous.revenue), true) +
+      kpiB("Commandes", t.orders, t.delivered + " livrées · " + t.cancelled + " annulées · " + t.in_progress + " en cours") +
+      kpiB("Panier moyen", F(t.basket), "hors avances d'achats") +
+      kpiB("Marge brute", F(t.margin), "CA livré " + F(t.revenue_delivered) + " − part livreurs " + F(t.courier_pay)) +
+      kpiB("Encaissé", F(t.collected), "À encaisser (espèces) : " + F(t.to_collect)) +
+      kpiB("Taux d'annulation", fmtPct(pct(t.cancelled, t.orders)), t.cancelled + " commande(s)") +
+      kpiB("Note moyenne", t.rating ? String(t.rating).replace(".", ",") + " / 5" : "—", t.ratings + " avis") +
+      kpiB("Clients actifs", t.active_clients, t.new_clients + " nouveaux · " + t.repeat_clients + " ont recommandé") +
+      kpiB("Volume payé par les clients", F(t.volume), "dont avances d'achats : " + F(t.articles)) +
+      kpiB("Remises accordées", F(t.discounts), "kilo offert, collecte offerte") +
+      kpiB("Délai moyen d'assignation", mins(r.timing.to_assign), r.timing.late_unassigned ? r.timing.late_unassigned + " commande(s) en attente > 15 min" : "aucune commande en retard") +
+      kpiB("Délai moyen de livraison", mins(r.timing.to_deliver), "de la commande à la remise · " + String(Math.round(t.km)).replace(".", ",") + " km livrés") +
+      '</div>';
+    var payTotal = r.byPayment.reduce(function (a, x) { return a + x.volume; }, 0);
+    var pay = card("Chiffre d'affaires par canal de paiement",
+      hbars(r.byPayment, function (x) { return PAY[x.key] || x.key; }, function (x) { return x.volume; }, F) +
+      table(["Canal", "Commandes", "Montant payé", "Part", "CA WunaGo", "Encaissé", "En attente"], r.byPayment.map(function (x) {
+        return [esc(PAY[x.key] || x.key), x.orders, F(x.volume), fmtPct(pct(x.volume, payTotal)), F(x.revenue), F(x.collected), x.pending ? '<b>' + F(x.pending) + '</b>' : F(0)];
+      })));
+    var svc = card("Chiffre d'affaires par service",
+      hbars(r.byService, function (x) { return SVC[x.key]; }, function (x) { return x.revenue; }, F) +
+      table(["Service", "Commandes", "Livrées", "Annulées", "CA", "Panier moyen"], r.byService.map(function (x) {
+        return [esc(SVC[x.key]), x.orders, x.delivered, x.cancelled, F(x.revenue), x.basket ? F(x.basket) : "—"];
+      })));
+    var days = card("Évolution du chiffre d'affaires", columns(r.byDay, function (x) { return dayLabel(x.key); }, function (x) { return x.revenue; }, F,
+      function (x) { return '<b>' + dayLabel(x.key) + '</b><br>' + F(x.revenue) + '<br>' + x.orders + ' cmd · ' + x.cancelled + ' annulée(s)'; }));
+    var hours = card("Commandes par heure", columns(r.byHour, function (x) { return x.key + "h"; }, function (x) { return x.orders; }, function (v) { return v + " cmd"; },
+      function (x) { return '<b>' + x.key + ' h – ' + (x.key + 1) + ' h</b><br>' + x.orders + ' commande(s)'; }) +
+      '<p class="note">Heures de pointe tarifées : 7 h–9 h 30 et 16 h 30–19 h 30 (+15 %), soirée 20 h 30–22 h (+20 %).</p>');
+    var zones = card("Par zone de livraison", table(["Zone", "Commandes", "CA", "Distance moy."], r.byZone.map(function (x) {
+      return [esc(ZONES[x.key] || "Zone " + x.key), x.orders, F(x.revenue), x.km == null ? "—" : String(x.km).replace(".", ",") + " km"];
+    })));
+    var quart = card("Quartiers de départ les plus actifs", hbars(r.quartiers, function (x) { return x.key; }, function (x) { return x.orders; }, function (v) { return v + " cmd"; }));
+    var cour = card("Performance et caisse des livreurs", table(["Livreur", "Courses", "Livrées", "CA généré", "Gains livreur", "Espèces encaissées", "Solde à reverser", "Durée moy.", "Note"],
+      r.couriers.map(function (c) {
+        var due = c.cash - c.earned;
+        return [esc(c.name || phone(c.phone)) + (c.online ? ' <span class="pill k">EN LIGNE</span>' : ''), c.orders, c.delivered, F(c.revenue), F(c.earned), F(c.cash),
+          '<b>' + (due >= 0 ? F(due) : "− " + F(-due) + " à payer") + '</b>', mins(c.minutes), c.rating ? String(c.rating).replace(".", ",") + " ★" : "—"];
+      })) + '<p class="note">Solde à reverser = espèces encaissées par le livreur − ses gains. Négatif : WunaGo doit payer le livreur.</p>');
+    var cli = card("Meilleurs clients", table(["Client", "Commandes", "CA"], r.clients.map(function (c) { return [esc(c.name || phone(c.phone)) + '<br><span class="mono" style="font-size:11px;color:rgba(16,16,16,.6)">' + esc(phone(c.phone)) + '</span>', c.orders, F(c.revenue)]; })));
+    var disp = card("Réclamations par motif", table(["Motif", "Reçues", "Ouvertes", "Délai de résolution"], r.disputes.map(function (d) {
+      return [esc(REASONS[d.key] || d.key), d.total, d.open, d.hours == null ? "—" : String(d.hours).replace(".", ",") + " h"];
+    })));
+    var canc = card("Motifs d'annulation", hbars(r.cancels, function (x) { return x.key; }, function (x) { return x.total; }, function (v) { return String(v); }));
+    var wal = card("Portefeuille clients", table(["Indicateur", "Montant"], [
+      ["Recharges sur la période", F(r.wallet.topups)], ["Remboursements sur la période", F(r.wallet.refunds)],
+      ["Soldes détenus par les clients (à ce jour)", '<b>' + F(r.wallet.balances) + '</b>'], ["Portefeuilles avec un solde", String(r.wallet.wallets)]]) +
+      '<p class="note">Les soldes des clients sont de l\'argent dû par WunaGo : à garder en trésorerie.</p>');
+    return shell(head +
+      '<h2 class="sec">Opérations en direct</h2>' + ops +
+      (live.length ? ordersTable(live, true) : '') +
+      '<h2 class="sec">Indicateurs · ' + periodLabel() + '</h2>' + kpis +
+      '<div class="grid1">' + pay + '</div><div class="grid2">' + svc + quart + '</div>' +
+      '<div class="grid2">' + days + hours + '</div>' +
+      '<div class="grid1">' + cour + '</div>' +
+      '<div class="grid2">' + zones + canc + '</div>' +
+      '<div class="grid2">' + cli + wal + '</div>' +
+      '<div class="grid1">' + disp + '</div>');
+  }
+  function periodLabel() {
+    var P = S.period, f = function (d) { return new Date(d + "T12:00:00Z").toLocaleDateString("fr-FR", { day: "numeric", month: "short", year: "numeric" }); };
+    return P.from === P.to ? f(P.from) : "du " + f(P.from) + " au " + f(P.to);
+  }
+  function kpiA(label, value, action, arg, cls) { return '<button class="card kpi kpi-btn' + (cls || "") + '" data-a="' + action + '" data-v="' + arg + '"><span class="lbl">' + label + '</span><b>' + value + '</b><span class="kpi-go">Voir →</span></button>'; }
+  function kpiB(label, value, sub, dark) { return '<div class="card kpi' + (dark ? " dark" : "") + '"><span class="lbl">' + label + '</span><b>' + value + '</b>' + (sub ? '<span class="kpi-sub">' + sub + '</span>' : '') + '</div>'; }
+  function loadReport() {
+    S.reportBusy = true;
+    return WAPI.get("/admin/reports?from=" + S.period.from + "&to=" + S.period.to).then(function (r) { S.report = r; S.reportBusy = false; S.reportAt = Date.now(); })
+      .catch(function (e) { S.reportBusy = false; err(e); });
   }
   function viewOrders() {
     var F_ = [["active", "En cours"], ["unassigned", "À assigner"], ["delivered", "Livrées"], ["cancelled", "Annulées"], ["", "Toutes"]];
     return shell('<h1>Commandes</h1><div class="tools">' + F_.map(function (f) { return '<button class="chip ' + (S.orderFilter === f[0] ? "on" : "") + '" data-a="orderFilter" data-v="' + f[0] + '">' + f[1] + '</button>'; }).join("") +
-      '<input class="f" data-k="orderQ" placeholder="Code, téléphone ou nom" value="' + esc(S.orderQ) + '" aria-label="Rechercher une commande"><button class="btn btn-sm btn-ink" data-a="searchOrders">Rechercher</button></div>' + ordersTable(S.orders));
+      '<input class="f" data-k="orderQ" placeholder="Code, téléphone ou nom" value="' + esc(S.orderQ) + '" aria-label="Rechercher une commande"><button class="btn btn-sm btn-ink" data-a="searchOrders">Rechercher</button></div>' +
+      '<div class="tools"><span class="lbl">Service</span>' + [["", "Tous"]].concat(Object.keys(SVC).map(function (k) { return [k, SVC[k]]; })).map(function (f) { return '<button class="chip ' + ((S.svcFilter || "") === f[0] ? "on" : "") + '" data-a="svcFilter" data-v="' + f[0] + '">' + f[1] + '</button>'; }).join("") +
+      '<span class="lbl" style="margin-left:10px">Paiement</span>' + [["", "Tous"]].concat(Object.keys(PAY).map(function (k) { return [k, PAY[k]]; })).map(function (f) { return '<button class="chip ' + ((S.payFilter || "") === f[0] ? "on" : "") + '" data-a="payFilter" data-v="' + f[0] + '">' + f[1] + '</button>'; }).join("") + '</div>' +
+      (function () {
+        var list = S.orders.filter(function (o) { return (!S.svcFilter || o.service === S.svcFilter) && (!S.payFilter || o.paymentMethod === S.payFilter); });
+        var tot = list.filter(function (o) { return o.status !== "cancelled"; }).reduce(function (a, o) { return a + o.price.net; }, 0);
+        return '<div class="mono" style="font-size:11px;color:rgba(16,16,16,.6);margin-bottom:8px">' + list.length + ' commande(s) · ' + F(tot) + ' (hors annulées)</div>' + ordersTable(list);
+      })());
   }
   var map = null, markers = [];
   function viewCouriers() {
@@ -153,7 +295,8 @@
     var body = "";
     if (d.kind === "order") {
       var o = S.orders.filter(function (x) { return x.id === d.id; })[0]; if (!o) return "";
-      var online = S.couriers.filter(function (c) { return c.online || (o.courier && c.id === o.courier.id); });
+      var far = function (c) { return c.pos && o.pickupGeo ? geoKm(c.pos, o.pickupGeo) : 999; };
+      var online = S.couriers.slice().sort(function (a, b) { return (b.online - a.online) || (far(a) - far(b)); });
       body = '<h1 style="margin:0">' + esc(o.code) + ' ' + statusPill(o.status) + '</h1>' +
         '<div class="card" style="padding:6px 14px">' +
           [["Service", SVC[o.service]], ["Client", (o.client.name || "") + " · " + phone(o.client.phone)], ["Départ", o.pickup], ["Arrivée", o.dropoff], ["Montant", F(o.price.net) + " · " + (PAY[o.paymentMethod] || o.paymentMethod)],
@@ -162,7 +305,9 @@
         (o.note ? '<div class="card" style="padding:12px 14px">« ' + esc(o.note) + ' »</div>' : '') +
         (o.proofPhoto ? '<img src="' + o.proofPhoto + '" alt="Preuve de livraison" style="width:100%;border-radius:16px">' : '') +
         (o.status !== "delivered" && o.status !== "cancelled" ? '<div class="card" style="padding:14px;display:flex;flex-direction:column;gap:10px"><span class="lbl">Assigner un livreur</span>' +
-          (online.length ? '<select class="f" id="assign-sel">' + online.map(function (c) { return '<option value="' + c.id + '"' + (o.courier && o.courier.id === c.id ? " selected" : "") + '>' + esc(c.name) + ' · ' + esc(VEH[c.vehicle]) + (c.online ? "" : " (hors ligne)") + '</option>'; }).join("") + '</select><button class="btn btn-yellow" data-a="assign" data-v="' + o.id + '">Assigner</button>' : '<span style="color:rgba(16,16,16,.6)">Aucun livreur en ligne.</span>') + '</div>' +
+          (online.length ? '<select class="f" id="assign-sel">' + online.map(function (c) { return '<option value="' + c.id + '"' + (o.courier && o.courier.id === c.id ? " selected" : "") + '>' + esc(c.name) + ' · ' + esc(VEH[c.vehicle]) + (c.online ? " · en ligne" : " · hors ligne") + (far(c) < 999 ? " · à " + far(c).toFixed(1).replace(".", ",") + " km" : "") + (c.active ? " · " + c.active + " course(s) en cours" : "") + '</option>'; }).join("") + '</select>' +
+            '<button class="btn btn-yellow" data-a="assign" data-v="' + o.id + '">' + (o.courier ? "Changer de livreur" : "Assigner ce livreur") + '</button><span class="note" style="margin:0">Le livreur est prévenu sur son téléphone et la course apparaît dans son espace « Courses ». Un livreur hors ligne la verra à sa prochaine connexion.</span>'
+            : '<span style="color:rgba(16,16,16,.6)">Aucun livreur. Ajoutez-en un dans la section « Livreurs ».</span>') + '</div>' +
           '<div class="card" style="padding:14px;display:flex;flex-direction:column;gap:10px"><span class="lbl">Changer le statut</span><div style="display:flex;gap:8px;flex-wrap:wrap">' +
           ["picked_up", "en_route", "delivered"].map(function (s) { return '<button class="btn btn-sm btn-ghost" data-a="setStatus" data-v="' + o.id + '|' + s + '">' + STATUS[s] + '</button>'; }).join("") +
           '<button class="btn btn-sm btn-ghost" style="color:#8a1c0c" data-a="setStatus" data-v="' + o.id + '|cancelled">Annuler la commande</button></div></div>' : '') +
@@ -214,6 +359,7 @@
   function load() {
     if (!S.me || S.me.role !== "admin") return Promise.resolve();
     var v = S.view, jobs = [WAPI.get("/admin/stats").then(function (r) { S.stats = r.stats; }), WAPI.get("/conversations").then(function (r) { S.convs = r.conversations; })];
+    if (v === "dash" && (!S.report || S.forceReport || Date.now() - (S.reportAt || 0) > 60000)) { S.forceReport = false; jobs.push(loadReport()); }
     if (v === "dash" || v === "orders") jobs.push(WAPI.get("/admin/orders?status=" + (v === "dash" ? "active" : encodeURIComponent(S.orderFilter)) + "&q=" + encodeURIComponent(v === "dash" ? "" : S.orderQ)).then(function (r) { S.orders = r.orders; }));
     if (v === "couriers" || v === "orders" || v === "dash" || S.drawer) jobs.push(WAPI.get("/admin/couriers").then(function (r) { S.couriers = r.couriers; }));
     if (v === "disputes") jobs.push(WAPI.get("/admin/disputes").then(function (r) { S.disputes = r.disputes; }));
@@ -248,8 +394,28 @@
     },
     restart: function () { S.login.step = "phone"; S.login.code = ""; render(); },
     logout: function () { WAPI.post("/auth/logout").catch(function () {}); WAPI.setToken(null); S.me = null; render(); },
-    nav: function (v) { S.view = v; S.drawer = null; render(); load(); },
-    orderFilter: function (v) { S.orderFilter = v; load(); },
+    nav: function (v) { S.view = v; S.drawer = null; if (v === "dash") S.forceReport = true; render(); load(); },
+    orderFilter: function (v) { S.orderFilter = v; S.view = "orders"; S.drawer = null; render(); load(); },
+    preset: function (v) { S.period = Object.assign({ preset: v }, periodOf(v)); S.report = null; S.forceReport = true; render(); load(); },
+    customPeriod: function () {
+      var P = S.period;
+      if (!/^\d{4}-\d{2}-\d{2}$/.test(P.from) || !/^\d{4}-\d{2}-\d{2}$/.test(P.to) || P.from > P.to) { toast("Choisissez une date de début avant la date de fin."); return; }
+      P.preset = "custom"; S.report = null; S.forceReport = true; render(); load();
+    },
+    exportCsv: function () {
+      var P = S.period;
+      fetch("/api/admin/export?from=" + P.from + "&to=" + P.to, { headers: { authorization: "Bearer " + WAPI.token() } }).then(function (r) {
+        if (!r.ok) throw new Error("Export impossible.");
+        return r.blob();
+      }).then(function (b) {
+        var a = document.createElement("a"); a.href = URL.createObjectURL(b); a.download = "wunago-commandes-" + P.from + "-au-" + P.to + ".csv";
+        document.body.appendChild(a); a.click(); setTimeout(function () { URL.revokeObjectURL(a.href); a.remove(); }, 1000);
+        toast("Fichier téléchargé : il s'ouvre dans Excel.");
+      }).catch(err);
+    },
+    svcFilter: function (v) { S.svcFilter = v; render(); },
+    payFilter: function (v) { S.payFilter = v; render(); },
+    quickAssign: function (id) { S.drawer = { kind: "order", id: id }; render(); var el = document.getElementById("assign-sel"); if (el) el.focus(); },
     searchOrders: function () { load(); },
     searchClients: function () { load(); },
     openOrder: function (id) { S.drawer = { kind: "order", id: id }; render(); if (!S.couriers.length) load(); },

@@ -2090,10 +2090,7 @@
       if (before !== JSON.stringify(state.courierData)) render();
     }).catch(function (e) { if (e.status === 401) forceLogin(); });
   }
-  function courierGain(o) {
-    var art = (o.priceLines || []).filter(function (l) { return l.key === "articles"; }).reduce(function (s, l) { return s + l.amount; }, 0);
-    return Math.round(((o.price ? o.price.net : 0) - art) * WPricing.TARIFS.partLivreur / 50) * 50;
-  }
+  function courierGain(o) { return WPricing.courierShare(o.priceLines); }
   function detailsSummary(o) {
     var e4 = t4(), x = o.details || {};
     if (o.service === "laundry" && x.laundry) {

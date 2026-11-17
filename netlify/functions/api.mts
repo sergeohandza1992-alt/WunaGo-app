@@ -5,7 +5,7 @@
 import type { Config, Context } from "@netlify/functions";
 import { getDatabase } from "@netlify/database";
 import { createHash, randomBytes, randomInt } from "node:crypto";
-import { SERVICES, VEHICLES, PAY_METHODS, STATUSES, quote, normalizePhone, distanceKm } from "../lib/rules.mts";
+import { SERVICES, VEHICLES, PAY_METHODS, STATUSES, quote, normalizePhone, distanceKm, courierShare, TARIFS } from "../lib/rules.mts";
 import { sendPush, publicKey, pushLog } from "../lib/push.mts";
 
 type Row = Record<string, any>;
@@ -341,6 +341,8 @@ async function createDispute(req: Request, user: Row) {
 /* ====================== rôles, livreurs, messagerie, backoffice, notifications ====================== */
 
 const fmtF = (n: number) => String(Math.round(n)).replace(/\B(?=(\d{3})+(?!\d))/g, " ") + " F";
+const PAY_FR: Record<string, string> = { orange_money: "Orange Money", mtn_momo: "MTN MoMo", wallet: "Portefeuille", cash: "Espèces", card: "Carte" };
+const PAYST_FR: Record<string, string> = { paid: "Payé", cod: "À la livraison", refunded: "Remboursé", refund_pending: "Remboursement en cours" };
 const SVC_FR: Record<string, string> = { parcel: "Livraison colis", laundry: "Pressing", errand: "Courses", ride: "Déplacement" };
 const STEP_FR: Record<string, Record<string, string>> = {
   picked_up: { parcel: "Votre colis a été récupéré.", laundry: "Votre linge a été collecté.", errand: "Le livreur fait vos achats.", ride: "Votre chauffeur arrive." },
@@ -711,6 +713,115 @@ async function adminRoutes(req: Request, user: Row, path: string, m: string, url
   if (r && m === "POST") {
     await db().sql`UPDATE users SET role = 'client', online = false WHERE id::text = ${r[1]} AND role = 'courier'`;
     return json({ ok: true });
+  }
+  /* rapports : période en dates de Douala (du … au … inclus) */
+  if ((path === "/admin/reports" || path === "/admin/export") && m === "GET") {
+    const iso = /^\d{4}-\d{2}-\d{2}$/;
+    const today = new Date(Date.now() + 3600000).toISOString().slice(0, 10);
+    const from = iso.test(url.searchParams.get("from") || "") ? url.searchParams.get("from")! : today;
+    const to = iso.test(url.searchParams.get("to") || "") ? url.searchParams.get("to")! : today;
+    if (from > to) return fail(400, "Période invalide.");
+    const days = Math.round((Date.parse(to) - Date.parse(from)) / 86400000) + 1;
+    if (days > 400) return fail(400, "Période trop longue (400 jours maximum).");
+    const T = TARIFS as any, part = T.partLivreur, transport = T.lignesTransport;
+    const base = `
+      WITH b AS (
+        SELECT o.*,
+          COALESCE((SELECT SUM((l->>'amount')::int) FROM jsonb_array_elements(COALESCE(o.price_lines,'[]'::jsonb)) l WHERE l->>'key' = 'articles'), 0) AS articles,
+          COALESCE((SELECT SUM((l->>'amount')::int) FROM jsonb_array_elements(COALESCE(o.price_lines,'[]'::jsonb)) l WHERE l->>'key' = ANY($3::text[])), 0) AS transport,
+          (o.created_at AT TIME ZONE 'Africa/Douala') AS local_at
+        FROM orders o
+        WHERE o.created_at >= ($1::date)::timestamp AT TIME ZONE 'Africa/Douala'
+          AND o.created_at < ($2::date + 1)::timestamp AT TIME ZONE 'Africa/Douala'
+      ), v AS (SELECT * FROM b WHERE status <> 'cancelled')`;
+    const args = [from, to, transport];
+    const q = (sql: string) => db().pool.query(base + sql, args).then((r: any) => r.rows || r);
+
+    if (path === "/admin/export") {
+      const rows = await db().pool.query(base + `
+        SELECT b.code, to_char(b.local_at, 'YYYY-MM-DD') AS day, to_char(b.local_at, 'HH24:MI') AS hm, b.service, b.status, b.pickup, b.dropoff, b.zone, b.distance_km, b.payment_method, b.payment_status,
+          b.price_gross, b.discount, b.price_net, b.articles, b.transport, b.rating, b.cancel_reason, u.name AS client, u.phone AS client_phone,
+          c.name AS courier, to_char(b.delivered_at AT TIME ZONE 'Africa/Douala', 'YYYY-MM-DD HH24:MI') AS delivered_local
+        FROM b JOIN users u ON u.id = b.user_id LEFT JOIN users c ON c.id = b.courier_id ORDER BY b.created_at`, args).then((r: any) => r.rows || r);
+      const head = ["Code", "Date", "Heure", "Service", "Statut", "Départ", "Arrivée", "Zone", "Distance (km)", "Paiement", "État du paiement",
+        "Prix brut", "Remise", "Montant payé", "Avance achats", "CA WunaGo", "Part livreur", "Note", "Motif d'annulation", "Client", "Téléphone client", "Livreur", "Livrée le"];
+      const cell = (x: any) => { const t = x == null ? "" : String(x); return /[;"\n]/.test(t) ? '"' + t.replace(/"/g, '""') + '"' : t; };
+      const lines = rows.map((r: Row) => {
+        const ca = r.status === "cancelled" ? 0 : r.price_net - r.articles;
+        const share = r.status === "delivered" ? Math.round(Math.max(0, r.transport) * part / 50) * 50 : 0;
+        return [r.code, r.day, r.hm, SVC_FR[r.service], ({ received: "Reçue", picked_up: "Prise en charge", en_route: "En route", delivered: "Livrée", cancelled: "Annulée" } as any)[r.status],
+          r.pickup, r.dropoff, r.zone, r.distance_km, PAY_FR[r.payment_method], (r.payment_method === "cash" && r.status === "delivered" ? "Encaissé (espèces)" : PAYST_FR[r.payment_status] || r.payment_status),
+          r.price_gross, r.discount, r.price_net, r.articles, ca, share, r.rating, r.cancel_reason, r.client, r.client_phone, r.courier, r.delivered_local].map(cell).join(";");
+      });
+      return new Response("﻿" + [head.join(";")].concat(lines).join("\r\n"), { status: 200, headers: {
+        "content-type": "text/csv; charset=utf-8", "content-disposition": `attachment; filename="wunago-commandes-${from}-au-${to}.csv"`, "cache-control": "no-store" } });
+    }
+
+    const shareSql = `ROUND(GREATEST(transport, 0) * ${Number(part)} / 50) * 50`;
+    const [tot, byPay, byService, byDay, byHour, byZone, couriers, clients, quartiers, disputes, wallet, timing, cancels, prev] = await Promise.all([
+      q(`SELECT
+          (SELECT COUNT(*) FROM b) AS orders,
+          (SELECT COUNT(*) FROM b WHERE status = 'delivered') AS delivered,
+          (SELECT COUNT(*) FROM b WHERE status = 'cancelled') AS cancelled,
+          (SELECT COUNT(*) FROM b WHERE status IN ('received','picked_up','en_route')) AS in_progress,
+          (SELECT COALESCE(SUM(price_net), 0) FROM v) AS volume,
+          (SELECT COALESCE(SUM(articles), 0) FROM v) AS articles,
+          (SELECT COALESCE(SUM(price_net - articles), 0) FROM v) AS revenue,
+          (SELECT COALESCE(SUM(discount), 0) FROM v) AS discounts,
+          (SELECT COALESCE(SUM(${shareSql}), 0) FROM b WHERE status = 'delivered') AS courier_pay,
+          (SELECT COALESCE(SUM(price_net - articles), 0) FROM b WHERE status = 'delivered') AS revenue_delivered,
+          (SELECT COALESCE(SUM(price_net), 0) FROM v WHERE payment_status = 'paid' OR (payment_method = 'cash' AND status = 'delivered')) AS collected,
+          (SELECT COALESCE(SUM(price_net), 0) FROM v WHERE payment_method = 'cash' AND status <> 'delivered') AS to_collect,
+          (SELECT ROUND(AVG(rating)::numeric, 2) FROM b WHERE rating IS NOT NULL) AS rating,
+          (SELECT COUNT(*) FROM b WHERE rating IS NOT NULL) AS ratings,
+          (SELECT COUNT(DISTINCT user_id) FROM b) AS active_clients,
+          (SELECT COUNT(*) FROM users WHERE role = 'client' AND created_at >= ($1::date)::timestamp AT TIME ZONE 'Africa/Douala' AND created_at < ($2::date + 1)::timestamp AT TIME ZONE 'Africa/Douala') AS new_clients,
+          (SELECT COUNT(*) FROM (SELECT user_id FROM b GROUP BY user_id HAVING COUNT(*) > 1) r) AS repeat_clients,
+          (SELECT COALESCE(SUM(distance_km), 0) FROM b WHERE status = 'delivered') AS km`),
+      q(`SELECT payment_method AS key, COUNT(*) AS orders, COALESCE(SUM(price_net), 0) AS volume, COALESCE(SUM(price_net - articles), 0) AS revenue,
+           COALESCE(SUM(price_net) FILTER (WHERE payment_status = 'paid' OR (payment_method = 'cash' AND status = 'delivered')), 0) AS collected,
+           COALESCE(SUM(price_net) FILTER (WHERE payment_method = 'cash' AND status <> 'delivered'), 0) AS pending
+         FROM v GROUP BY payment_method ORDER BY volume DESC`),
+      q(`SELECT service AS key, COUNT(*) AS orders, COUNT(*) FILTER (WHERE status = 'delivered') AS delivered, COUNT(*) FILTER (WHERE status = 'cancelled') AS cancelled,
+           COALESCE(SUM(price_net - articles) FILTER (WHERE status <> 'cancelled'), 0) AS revenue,
+           ROUND(AVG(price_net - articles) FILTER (WHERE status <> 'cancelled')) AS basket FROM b GROUP BY service ORDER BY revenue DESC`),
+      q(`SELECT to_char(d, 'YYYY-MM-DD') AS key, COALESCE(x.orders, 0) AS orders, COALESCE(x.revenue, 0) AS revenue, COALESCE(x.cancelled, 0) AS cancelled
+         FROM generate_series($1::date, $2::date, interval '1 day') d
+         LEFT JOIN (SELECT local_at::date AS day, COUNT(*) AS orders, COUNT(*) FILTER (WHERE status = 'cancelled') AS cancelled,
+           COALESCE(SUM(price_net - articles) FILTER (WHERE status <> 'cancelled'), 0) AS revenue FROM b GROUP BY 1) x ON x.day = d::date ORDER BY d`),
+      q(`SELECT h AS key, COALESCE(x.orders, 0) AS orders FROM generate_series(6, 21) h
+         LEFT JOIN (SELECT EXTRACT(HOUR FROM local_at)::int AS hr, COUNT(*) AS orders FROM b GROUP BY 1) x ON x.hr = h ORDER BY h`),
+      q(`SELECT COALESCE(zone, 0) AS key, COUNT(*) AS orders, COALESCE(SUM(price_net - articles), 0) AS revenue, ROUND(AVG(distance_km)::numeric, 1) AS km FROM v GROUP BY 1 ORDER BY 1`),
+      q(`SELECT c.id, c.name, c.phone, c.online, COUNT(b.id) AS orders, COUNT(*) FILTER (WHERE b.status = 'delivered') AS delivered,
+           COALESCE(SUM(${shareSql}) FILTER (WHERE b.status = 'delivered'), 0) AS earned, COALESCE(SUM(b.price_net - b.articles) FILTER (WHERE b.status = 'delivered'), 0) AS revenue,
+           ROUND(AVG(b.rating)::numeric, 1) AS rating, ROUND(AVG(EXTRACT(EPOCH FROM (b.delivered_at - b.assigned_at)) / 60) FILTER (WHERE b.delivered_at IS NOT NULL AND b.assigned_at IS NOT NULL)) AS minutes,
+           COALESCE(SUM(b.price_net) FILTER (WHERE b.payment_method = 'cash' AND b.status = 'delivered'), 0) AS cash
+         FROM b JOIN users c ON c.id = b.courier_id GROUP BY c.id ORDER BY delivered DESC, earned DESC LIMIT 20`),
+      q(`SELECT u.id, u.name, u.phone, COUNT(*) AS orders, COALESCE(SUM(b.price_net - b.articles) FILTER (WHERE b.status <> 'cancelled'), 0) AS revenue
+         FROM b JOIN users u ON u.id = b.user_id GROUP BY u.id ORDER BY revenue DESC LIMIT 10`),
+      q(`SELECT split_part(pickup, ',', 1) AS key, COUNT(*) AS orders, COALESCE(SUM(price_net - articles), 0) AS revenue FROM v GROUP BY 1 ORDER BY orders DESC, revenue DESC LIMIT 10`),
+      db().pool.query(`SELECT reason AS key, COUNT(*) AS total, COUNT(*) FILTER (WHERE status <> 'closed') AS open,
+           ROUND(AVG(EXTRACT(EPOCH FROM (updated_at - created_at)) / 3600) FILTER (WHERE status = 'closed')::numeric, 1) AS hours
+         FROM disputes WHERE created_at >= ($1::date)::timestamp AT TIME ZONE 'Africa/Douala' AND created_at < ($2::date + 1)::timestamp AT TIME ZONE 'Africa/Douala'
+         GROUP BY reason ORDER BY total DESC`, [from, to]).then((r: any) => r.rows || r),
+      db().pool.query(`SELECT
+           (SELECT COALESCE(SUM(amount), 0) FROM wallet_tx WHERE kind = 'topup' AND created_at >= ($1::date)::timestamp AT TIME ZONE 'Africa/Douala' AND created_at < ($2::date + 1)::timestamp AT TIME ZONE 'Africa/Douala') AS topups,
+           (SELECT COALESCE(SUM(amount), 0) FROM wallet_tx WHERE kind = 'refund' AND created_at >= ($1::date)::timestamp AT TIME ZONE 'Africa/Douala' AND created_at < ($2::date + 1)::timestamp AT TIME ZONE 'Africa/Douala') AS refunds,
+           (SELECT COALESCE(SUM(wallet_balance), 0) FROM users WHERE deleted_at IS NULL) AS balances,
+           (SELECT COUNT(*) FROM users WHERE wallet_balance > 0) AS wallets`, [from, to]).then((r: any) => r.rows || r),
+      q(`SELECT ROUND(AVG(EXTRACT(EPOCH FROM (assigned_at - GREATEST(created_at, COALESCE(scheduled_at, created_at) - interval '1 hour'))) / 60) FILTER (WHERE assigned_at IS NOT NULL)) AS to_assign,
+           ROUND(AVG(EXTRACT(EPOCH FROM (delivered_at - created_at)) / 60) FILTER (WHERE delivered_at IS NOT NULL AND scheduled_at IS NULL)) AS to_deliver,
+           COUNT(*) FILTER (WHERE status = 'received' AND courier_id IS NULL AND created_at < NOW() - interval '15 minutes' AND (scheduled_at IS NULL OR scheduled_at < NOW())) AS late_unassigned
+         FROM b`),
+      q(`SELECT COALESCE(NULLIF(cancel_reason, ''), 'Non précisé') AS key, COUNT(*) AS total FROM b WHERE status = 'cancelled' GROUP BY 1 ORDER BY total DESC LIMIT 8`),
+      db().pool.query(`SELECT COUNT(*) AS orders, COALESCE(SUM(price_net - COALESCE((SELECT SUM((l->>'amount')::int) FROM jsonb_array_elements(COALESCE(o.price_lines,'[]'::jsonb)) l WHERE l->>'key' = 'articles'), 0)) FILTER (WHERE status <> 'cancelled'), 0) AS revenue
+         FROM orders o WHERE o.created_at >= ($1::date - $2::int)::timestamp AT TIME ZONE 'Africa/Douala' AND o.created_at < ($1::date)::timestamp AT TIME ZONE 'Africa/Douala'`, [from, days]).then((r: any) => r.rows || r)
+    ]);
+    const num = (o: Row) => Object.fromEntries(Object.entries(o || {}).map(([k, v]) => [k, typeof v === "string" && /^-?\d+(\.\d+)?$/.test(v) && !["id", "name", "phone"].includes(k) ? Number(v) : v]));
+    const t0 = num(tot[0]);
+    return json({ period: { from, to, days }, totals: { ...t0, margin: t0.revenue_delivered - t0.courier_pay, basket: t0.orders - t0.cancelled ? Math.round(t0.revenue / (t0.orders - t0.cancelled)) : 0 },
+      previous: num(prev[0]), byPayment: byPay.map(num), byService: byService.map(num), byDay: byDay.map(num), byHour: byHour.map(num), byZone: byZone.map(num),
+      couriers: couriers.map(num), clients: clients.map(num), quartiers: quartiers.map(num), disputes: disputes.map(num), wallet: num(wallet[0]), timing: num(timing[0]), cancels: cancels.map(num) });
   }
   if (path === "/admin/clients" && m === "GET") {
     const q = (url.searchParams.get("q") || "").trim();
