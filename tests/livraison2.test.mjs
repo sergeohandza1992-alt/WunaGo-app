@@ -389,9 +389,9 @@ const coded=(await CLI.evaluate(async()=>(await (await fetch('/api/orders',{head
 ok('Commande enregistrée au point exact du code',coded.dropoff.includes(myCode)&&Math.abs(coded.dropoffGeo.lat-4.0921)<1e-6&&coded.details.recipient.phone==='699000004');
 await CLI.evaluate(async(id)=>fetch('/api/orders/'+id+'/cancel',{method:'POST',headers:{'content-type':'application/json',authorization:'Bearer '+WAPI.token()},body:JSON.stringify({reason:'Test'})}),coded.id);
 await CLI.goto(URL+'#code='+myCode);
-await CLI.waitForFunction(c=>(document.querySelector('[data-bind="draft.dropoff"]')||{}).value?.includes(c),myCode,{timeout:T});
-ok('QR code scanné (lien) : nouvelle livraison vers ce code',true);
-await CLI.click('[data-action="orderBack"]');
+await CLI.waitForSelector('[data-action="flashConfirm"]',{timeout:T});
+ok('QR code scanné (lien) : envoi éclair vers ce code',await CLI.isVisible('text=Paul Ebode'));
+await CLI.click('[data-action="popScreen"]');
 await ADM.click('[data-a="nav"][data-v="orders"]'); await ADM.click('[data-a="newOrder"]');
 await ADM.fill('[data-k="drawer.phone"]','699000007');
 await ADM.locator('select[data-k="drawer.pickupQ"]').selectOption('Akwa');
@@ -400,6 +400,34 @@ await ADM.click('[data-a="noSave"]');
 await ADM.waitForSelector('text=Commande enregistrée ✓');
 ok('Backoffice : commande par téléphone avec un Code WunaGo',true);
 await ADM.click('[data-a="closeDrawer"] >> nth=1');
+
+/* 11 nonies. Commande éclair : envoyer à un contact du carnet comme on l'appelle */
+await CLI.context().grantPermissions(['geolocation']); await CLI.context().setGeolocation({latitude:4.0489,longitude:9.6996});
+await CLI.click('[data-action="switchTab"][data-arg="home"]'); await CLI.click('[data-action="switchTab"][data-arg="home"]');
+await CLI.waitForSelector('text=MON CARNET');
+ok('Accueil : « Envoyer à… » et carnet de codes (contact ajouté automatiquement)',await CLI.isVisible('button[data-action="flashTo"]:has-text("Paul Ebode")'));
+await shot(CLI,'21-accueil-envoyer-a');
+await CLI.click('button[data-action="flashTo"]:has-text("Paul Ebode")');
+await CLI.waitForSelector('[data-action="flashConfirm"]:not([disabled])',{timeout:T});
+ok('Commande éclair : un seul écran, départ = ma position, prix affiché',/Envoyer · [\d\s\u202f]+ FCFA/.test(await CLI.locator('[data-action="flashConfirm"]').textContent())&&await CLI.isVisible('text=Ma position actuelle'));
+await shot(CLI,'22-commande-eclair');
+await CLI.click('[data-action="flashConfirm"]');
+await CLI.waitForSelector('text=CODE DE REMISE',{timeout:T});
+let fo=(await CLI.evaluate(async()=>(await (await fetch('/api/orders',{headers:{authorization:'Bearer '+WAPI.token()}})).json()).orders))[0];
+ok('Colis envoyé en 3 gestes (destinataire, repère, position exacte remplis)',fo.service==='parcel'&&fo.details.recipient.name==='Paul Ebode'&&fo.details.hints.dropoff==='Portail vert, 2e étage');
+await CLI.evaluate(async(id)=>fetch('/api/orders/'+id+'/cancel',{method:'POST',headers:{'content-type':'application/json',authorization:'Bearer '+WAPI.token()},body:JSON.stringify({reason:'Test'})}),fo.id);
+await CLI.click('[data-action="switchTab"][data-arg="home"]'); await CLI.click('[data-action="switchTab"][data-arg="home"]');
+await CLI.click('[data-action="quickService"][data-arg="ride"]');
+await CLI.fill('[data-bind="quickCode"]',myCode.replace('WG-',''));
+await CLI.press('[data-bind="quickCode"]','Enter');
+await CLI.waitForSelector('[data-action="flashConfirm"]:not([disabled])',{timeout:T});
+await CLI.click('[data-action="flashVehicle"][data-arg="car"]');
+await CLI.click('[data-action="flashConfirm"]');
+await CLI.waitForSelector('[data-action="askCancel"]',{timeout:T});
+fo=(await CLI.evaluate(async()=>(await (await fetch('/api/orders',{headers:{authorization:'Bearer '+WAPI.token()}})).json()).orders))[0];
+ok('Trajet réservé en tapant un code (voiture)',fo.service==='ride'&&fo.vehicle==='car'&&fo.dropoff.includes(myCode));
+await CLI.evaluate(async(id)=>fetch('/api/orders/'+id+'/cancel',{method:'POST',headers:{'content-type':'application/json',authorization:'Bearer '+WAPI.token()},body:JSON.stringify({reason:'Test'})}),fo.id);
+await CLI.click('[data-action="switchTab"][data-arg="home"]'); await CLI.click('[data-action="switchTab"][data-arg="home"]');
 
 /* 12. Notifications envoyées (mode test, sans envoi réel) */
 const log=await CLI.evaluate(async()=>(await (await fetch('/api/push/_log',{headers:{authorization:'Bearer '+WAPI.token()}})).json()).log);

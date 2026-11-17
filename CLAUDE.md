@@ -34,6 +34,8 @@ Porteur du projet : Serge-Venant OHANDZA. Langue de travail et de l'interface : 
   **Code WunaGo** (`WG-XXXX`, table `places`) : adresse en 6 caractères = point GPS exact + repère + nom/numéro du titulaire. Création « devant la porte »
   (Portefeuille › Mon Code WunaGo, carte sur l'accueil), QR code (`web/vendor/qrcode/`, MIT), page publique `web/code.html?c=` (nom + quartier seulement,
   autocollant imprimable), lien `/#code=WG-XXXX`, saisie ou scan dans une commande et au backoffice ; le serveur résout `pickupCode` / `dropoffCode`.
+  **Commande éclair** : en haut de l'accueil, « Envoyer à… » / « Aller chez… » (colis léger ou trajet) + carnet de codes (`prefs.codebook`, ajout automatique) ;
+  un seul écran (contact, départ = mon code ou ma position, paiement, prix) → « Envoyer ». Le lien `/#code=` ouvre cet écran.
   Version affichée : `APP_VERSION` (app.js) et pied du menu (admin.js), à changer avec `CACHE` (sw.js).
 - Tests : `livraison2` (multi-acteurs : backoffice, livreur, clients, messagerie, notifications), `tarifs` (grille, sans navigateur), `services` (parcours dédiés, profil), `parcours` (mode local), `google-maps` (API Google simulée), `ecrans-compte` (étape 3), `serveur` (API + Postgres local
   via `tests/dev-server.mjs`). Les tests décalent l'heure à midi la nuit (`tests/horloge.mjs`). Lancer : `npm install && npx playwright install chromium && npm test`. Serveur local : `npm run dev`.
