@@ -6,9 +6,15 @@
   "type": "module",
   "scripts": {
     "start": "python3 -m http.server 8080 --directory web",
-    "test": "node tests/parcours.test.mjs && node tests/google-maps.test.mjs && node tests/ecrans-compte.test.mjs"
+    "test": "node tests/parcours.test.mjs && node tests/google-maps.test.mjs && node tests/ecrans-compte.test.mjs && node tests/serveur.test.mjs",
+    "dev": "node tests/dev-server.mjs 8080"
   },
   "devDependencies": {
+    "@netlify/database-dev": "^1.0.2",
     "playwright": "^1.65.1"
+  },
+  "dependencies": {
+    "@netlify/database": "^2.0.3",
+    "@netlify/functions": "^6.1.1"
   }
 }

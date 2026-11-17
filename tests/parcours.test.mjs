@@ -11,6 +11,8 @@ const ctx=await browser.newContext({viewport:{width:390,height:844},deviceScaleF
   geolocation:{latitude:4.0612,longitude:9.7295},permissions:['geolocation']});
 // Services externes simulés (tuiles OpenStreetMap, recherche Photon) : le test ne dépend pas du réseau
 const TILE=Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8/5+hHgAHggJ/PchI7wAAAABJRU5ErkJggg==','base64');
+// Mode local (sans serveur) : l'API répond qu'elle n'est pas disponible
+await ctx.route('**/api/**',r=>r.fulfill({status:200,contentType:'application/json',body:'{"ok":false}'}));
 await ctx.route('https://tile.openstreetmap.org/**',r=>r.fulfill({status:200,contentType:'image/png',body:TILE}));
 await ctx.route('https://photon.komoot.io/api/**',r=>r.fulfill({status:200,contentType:'application/json',body:JSON.stringify({features:[
   {geometry:{coordinates:[9.6941,4.0291]},properties:{name:'Pharmacie de Bonapriso',street:'Rue Joss',district:'Bonapriso',city:'Douala'}},
@@ -18,7 +20,7 @@ await ctx.route('https://photon.komoot.io/api/**',r=>r.fulfill({status:200,conte
 await ctx.route('https://photon.komoot.io/reverse**',r=>r.fulfill({status:200,contentType:'application/json',body:JSON.stringify({features:[
   {geometry:{coordinates:[9.7295,4.0612]},properties:{street:'Rue de la Joie',district:'Bepanda',city:'Douala'}}]})}));
 const page=await ctx.newPage();
-const errors=[]; page.on('pageerror',e=>errors.push(e.message)); page.on('console',m=>{if(m.type()==='error')errors.push(m.text())});
+const errors=[]; page.on('pageerror',e=>errors.push(e.message)); page.on('console',m=>{if(m.type()==='error'&&!/ERR_INTERNET_DISCONNECTED/.test(m.text()))errors.push(m.text())}); // hors connexion : erreurs réseau attendues
 const shot=async n=>{await page.waitForTimeout(350);await page.screenshot({path:`tests/captures/${n}.png`})};
 await page.goto(URL); await page.waitForSelector('[data-action="requestOtp"]');
 await shot('01-connexion');
