@@ -18,7 +18,10 @@ Porteur du projet : Serge-Venant OHANDZA. Langue de travail et de l'interface : 
   `netlify/lib/rules.mts` : règles de prix (le serveur fait foi). Variables : `SMS_MODE` (`demo` par défaut : code renvoyé
   à l'app, aucun SMS), `DEMO_ACTIONS` (`on` par défaut : recharge et avancement de livraison simulés).
 - `netlify/database/migrations/` : schéma Postgres (Netlify Database). Ne jamais modifier une migration déjà appliquée.
-- Tests : `tarifs` (grille, sans navigateur), `services` (parcours dédiés, profil), `parcours` (mode local), `google-maps` (API Google simulée), `ecrans-compte` (étape 3), `serveur` (API + Postgres local
+- Rôles : `client`, `courier` (ajouté depuis le backoffice), `admin` (numéros listés dans la variable `ADMIN_PHONES`, séparés par des virgules).
+  Même app pour client et livreur (l'espace livreur s'affiche selon le rôle). Backoffice : `web/admin.html` + `admin.js`.
+  Notifications : `netlify/lib/push.mts` (Web Push, variables `VAPID_PUBLIC_KEY` / `VAPID_PRIVATE_KEY`, `WG_PUSH_DRY=1` en test). Part livreur : `TARIFS.partLivreur`.
+- Tests : `livraison2` (multi-acteurs : backoffice, livreur, clients, messagerie, notifications), `tarifs` (grille, sans navigateur), `services` (parcours dédiés, profil), `parcours` (mode local), `google-maps` (API Google simulée), `ecrans-compte` (étape 3), `serveur` (API + Postgres local
   via `tests/dev-server.mjs`). Lancer : `npm install && npx playwright install chromium && npm test`. Serveur local : `npm run dev`.
 - Mise en ligne : Netlify (projet `wunago-app` → https://wunago-app.netlify.app).
   GitHub Actions est bloqué tant que le compte GitHub a un problème de facturation (ticket ouvert).
@@ -45,7 +48,7 @@ Design de référence : projet Claude Design « WunaGo — App Client ».
 2. ✅ Saisie d'adresses : suggestions, Ma position, adresses enregistrées, distance
 3. ✅ Écrans manquants : Mes adresses, moyens de paiement, notifications, annulation, litiges
 4. ✅ Backend réel (hors paiements) : comptes, commandes serveur, connexion par code (SMS réels à brancher), suivi rafraîchi
-5. App livreur + tableau de bord de suivi
+5. ✅ Deuxième livraison : messagerie (client / livreur / service client / entre clients), espace livreur avec position en direct, backoffice `admin.html`, notifications Web Push
 6. **En dernier** : paiements Orange Money / MTN MoMo réels
 
 ## Décisions

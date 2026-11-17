@@ -55,7 +55,8 @@ Le bouton « Ouvrir dans Google Maps » fonctionne dans tous les cas.
 - API : `netlify/functions/api.mts` (routes `/api/*`), base Postgres Netlify Database (`netlify/database/migrations/`).
 - Comptes par numéro de téléphone + code à 4 chiffres, session de 90 jours.
 - Commandes, prix, portefeuille, annulations et réclamations enregistrés sur le serveur ; même compte sur plusieurs téléphones.
-- Variables Netlify : `SMS_MODE` (`demo` : code affiché, aucun SMS envoyé) et `DEMO_ACTIONS` (`on` : recharge et livreur simulés).
+- Variables Netlify : `SMS_MODE` (`demo` : code affiché, aucun SMS envoyé) et `DEMO_ACTIONS` (`on` : recharge et livreur simulés),
+  `ADMIN_PHONES` (numéros ayant accès au backoffice `/admin.html`), `VAPID_PUBLIC_KEY` / `VAPID_PRIVATE_KEY` (notifications sur le téléphone, à générer avec `npx web-push generate-vapid-keys`).
 - Sans serveur disponible, l'app bascule en mode local.
 - Local : `npm run dev` (Postgres local + API) → http://localhost:8080
 

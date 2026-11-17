@@ -8,6 +8,7 @@
 
 export const TARIFS = {
   arrondi: 50,                       // prix arrondis au 50 F supérieur (monnaie facile)
+  partLivreur: 0.8,                  // part reversée au livreur sur la livraison (hors articles de courses)
   distanceMaxKm: 40,
   facteurRoute: 1.35,                // distance à vol d'oiseau × 1,35 ≈ distance par la route en ville
 

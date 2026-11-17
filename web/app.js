@@ -328,6 +328,11 @@
   }
   function courierInfo(o) {
     var g = orderGeo(o), p = g.pickup, q = g.dropoff, f = 0, pos;
+    if (o.courier && o.courier.pos && o.status !== "delivered") {
+      pos = { lat: o.courier.pos.lat, lng: o.courier.pos.lng };
+      var rem0 = WGeo.roadKm(pos, q) + (o.stage === 0 ? WGeo.roadKm(pos, p) : 0);
+      return { pos: pos, fraction: undefined, live: true, min: WGeo.etaMin(rem0, o.vehicle) };
+    }
     if (o.status === "delivered" || o.stage >= 3) { pos = q; f = 1; }
     else if (o.stage === 2) {
       f = Math.min(0.97, (Date.now() - (o.enRouteAt || Date.now())) / DEMO_RIDE_MS);
@@ -348,7 +353,7 @@
     if (navigator.onLine === false || !WMap.available()) return;
     var ci0 = courierInfo(o);
     WMap.mount("track-map", { key: o.id, pickup: g.pickup, dropoff: g.dropoff, courier: ci0.pos, fraction: ci0.fraction });
-    if (o.stage === 2) trackTimer = setInterval(function () {
+    if (o.stage === 2 && !ci0.live) trackTimer = setInterval(function () {
       var ci = courierInfo(o); WMap.setCourier(ci.pos, ci.fraction);
       var el = document.getElementById("track-eta"); if (el) el.textContent = t().arriving + " · " + ci.min + " " + t().min;
     }, 1000);
@@ -851,17 +856,12 @@
       '</div>' +
       '<div class="scroll" style="background:#fbfaf7;border-radius:22px 22px 0 0;margin-top:-18px;padding:16px 20px 20px;position:relative;z-index:500"><div class="col" style="gap:16px">' +
         '<div style="width:34px;height:4px;border-radius:9px;background:rgba(16,16,16,.15);margin:0 auto"></div>' +
-        '<div class="fx ac" style="gap:11px">' +
-          '<div class="fx ac jc" style="width:42px;height:42px;flex:none;border-radius:99px;background:#FFD700;font-weight:800;font-size:13px">MK</div>' +
-          '<div class="col" style="gap:2px;flex:1"><span style="font-weight:700;font-size:14px">Marcel K.</span><span class="mono" style="font-size:10.5px;color:rgba(16,16,16,.55)">4.9 · CE 812 AB</span></div>' +
-          '<button class="btn" data-action="go" data-arg="chat|' + orderId + '" aria-label="Écrire au livreur" style="width:44px;height:44px;border-radius:11px;background:rgba(16,16,16,.07);font-weight:700;font-size:11px;padding:0">SMS</button>' +
-          '<a class="btn btn-ink" href="tel:+237600000000" aria-label="Appeler le livreur" style="width:44px;height:44px;border-radius:11px;font-weight:700;font-size:11px;padding:0;text-decoration:none">TEL</a>' +
-        '</div>' +
+        courierBlock(o, orderId) +
         '<div style="height:1px;background:var(--hair)"></div>' +
         '<div class="col">' + timeline + '</div>' +
         gmapsButton(orderGeo(o).pickup, orderGeo(o).dropoff, false) +
         (o.stage === 0 ? '<button class="btn btn-outline" data-action="askCancel" data-arg="' + orderId + '" style="width:100%;color:#101010">' + esc(t3().cancel) + '</button>' : '') +
-        (DEMO ? '<button class="btn btn-outline" data-action="advanceOrder" data-arg="' + orderId + '" style="width:100%">' + esc(d.simulate) + '</button>' : '') +
+        (DEMO && !o.courier && !(srv() && WAPI.status.demo === false) ? '<button class="btn btn-outline" data-action="advanceOrder" data-arg="' + orderId + '" style="width:100%">' + esc(d.simulate) + '</button>' : '') +
       '</div></div>'
     );
   }
@@ -879,11 +879,12 @@
       '<div class="scroll"><div class="col" style="padding:calc(18px + var(--sat)) 20px 20px;gap:16px">' +
         '<div><div class="mono" style="font-size:10px;letter-spacing:.06em;color:rgba(16,16,16,.5)">' + o.code + '</div><div style="font-weight:800;font-size:23px;letter-spacing:-.7px;margin-top:4px">' + esc(t4().delivered[o.service] || d.delivered) + '</div></div>' +
         '<div style="border-radius:17px;overflow:hidden;border:1px solid var(--hair)">' +
-          '<div style="height:180px;background:repeating-linear-gradient(135deg,#e6e3dc 0 10px,#efece5 10px 20px);display:flex;align-items:center;justify-content:center"><span class="mono" style="font-size:10.5px;color:rgba(16,16,16,.5)">photo de livraison</span></div>' +
+          (o.proofPhoto ? '<img src="' + o.proofPhoto + '" alt="Photo de livraison" style="display:block;width:100%;height:220px;object-fit:cover">' :
+          '<div style="height:180px;background:repeating-linear-gradient(135deg,#e6e3dc 0 10px,#efece5 10px 20px);display:flex;align-items:center;justify-content:center"><span class="mono" style="font-size:10.5px;color:rgba(16,16,16,.5)">' + (o.courier ? esc(tm().proofNone) : 'photo de livraison') + '</span></div>') +
           '<div style="background:#fff;padding:13px 15px;display:flex;flex-direction:column;gap:5px">' +
             '<div class="fx jb"><span class="mono" style="font-size:10.5px;color:rgba(16,16,16,.5)">' + esc(d.gps) + '</span><span class="mono" style="font-size:10.5px;font-weight:600">4.0511 N · 9.7679 E</span></div>' +
             '<div class="fx jb"><span class="mono" style="font-size:10.5px;color:rgba(16,16,16,.5)">' + esc(d.timestamp) + '</span><span class="mono" style="font-size:10.5px;font-weight:600">' + nowLabel() + '</span></div>' +
-            '<div class="fx jb"><span class="mono" style="font-size:10.5px;color:rgba(16,16,16,.5)">' + esc(d.receivedBy) + '</span><span class="mono" style="font-size:10.5px;font-weight:600">A. Ngono</span></div>' +
+            '<div class="fx jb"><span class="mono" style="font-size:10.5px;color:rgba(16,16,16,.5)">' + esc(d.receivedBy) + '</span><span class="mono" style="font-size:10.5px;font-weight:600">' + esc(o.proofName || (o.courier ? "—" : "A. Ngono")) + '</span></div>' +
           '</div></div>' +
         '<div style="background:#fff;border:1px solid var(--hair);border-radius:16px;padding:15px;display:flex;flex-direction:column;gap:11px">' +
           '<span style="font-weight:700;font-size:13.5px">' + esc(d.rate) + '</span><div class="fx" style="gap:7px">' + stars + '</div></div>' +
@@ -1237,12 +1238,14 @@
 
   function tabbar() {
     var d = t();
-    var tabs = [
-      ["home", d.tabs[0], "6px"], ["orders", d.tabs[1], "4px"], ["wallet", d.tabs[2], "5px"], ["support", d.tabs[3], "99px"]
+    var srvOn = srv() && WAPI.token(), unread = srvOn ? totalUnread() : 0;
+    var tabs = isCourier() ? [["courses", tc().tabs[0], "6px"], ["support", tc().tabs[1], "99px"], ["account", tc().tabs[2], "5px"]] : [
+      ["home", d.tabs[0], "6px"], ["orders", d.tabs[1], "4px"], ["wallet", d.tabs[2], "5px"], ["support", srvOn ? tm().tab : d.tabs[3], "99px"]
     ];
     return '<div class="tabbar">' + tabs.map(function (tb) {
       var on = state.activeTab === tb[0];
-      return '<button class="tab ' + (on ? "on" : "") + '" data-action="switchTab" data-arg="' + tb[0] + '"><span class="tab-icon" style="border-radius:' + tb[2] + '"></span><span class="tab-label">' + esc(tb[1]) + '</span></button>';
+      return '<button class="tab ' + (on ? "on" : "") + '" data-action="switchTab" data-arg="' + tb[0] + '"><span class="tab-icon" style="border-radius:' + tb[2] + '"></span>' +
+        (tb[0] === "support" && unread ? '<span class="tab-badge">' + (unread > 9 ? "9+" : unread) + '</span>' : '') + '<span class="tab-label">' + esc(tb[1]) + '</span></button>';
     }).join("") + '</div>';
   }
 
@@ -1271,6 +1274,12 @@
         case "help": body = screenHelp(); break;
         case "dispute": body = screenDispute(); break;
         case "profile": body = screenProfile(); break;
+        case "inbox": body = screenInbox(); break;
+        case "newChat": body = screenNewChat(); break;
+        case "conv": body = screenConv(c.convId); break;
+        case "courierHome": body = screenCourierHome(); break;
+        case "course": body = screenCourse(c.orderId); break;
+        case "courierAccount": body = screenCourierAccount(); break;
         default: body = screenHome();
       }
       var key = state.activeTab + ":" + stack().length + ":" + c.screen + ":" + (state.draft ? state.draft.step : "") + ":" + (c.orderId || "");
@@ -1615,6 +1624,9 @@
     else if (bind === "topUpAmount") state.topUpAmount = el.value.replace(/\D/g, "");
     else if (bind === "sendPhone") state.sendPhone = el.value;
     else if (bind === "chatDraft") state.chatDraft = el.value;
+    else if (bind === "msgDraft") { state.msgDraft = el.value; return; }
+    else if (bind === "newChatPhone") { state.newChatPhone = el.value.replace(/[^\d ]/g, ""); return; }
+    else if (bind === "proofName") { if (state.proofForm) state.proofForm.name = el.value; return; }
     else return;
 
     render();
@@ -1695,7 +1707,13 @@
   function prefsSnapshot() { var o = {}; PREF_FIELDS.forEach(function (k) { o[k] = state[k]; }); o.lang = state.lang; o.settings = state.settings; return JSON.stringify(o); }
   function applyUser(u) {
     var name = u.name || "";
-    state.user = { id: u.id, name: name || (state.lang === "en" ? "WunaGo customer" : "Client WunaGo"), initials: initials(name || "W G") };
+    var wasCourier = state.user && state.user.role === "courier";
+    state.user = { id: u.id, name: name || (state.lang === "en" ? "WunaGo customer" : "Client WunaGo"), initials: initials(name || "W G"), role: u.role || "client", courier: u.courier || null };
+    if (state.user.role === "courier" && !wasCourier) {
+      state.tabStacks.courses = [{ screen: "courierHome" }]; state.tabStacks.account = [{ screen: "courierAccount" }];
+      if (["courses", "support", "account"].indexOf(state.activeTab) < 0) state.activeTab = "courses";
+      if (u.courier && u.courier.online) startGps();
+    }
     state.phone = prettyPhone(u.phone);
     state.wallet = { balance: u.wallet.balance };
     var p = u.prefs || {};
@@ -1710,14 +1728,18 @@
   }
   function syncAll() {
     return Promise.all([WAPI.get("/me"), WAPI.get("/orders"), WAPI.get("/disputes")]).then(function (r) {
-      applyUser(r[0].user); state.orders = r[1].orders; state.disputes = r[2].disputes; render();
+      applyUser(r[0].user); state.orders = r[1].orders; state.disputes = r[2].disputes;
+      if (state.tabStacks.support[0].screen === "chat") state.tabStacks.support = [{ screen: "inbox" }];
+      render(); loadConvs(); loadCourier(); subscribePush(); handleHash();
     }).catch(function (e) { if (e.status === 401) forceLogin(); });
   }
   function resetAccountState() {
     state.orders = []; state.disputes = []; state.addresses = []; state.chatByOrder = {}; state.draft = null;
     state.payAccounts = []; state.defaultPay = "orange_money"; state.notifPrefs = { orders: true, sms: true, push: false, promos: true };
-    state.tabStacks = { home: [{ screen: "home" }], orders: [{ screen: "history" }], wallet: [{ screen: "wallet" }], support: [{ screen: "chat" }] };
-    state.activeTab = "home";
+    state.tabStacks = { home: [{ screen: "home" }], orders: [{ screen: "history" }], wallet: [{ screen: "wallet" }], support: [{ screen: srv() ? "inbox" : "chat" }],
+      courses: [{ screen: "courierHome" }], account: [{ screen: "courierAccount" }] };
+    state.activeTab = "home"; state.convs = []; state.convMsgs = {}; state.courierData = { offers: [], orders: [] }; state.proofForm = null;
+    if (typeof stopGps === "function") stopGps();
   }
   function forceLogin() {
     WAPI.setToken(null); state.loggedIn = false; state.authScreen = "login"; state.otpInput = ""; state.generatedOtp = null;
@@ -1856,9 +1878,399 @@
     var cur0 = findOrder(c.orderId); if (cur0 && (cur0.status === "delivered" || cur0.status === "cancelled")) return;
     WAPI.get("/orders/" + c.orderId).then(function (r) {
       var old = findOrder(r.order.id);
-      if (!old || old.status !== r.order.status || old.stage !== r.order.stage) { replaceOrder(r.order); render(); }
+      if (!old || JSON.stringify(old) !== JSON.stringify(r.order)) {
+        replaceOrder(r.order);
+        var live = r.order.courier && r.order.courier.pos;
+        if (old && old.status === r.order.status && !!old.courier === !!r.order.courier && live && window.WMap && WMap.setCourier) { var ci = courierInfo(r.order); WMap.setCourier(ci.pos, ci.fraction); var el = document.getElementById("track-eta"); if (el) el.textContent = t().arriving + " · " + ci.min + " " + t().min; }
+        else render();
+      }
     }).catch(function () {});
   }, 15000);
+
+  /* ============================== messagerie · livreur · notifications ============================== */
+  var MSG = {
+    fr: { tab: "Messages", title: "Messages", support: "Service client WunaGo", supportSub: "Réponse en moins de 2 min", newChat: "Nouvelle discussion",
+      newChatTitle: "Écrire à un utilisateur WunaGo", newChatSub: "Indiquez son numéro de téléphone : il doit avoir un compte WunaGo.", start: "Démarrer",
+      empty: "Aucune discussion pour l'instant.", typing: "Votre message…", send: "Envoyer", photo: "Photo", you: "Vous", helpLink: "Aide et litiges",
+      courier: "Votre livreur", searching: "Recherche d'un livreur…", searchingSub: "Les livreurs WunaGo à proximité sont prévenus.", newDriver: "Nouveau livreur",
+      call: "Appeler", write: "Écrire", proofNone: "Photo non fournie" },
+    en: { tab: "Messages", title: "Messages", support: "WunaGo support", supportSub: "Replies in under 2 min", newChat: "New chat",
+      newChatTitle: "Message a WunaGo user", newChatSub: "Enter their phone number: they need a WunaGo account.", start: "Start",
+      empty: "No conversations yet.", typing: "Your message…", send: "Send", photo: "Photo", you: "You", helpLink: "Help and disputes",
+      courier: "Your courier", searching: "Finding a courier…", searchingSub: "Nearby WunaGo couriers have been notified.", newDriver: "New courier",
+      call: "Call", write: "Message", proofNone: "No photo provided" }
+  };
+  var CR = {
+    fr: { tabs: ["Courses", "Messages", "Compte"], online: "En ligne", offline: "Hors ligne", goOnline: "Passer en ligne", goOffline: "Passer hors ligne",
+      offlineSub: "Passez en ligne pour recevoir des courses et partager votre position.", mine: "Mes courses en cours", offers: "Courses disponibles",
+      noOffers: "Aucune course disponible pour le moment. Vous serez prévenu dès qu'une course arrive.", accept: "Accepter", taken: "Course acceptée.",
+      gain: "Gain estimé", fromMe: "de vous", collect: "À encaisser", prepaid: "Déjà payé", advance: "Avance des achats",
+      steps: { picked_up: "J'ai récupéré", en_route: "Je suis en route", delivered: "Livrer" },
+      stepsRide: { picked_up: "Passager à bord", en_route: "En trajet", delivered: "Course terminée" },
+      proofTitle: "Preuve de livraison", proofName: "Nom de la personne qui a reçu", proofPhoto: "Photo du colis livré", confirmDelivery: "Confirmer la livraison",
+      route1: "Itinéraire vers le départ", route2: "Itinéraire vers l'arrivée", client: "Client", items: "Détail", passengers: "passager(s)",
+      today: "Livrées aujourd'hui", earned: "Gains du jour (estimés)", vehicle: "Véhicule", plate: "Plaque", done: "Terminées", gpsOff: "Activez la localisation pour partager votre position." },
+    en: { tabs: ["Jobs", "Messages", "Account"], online: "Online", offline: "Offline", goOnline: "Go online", goOffline: "Go offline",
+      offlineSub: "Go online to receive jobs and share your location.", mine: "My active jobs", offers: "Available jobs",
+      noOffers: "No job available right now. You'll be notified as soon as one arrives.", accept: "Accept", taken: "Job accepted.",
+      gain: "Est. earnings", fromMe: "from you", collect: "To collect", prepaid: "Already paid", advance: "Shopping advance",
+      steps: { picked_up: "Picked up", en_route: "On my way", delivered: "Deliver" },
+      stepsRide: { picked_up: "Passenger on board", en_route: "On the trip", delivered: "Ride completed" },
+      proofTitle: "Proof of delivery", proofName: "Name of the person who received it", proofPhoto: "Photo of the delivered item", confirmDelivery: "Confirm delivery",
+      route1: "Route to pickup", route2: "Route to drop-off", client: "Customer", items: "Details", passengers: "passenger(s)",
+      today: "Delivered today", earned: "Today's earnings (est.)", vehicle: "Vehicle", plate: "Plate", done: "Completed", gpsOff: "Turn on location to share your position." }
+  };
+  function tm() { return MSG[state.lang] || MSG.fr; }
+  function tc() { return CR[state.lang] || CR.fr; }
+  function isCourier() { return !!(state.user && state.user.role === "courier" && srv()); }
+  function fmtTime(ms) {
+    var d = new Date(ms), now = new Date();
+    var same = d.toDateString() === now.toDateString();
+    return same ? d.toLocaleTimeString(state.lang === "en" ? "en-GB" : "fr-FR", { hour: "2-digit", minute: "2-digit" })
+      : d.toLocaleDateString(state.lang === "en" ? "en-GB" : "fr-FR", { day: "2-digit", month: "short" });
+  }
+  function avatar(name, dark) {
+    var ini = initials(String(name || "W G").replace(/^\+237\s*/, "W "));
+    return '<span class="fx ac jc" aria-hidden="true" style="width:44px;height:44px;flex:none;border-radius:99px;background:' + (dark ? "#101010" : "#FFD700") + ';color:' + (dark ? "#FFD700" : "#101010") + ';font-weight:800;font-size:13px">' + esc(ini) + '</span>';
+  }
+  function readImage(file, cb) {
+    var reader = new FileReader();
+    reader.onload = function () {
+      var img = new Image();
+      img.onload = function () {
+        var s = Math.min(1, 640 / Math.max(img.width, img.height)), c = document.createElement("canvas");
+        c.width = Math.round(img.width * s); c.height = Math.round(img.height * s);
+        c.getContext("2d").drawImage(img, 0, 0, c.width, c.height); cb(c.toDataURL("image/jpeg", 0.75));
+      };
+      img.src = reader.result;
+    };
+    reader.readAsDataURL(file);
+  }
+  var CAMERA = '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linejoin="round" aria-hidden="true"><path d="M4 7h3l2-2.5h6L17 7h3v12H4z"/><circle cx="12" cy="13" r="3.5"/></svg>';
+
+  /* ---------- messagerie ---------- */
+  state.convs = state.convs || []; state.convMsgs = {}; state.unread = 0;
+  function totalUnread() { return (state.convs || []).reduce(function (s, c) { return s + (c.unread || 0); }, 0); }
+  function loadConvs() {
+    if (!srv() || !WAPI.token()) return Promise.resolve();
+    return WAPI.get("/conversations").then(function (r) {
+      var before = JSON.stringify(state.convs);
+      state.convs = r.conversations; state.unread = totalUnread();
+      if (before !== JSON.stringify(state.convs)) render();
+    }).catch(function () {});
+  }
+  function openConv(conv) {
+    state.convs = (state.convs || []).filter(function (c) { return c.id !== conv.id; }).concat([conv]).sort(function (a, b) { return b.lastAt - a.lastAt; });
+    state.activeTab = "support";
+    state.tabStacks.support = [{ screen: "inbox" }, { screen: "conv", convId: conv.id }];
+    render(); loadMessages(conv.id, true);
+  }
+  function startConv(payload) {
+    return WAPI.post("/conversations", payload).then(function (r) { openConv(r.conversation); }).catch(errToast);
+  }
+  function loadMessages(convId, scroll) {
+    var list = state.convMsgs[convId] || [], after = list.length ? list[list.length - 1].id : 0;
+    return WAPI.get("/conversations/" + convId + "/messages?after=" + after).then(function (r) {
+      if (!r.messages.length && list.length) return;
+      state.convMsgs[convId] = list.concat(r.messages.filter(function (m) { return !list.some(function (x) { return x.id === m.id; }); }));
+      var cv = (state.convs || []).filter(function (c) { return c.id === convId; })[0]; if (cv) { cv.unread = 0; state.unread = totalUnread(); }
+      render(); scrollChat();
+    }).catch(function () {});
+  }
+  function scrollChat() { var sc = document.getElementById("conv-scroll"); if (sc) sc.scrollTop = sc.scrollHeight; }
+
+  function screenInbox() {
+    var m = tm(), convs = state.convs || [];
+    var support = convs.filter(function (c) { return c.kind === "support"; })[0];
+    var others = convs.filter(function (c) { return c !== support; });
+    function row(c, pinned) {
+      var last = c && c.last ? (c.last.mine ? m.you + " : " : "") + c.last.body : (pinned ? m.supportSub : "");
+      return '<button class="fx ac" data-action="' + (c ? "openConvId" : "openSupport") + '"' + (c ? ' data-arg="' + c.id + '"' : '') + ' style="gap:12px;width:100%;text-align:left;border:0;background:transparent;padding:12px 14px;min-height:64px;cursor:pointer;color:#101010">' +
+        avatar(pinned ? "W G" : c.title, pinned) +
+        '<span class="col" style="gap:2px;flex:1;min-width:0"><span class="fx ac jb" style="gap:8px"><span style="font-weight:700;font-size:14px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">' + esc(pinned ? m.support : c.title) + '</span>' +
+          (c && c.lastAt && c.last ? '<span class="mono" style="font-size:10px;color:rgba(16,16,16,.55);flex:none">' + fmtTime(c.lastAt) + '</span>' : '') + '</span>' +
+        (c && c.subtitle && c.kind !== "support" ? '<span class="mono" style="font-size:10px;color:rgba(16,16,16,.55)">' + esc(c.subtitle) + '</span>' : '') +
+        '<span class="fx ac jb" style="gap:8px"><span style="font-size:12.5px;color:rgba(16,16,16,.68);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">' + esc(last) + '</span>' +
+          (c && c.unread ? '<span class="unread">' + c.unread + '</span>' : '') + '</span></span></button>';
+    }
+    var list = others.map(function (c, i) { return (i ? '<div style="height:1px;background:var(--hair);margin-left:70px"></div>' : '') + row(c, false); }).join("");
+    return page3('<div class="fx ac jb"><h1 style="margin:0;font-weight:800;font-size:23px;letter-spacing:-.7px">' + esc(m.title) + '</h1>' +
+        '<button class="btn btn-ink" data-action="openScreen" data-arg="newChat" style="height:38px;border-radius:99px;padding:0 14px;font-size:12px">+ ' + esc(m.newChat) + '</button></div>' +
+      '<div style="' + card + '">' + row(support, true) + '</div>' +
+      (list ? '<div style="' + card + '">' + list + '</div>' : '<p style="margin:0;font-size:12.5px;color:rgba(16,16,16,.6);text-align:center">' + esc(m.empty) + '</p>') +
+      (isCourier() ? '' : '<button class="btn" data-action="openScreen" data-arg="help" style="height:44px;background:transparent;font-weight:700;font-size:12.5px;text-decoration:underline">' + esc(m.helpLink) + '</button>'));
+  }
+  function screenNewChat() {
+    var m = tm();
+    return page3(hdr(m.newChatTitle) + '<p style="margin:0;font-size:12.5px;line-height:1.5;color:rgba(16,16,16,.7)">' + esc(m.newChatSub) + '</p>' +
+      '<label class="fx ac" style="gap:10px;' + card + ';padding:0 15px;height:54px"><span class="mono" style="font-weight:600;font-size:14px;color:rgba(16,16,16,.6)">+237</span>' +
+      '<input data-bind="newChatPhone" inputmode="numeric" autocomplete="tel-national" aria-label="Numéro" placeholder="6 99 12 34 56" value="' + esc(state.newChatPhone || "") + '" style="flex:1;height:100%;font-weight:600;font-size:15px" /></label>' +
+      '<button class="btn btn-ink" data-action="startDirect">' + esc(m.start) + '</button>');
+  }
+  function screenConv(convId) {
+    var m = tm(), conv = (state.convs || []).filter(function (c) { return c.id === convId; })[0] || { title: m.support, subtitle: "" };
+    var msgs = state.convMsgs[convId] || [], group = conv.kind !== "direct";
+    var rows = msgs.map(function (x) {
+      var me = x.mine;
+      return '<div class="fx" style="justify-content:' + (me ? "flex-end" : "flex-start") + '"><div class="bubble' + (me ? " me" : "") + '">' +
+        (!me && group ? '<div class="bubble-author">' + esc(x.author) + '</div>' : '') +
+        (x.photo ? '<img src="' + x.photo + '" alt="' + esc(m.photo) + '" style="display:block;max-width:100%;border-radius:10px;margin-bottom:' + (x.body && x.body !== "📷" ? "6px" : "0") + '">' : '') +
+        (x.body && x.body !== "📷" ? '<div>' + esc(x.body) + '</div>' : '') +
+        '<div class="bubble-time">' + fmtTime(x.at) + '</div></div></div>';
+    }).join("");
+    return '<div class="fx ac" style="gap:11px;background:#FFD700;padding:calc(12px + var(--sat)) 16px 12px;flex:none">' +
+        '<button class="backbtn" aria-label="Retour" data-action="popScreen" style="background:rgba(16,16,16,.1)">←</button>' + avatar(conv.title, conv.kind === "support" && !(state.user.role === "admin")) +
+        '<div class="col" style="gap:1px;flex:1;min-width:0"><span style="font-weight:800;font-size:14.5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">' + esc(conv.title) + '</span><span class="mono" style="font-size:10px;color:rgba(16,16,16,.65)">' + esc(conv.subtitle || "") + '</span></div></div>' +
+      '<div class="scroll" id="conv-scroll" style="background:#f3f1ea"><div class="col" style="padding:14px 14px 10px;gap:7px">' + rows + '</div></div>' +
+      '<div class="fx ac" style="gap:8px;padding:9px 12px calc(10px + var(--sab));border-top:1px solid var(--hair);background:#fbfaf7;flex:none">' +
+        '<label class="btn" aria-label="' + esc(m.photo) + '" style="width:44px;height:44px;flex:none;border-radius:12px;background:rgba(16,16,16,.07);padding:0;position:relative;cursor:pointer">' + CAMERA +
+          '<input type="file" accept="image/*" data-file="chat" data-arg="' + convId + '" style="position:absolute;width:1px;height:1px;opacity:0"></label>' +
+        '<input data-bind="msgDraft" aria-label="' + esc(m.typing) + '" placeholder="' + esc(m.typing) + '" value="' + esc(state.msgDraft || "") + '" enterkeyhint="send" style="flex:1;min-width:0;height:44px;border:1px solid var(--hair);border-radius:12px;background:#fff;padding:0 13px;font-weight:500;font-size:14px" />' +
+        '<button class="btn btn-ink" data-action="sendMsg" data-arg="' + convId + '" aria-label="' + esc(m.send) + '" style="width:44px;height:44px;flex:none;border-radius:12px;padding:0;font-weight:700">→</button></div>';
+  }
+  function sendMessage(convId, body, photo) {
+    var list = state.convMsgs[convId] || (state.convMsgs[convId] = []);
+    var tmp = { id: -Date.now(), body: body || "📷", photo: photo || null, at: Date.now(), mine: true, author: tm().you, pending: true };
+    list.push(tmp); render(); scrollChat();
+    WAPI.post("/conversations/" + convId + "/messages", { body: body, photo: photo }).then(function (r) {
+      var i = list.indexOf(tmp); if (i >= 0) list[i] = r.message; render(); scrollChat(); loadConvs();
+    }).catch(function (e) { var i = list.indexOf(tmp); if (i >= 0) list.splice(i, 1); render(); errToast(e); });
+  }
+
+  /* ---------- suivi : vrai livreur ---------- */
+  function courierBlock(o, orderId) {
+    var m = tm(), d = t(), c = o.courier;
+    if (!c) {
+      if (!srv()) return '<div class="fx ac" style="gap:11px">' + avatar("Marcel K.") +
+        '<div class="col" style="gap:2px;flex:1"><span style="font-weight:700;font-size:14px">Marcel K.</span><span class="mono" style="font-size:10.5px;color:rgba(16,16,16,.55)">4.9 · CE 812 AB · démo</span></div>' +
+        '<button class="btn" data-action="go" data-arg="chat|' + orderId + '" aria-label="' + esc(m.write) + '" style="width:44px;height:44px;border-radius:11px;background:rgba(16,16,16,.07);font-weight:700;font-size:11px;padding:0">SMS</button></div>';
+      return '<div class="fx ac" style="gap:11px"><span class="spinner" style="width:22px;height:22px;border-color:rgba(16,16,16,.15);border-top-color:#101010"></span>' +
+        '<div class="col" style="gap:2px;flex:1"><span style="font-weight:700;font-size:14px">' + esc(m.searching) + '</span><span style="font-size:11.5px;color:rgba(16,16,16,.6)">' + esc(m.searchingSub) + '</span></div></div>';
+    }
+    var veh = (o.service === "ride" ? { bike: "Moto-taxi", car: "Voiture" }[c.vehicle] : d.vehNames[c.vehicle]) || "";
+    return '<div class="fx ac" style="gap:11px">' + avatar(c.name) +
+      '<div class="col" style="gap:2px;flex:1;min-width:0"><span class="mono" style="font-size:9.5px;letter-spacing:.06em;color:rgba(16,16,16,.55)">' + esc(m.courier.toUpperCase()) + '</span><span style="font-weight:700;font-size:14px">' + esc(c.name) + '</span>' +
+        '<span class="mono" style="font-size:10.5px;color:rgba(16,16,16,.6)">' + (c.rating ? c.rating + " ★ · " : esc(m.newDriver) + " · ") + esc(veh) + (c.plate ? " · " + esc(c.plate) : "") + '</span></div>' +
+      (srv() ? '<button class="btn" data-action="openOrderChat" data-arg="' + orderId + '" aria-label="' + esc(m.write) + '" style="width:44px;height:44px;border-radius:11px;background:rgba(16,16,16,.07);padding:0">' + ICON_CHAT + '</button>' : '') +
+      (c.phone ? '<a class="btn btn-ink" href="tel:+237' + esc(c.phone) + '" aria-label="' + esc(m.call) + '" style="width:44px;height:44px;border-radius:11px;padding:0;text-decoration:none">' + ICON_PHONE + '</a>' : '') + '</div>';
+  }
+  var ICON_CHAT = '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linejoin="round" aria-hidden="true"><path d="M4 5h16v11H9l-5 4z"/></svg>';
+  var ICON_PHONE = '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#FFD700" stroke-width="2.2" stroke-linejoin="round" aria-hidden="true"><path d="M5 4h4l2 5-2.5 1.5a11 11 0 0 0 5 5L15 13l5 2v4a2 2 0 0 1-2 2A16 16 0 0 1 3 6a2 2 0 0 1 2-2z"/></svg>';
+
+  /* ---------- notifications sur le téléphone ---------- */
+  function b64ToBytes(s) { var p = "=".repeat((4 - s.length % 4) % 4), b = atob((s + p).replace(/-/g, "+").replace(/_/g, "/")); var a = new Uint8Array(b.length); for (var i = 0; i < b.length; i++) a[i] = b.charCodeAt(i); return a; }
+  function subscribePush() {
+    if (!srv() || !WAPI.token() || !WAPI.status.pushKey || !("serviceWorker" in navigator) || !window.PushManager) return Promise.resolve(false);
+    if (!window.Notification || Notification.permission !== "granted") return Promise.resolve(false);
+    return navigator.serviceWorker.ready.then(function (reg) {
+      return reg.pushManager.getSubscription().then(function (sub) {
+        return sub || reg.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: b64ToBytes(WAPI.status.pushKey) });
+      });
+    }).then(function (sub) { return WAPI.post("/push/subscribe", { subscription: sub.toJSON() }).then(function () { return true; }); })
+      .catch(function () { return false; });
+  }
+
+  /* ---------- espace livreur ---------- */
+  state.courierData = { offers: [], orders: [] };
+  var gpsWatch = null, lastGps = null, lastGpsSent = 0;
+  function startGps() {
+    if (gpsWatch != null || !navigator.geolocation) return;
+    gpsWatch = navigator.geolocation.watchPosition(function (p) {
+      lastGps = { lat: p.coords.latitude, lng: p.coords.longitude };
+      if (Date.now() - lastGpsSent > 20000) { lastGpsSent = Date.now(); WAPI.post("/courier/position", lastGps).catch(function () {}); }
+    }, function () { toast(tc().gpsOff); }, { enableHighAccuracy: true, maximumAge: 15000, timeout: 20000 });
+  }
+  function stopGps() { if (gpsWatch != null && navigator.geolocation) navigator.geolocation.clearWatch(gpsWatch); gpsWatch = null; }
+  function loadCourier() {
+    if (!isCourier()) return Promise.resolve();
+    var online = state.user.courier && state.user.courier.online;
+    return Promise.all([online ? WAPI.get("/courier/offers") : Promise.resolve({ offers: [] }), WAPI.get("/courier/orders")]).then(function (r) {
+      var before = JSON.stringify(state.courierData);
+      state.courierData = { offers: r[0].offers, orders: r[1].orders };
+      if (before !== JSON.stringify(state.courierData)) render();
+    }).catch(function (e) { if (e.status === 401) forceLogin(); });
+  }
+  function courierGain(o) {
+    var art = (o.priceLines || []).filter(function (l) { return l.key === "articles"; }).reduce(function (s, l) { return s + l.amount; }, 0);
+    return Math.round(((o.price ? o.price.net : 0) - art) * WPricing.TARIFS.partLivreur / 50) * 50;
+  }
+  function detailsSummary(o) {
+    var e4 = t4(), x = o.details || {};
+    if (o.service === "laundry" && x.laundry) {
+      var parts = Object.keys(x.laundry.items || {}).map(function (k) { return x.laundry.items[k] + " × " + (e4.laundryItems[k] || k); });
+      if (x.laundry.kg) parts.push(fmtW(x.laundry.kg) + " " + e4.kiloTitle.toLowerCase());
+      return parts.join(" · ") + " — " + (e4.modes[x.laundry.mode] || "") + ", " + (e4.speeds[x.laundry.speed] || "");
+    }
+    if (o.service === "errand" && x.errand) return x.errand.list.map(function (i) { return i.qty + " × " + i.name; }).join(" · ");
+    if (o.service === "ride" && x.ride) return x.ride.passengers + " " + tc().passengers;
+    if (o.service === "parcel") return fmtW(o.weightKg);
+    return "";
+  }
+  function offerCard(o, mine) {
+    var c = tc(), d = t();
+    var payInfo = o.paymentMethod === "cash" ? c.collect + " : " + fmtFcfa(o.price.net) : c.prepaid;
+    return '<button class="col" data-action="openCourse" data-arg="' + o.id + '" style="gap:8px;width:100%;text-align:left;' + card + ';padding:13px 14px;cursor:pointer;color:#101010">' +
+      '<span class="fx ac jb" style="gap:8px"><span class="mono" style="font-size:10px;color:rgba(16,16,16,.6)">' + o.code + ' · ' + esc(svcName(o.service)) + '</span>' +
+        (mine ? '<span class="mono" style="border-radius:99px;padding:4px 9px;background:#FFD700;font-weight:700;font-size:9.5px">' + esc(statusLabel(o.status)) + '</span>' : (o.fromMeKm != null ? '<span class="mono" style="font-size:10px;font-weight:700">' + fmtKm(o.fromMeKm) + ' ' + esc(c.fromMe) + '</span>' : '')) + '</span>' +
+      '<span style="font-weight:700;font-size:13.5px">' + esc(o.pickup) + (o.dropoff !== o.pickup ? ' → ' + esc(o.dropoff) : '') + '</span>' +
+      '<span style="font-size:12px;color:rgba(16,16,16,.7)">' + esc(detailsSummary(o)) + '</span>' +
+      '<span class="fx ac jb"><span class="mono" style="font-size:10.5px;color:rgba(16,16,16,.6)">' + esc(payInfo) + (o.scheduledAt ? ' · ' + fmtTime(o.scheduledAt) : '') + '</span><span style="font-weight:800;font-size:14px">' + esc(c.gain) + ' ' + fmtFcfa(courierGain(o)) + '</span></span>' +
+      (mine ? '' : '<span class="btn btn-yellow" data-action="acceptCourse" data-arg="' + o.id + '" role="button" style="height:44px">' + esc(c.accept) + '</span>') + '</button>';
+  }
+  function screenCourierHome() {
+    var c = tc(), cd = state.courierData, online = state.user.courier && state.user.courier.online;
+    var mine = cd.orders.filter(function (o) { return o.status !== "delivered" && o.status !== "cancelled"; });
+    return page3('<div class="fx ac jb"><div class="col" style="gap:2px"><span style="font-size:12px;color:rgba(16,16,16,.65)">' + esc(t().greeting) + '</span><h1 style="margin:0;font-weight:800;font-size:21px;letter-spacing:-.5px">' + esc(state.user.name) + '</h1></div>' +
+        '<span class="mono" style="border-radius:99px;padding:6px 11px;font-weight:700;font-size:10.5px;background:' + (online ? "#101010" : "rgba(16,16,16,.08)") + ';color:' + (online ? "#FFD700" : "rgba(16,16,16,.7)") + '">● ' + esc(online ? c.online : c.offline) + '</span></div>' +
+      '<button class="btn ' + (online ? "btn-outline" : "btn-yellow") + '" data-action="toggleOnline" style="color:#101010">' + esc(online ? c.goOffline : c.goOnline) + '</button>' +
+      (online ? '' : '<p style="margin:0;font-size:12.5px;line-height:1.5;color:rgba(16,16,16,.65)">' + esc(c.offlineSub) + '</p>') +
+      (mine.length ? sectionTitle(c.mine) + mine.map(function (o) { return offerCard(o, true); }).join("") : '') +
+      (online ? sectionTitle(c.offers) + (cd.offers.length ? cd.offers.map(function (o) { return offerCard(o, false); }).join("") : '<p style="margin:0;font-size:12.5px;line-height:1.5;color:rgba(16,16,16,.6)">' + esc(c.noOffers) + '</p>') : ''));
+  }
+  function findCourse(id) { var cd = state.courierData; return cd.orders.concat(cd.offers).filter(function (o) { return o.id === id; })[0]; }
+  function screenCourse(id) {
+    var c = tc(), d = t(), o = findCourse(id);
+    if (!o) return page3(hdr("—"));
+    var mine = o.courier && o.courier.id === state.user.id, steps = o.service === "ride" ? c.stepsRide : c.steps;
+    var next = o.status === "cancelled" || o.status === "delivered" ? null : o.stage === 0 ? "picked_up" : o.stage === 1 ? "en_route" : "delivered";
+    var g = orderGeo(o), pf = state.proofForm && state.proofForm.orderId === id ? state.proofForm : null;
+    var nav = function (to, label) { return '<a class="btn btn-outline gmaps-link" target="_blank" rel="noopener" href="https://www.google.com/maps/dir/?api=1&destination=' + to.lat.toFixed(6) + ',' + to.lng.toFixed(6) + '&travelmode=driving" style="width:100%;gap:7px;color:#101010;text-decoration:none">' + ICON.pin + esc(label) + '</a>'; };
+    var action = "";
+    if (!mine && o.status === "received") action = '<button class="btn btn-yellow" data-action="acceptCourse" data-arg="' + o.id + '">' + esc(c.accept) + ' · ' + fmtFcfa(courierGain(o)) + '</button>';
+    else if (mine && next === "delivered") action = pf ? '<div class="col" style="gap:10px;' + card + ';padding:14px">' + sectionTitle(c.proofTitle) +
+        '<input data-bind="proofName" aria-label="' + esc(c.proofName) + '" placeholder="' + esc(c.proofName) + '" value="' + esc(pf.name || "") + '" style="background:rgba(16,16,16,.04);border-radius:12px;height:48px;padding:0 13px;font-weight:600;font-size:14px" />' +
+        '<label class="fx ac" style="gap:10px;background:rgba(16,16,16,.04);border-radius:12px;padding:8px 12px;min-height:52px;cursor:pointer;position:relative">' + (pf.photo ? '<img src="' + pf.photo + '" alt="" width="40" height="40" style="border-radius:8px;object-fit:cover">' : CAMERA) +
+          '<span style="font-weight:700;font-size:13px">' + esc(c.proofPhoto) + '</span><input type="file" accept="image/*" capture="environment" data-file="proof" style="position:absolute;width:1px;height:1px;opacity:0"></label>' +
+        '<button class="btn btn-ink" data-action="confirmDelivery" data-arg="' + o.id + '">' + esc(c.confirmDelivery) + '</button></div>'
+      : '<button class="btn btn-ink" data-action="startProof" data-arg="' + o.id + '">' + esc(steps.delivered) + '</button>';
+    else if (mine && next) action = '<button class="btn btn-ink" data-action="courseStep" data-arg="' + o.id + '|' + next + '">' + esc(steps[next]) + '</button>';
+    var client = o.client || {};
+    return page3(hdr(o.code + " · " + svcName(o.service)) +
+      '<div style="' + card + ';padding:14px;display:flex;flex-direction:column;gap:10px">' +
+        '<div class="fx" style="gap:10px"><span style="width:9px;height:9px;margin-top:5px;flex:none;border-radius:99px;background:#FFD700;border:2.5px solid #101010"></span><span style="font-weight:700;font-size:13.5px">' + esc(o.pickup) + '</span></div>' +
+        (o.dropoff !== o.pickup ? '<div class="fx" style="gap:10px"><span style="width:9px;height:9px;margin-top:5px;flex:none;background:#101010"></span><span style="font-weight:700;font-size:13.5px">' + esc(o.dropoff) + '</span></div>' : '') +
+        '<div style="font-size:12.5px;line-height:1.5;color:rgba(16,16,16,.75)">' + esc(detailsSummary(o)) + (o.note ? '<br>« ' + esc(o.note) + ' »' : '') + '</div>' +
+        '<div class="fx ac jb"><span class="mono" style="font-size:10.5px;color:rgba(16,16,16,.6)">' + esc(o.paymentMethod === "cash" ? c.collect + " " + fmtFcfa(o.price.net) : c.prepaid) + '</span><span style="font-weight:800">' + esc(c.gain) + ' ' + fmtFcfa(courierGain(o)) + '</span></div></div>' +
+      (mine && client.phone ? '<div class="fx ac" style="gap:11px;' + card + ';padding:12px 14px">' + avatar(client.name) + '<div class="col" style="gap:2px;flex:1"><span class="mono" style="font-size:9.5px;color:rgba(16,16,16,.55)">' + esc(c.client.toUpperCase()) + '</span><span style="font-weight:700">' + esc(client.name) + '</span></div>' +
+        '<button class="btn" data-action="openOrderChat" data-arg="' + o.id + '" aria-label="' + esc(tm().write) + '" style="width:44px;height:44px;border-radius:11px;background:rgba(16,16,16,.07);padding:0">' + ICON_CHAT + '</button>' +
+        '<a class="btn btn-ink" href="tel:+237' + esc(client.phone) + '" aria-label="' + esc(tm().call) + '" style="width:44px;height:44px;border-radius:11px;padding:0;text-decoration:none">' + ICON_PHONE + '</a></div>' : '') +
+      (mine && o.stage === 0 ? nav(g.pickup, c.route1) : '') + (mine && o.stage >= 1 && next ? nav(g.dropoff, c.route2) : '') + action);
+  }
+  function screenCourierAccount() {
+    var c = tc(), cd = state.courierData, p = tp();
+    var today = cd.orders.filter(function (o) { return o.status === "delivered" && o.proofAt && new Date(o.proofAt).toDateString() === new Date().toDateString(); });
+    var earned = today.reduce(function (s, o) { return s + courierGain(o); }, 0), cv = state.user.courier || {};
+    return page3('<div class="fx ac" style="gap:12px">' + avatar(state.user.name) + '<div class="col" style="gap:2px"><span style="font-weight:800;font-size:17px">' + esc(state.user.name) + '</span><span class="mono" style="font-size:11px;color:rgba(16,16,16,.6)">+237 ' + esc(state.phone) + '</span></div></div>' +
+      '<div class="col" style="background:#101010;border-radius:19px;padding:17px;gap:6px"><span class="mono" style="font-size:10px;letter-spacing:.08em;color:rgba(255,255,255,.6)">' + esc(c.earned.toUpperCase()) + '</span><span style="font-weight:800;font-size:28px;color:#FFD700">' + fmtFcfa(earned) + '</span><span class="mono" style="font-size:11px;color:rgba(255,255,255,.7)">' + today.length + ' · ' + esc(c.today.toLowerCase()) + '</span></div>' +
+      '<div style="' + card + ';padding:4px 14px">' +
+        '<div class="fx jb" style="padding:10px 0;border-bottom:1px solid var(--hair)"><span style="font-weight:700;font-size:13px">' + esc(c.vehicle) + '</span><span class="mono" style="font-size:11px">' + esc(t().vehNames[cv.vehicle] || { car: "Voiture" }[cv.vehicle] || "—") + '</span></div>' +
+        '<div class="fx jb" style="padding:10px 0"><span style="font-weight:700;font-size:13px">' + esc(c.plate) + '</span><span class="mono" style="font-size:11px">' + esc(cv.plate || "—") + '</span></div></div>' +
+      '<button class="btn btn-outline" data-action="openScreen" data-arg="notifs" style="color:#101010">' + esc(t().notifs) + '</button>' +
+      '<button class="btn btn-outline" data-action="logOut" style="color:#101010">' + esc(t().logOut) + '</button>');
+  }
+
+  /* ---------- boucles de rafraîchissement (mode serveur) ---------- */
+  var tick = 0;
+  setInterval(function () {
+    if (!srv() || !state.loggedIn || !WAPI.token() || document.hidden) return;
+    tick++;
+    var c = cur();
+    if (c.screen === "conv") loadMessages(c.convId);
+    if (c.screen === "inbox" ? tick % 2 === 0 : tick % 5 === 0) loadConvs();
+    if (isCourier() && (c.screen === "courierHome" || c.screen === "course") && tick % 4 === 0) loadCourier();
+  }, 4000);
+
+  /* liens ouverts depuis une notification : #discussion=… #commande=… #courses */
+  function handleHash() {
+    if (!state.loggedIn) return;
+    var h = location.hash, m1 = h.match(/^#discussion=([\w-]+)/), m2 = h.match(/^#commande=([\w-]+)/);
+    if (m1 && srv()) { state.activeTab = "support"; state.tabStacks.support = [{ screen: "inbox" }, { screen: "conv", convId: m1[1] }]; loadConvs().then(function () { loadMessages(m1[1], true); }); }
+    else if (m2) { var o = findOrder(m2[1]); if (o) { state.activeTab = "orders"; state.tabStacks.orders = [{ screen: "history" }, { screen: o.status === "delivered" ? "proof" : "track", orderId: o.id }]; } }
+    else if (h === "#courses" && isCourier()) { state.activeTab = "courses"; }
+    if (m1 || m2 || h === "#courses") { try { history.replaceState(null, "", location.pathname); } catch (e) {} render(); }
+  }
+  window.addEventListener("hashchange", handleHash);
+  if (navigator.serviceWorker) navigator.serviceWorker.addEventListener("message", function (ev) { if (ev.data && ev.data.wgOpen && ev.data.wgOpen.indexOf("#") >= 0) { location.hash = ev.data.wgOpen.replace(/^.*#/, "#"); } });
+
+  /* photos : discussion et preuve de livraison */
+  document.addEventListener("change", function (ev) {
+    var el = ev.target, kind = el && el.getAttribute && el.getAttribute("data-file");
+    if (!kind || !el.files || !el.files[0]) return;
+    if (kind === "chat") readImage(el.files[0], function (data) { sendMessage(el.getAttribute("data-arg"), "", data); });
+    if (kind === "proof" && state.proofForm) readImage(el.files[0], function (data) { state.proofForm.photo = data; render(); });
+  });
+
+  /* ---------- actions ---------- */
+  actions.openConvId = function (el, arg) { push("conv", { convId: arg }); loadMessages(arg, true); };
+  actions.openSupport = function () {
+    var s = (state.convs || []).filter(function (c) { return c.kind === "support"; })[0];
+    if (s) { push("conv", { convId: s.id }); loadMessages(s.id, true); } else startConv({ kind: "support" });
+  };
+  actions.startDirect = function () {
+    var digits = String(state.newChatPhone || "").replace(/\D/g, "");
+    if (!/^6\d{8}$/.test(digits)) { toast(state.lang === "en" ? "Number: 9 digits starting with 6." : "Numéro : 9 chiffres commençant par 6."); return; }
+    startConv({ kind: "direct", phone: digits }).then(function () { state.newChatPhone = ""; });
+  };
+  actions.sendMsg = function (el, arg) {
+    var text = String(state.msgDraft || "").trim(); if (!text) return;
+    state.msgDraft = ""; sendMessage(arg, text, null);
+  };
+  actions.openOrderChat = function (el, arg) { startConv({ kind: "order", orderId: arg }); };
+  var baseGo = actions.go;
+  actions.go = function (el, arg) {
+    if (srv() && arg.split("|")[0] === "chat") { var id = arg.split("|")[1]; if (id) actions.openOrderChat(el, id); else actions.openSupport(); return; }
+    baseGo(el, arg);
+  };
+  actions.openChatGeneral = function () {
+    if (!srv()) { state.activeTab = "support"; state.tabStacks.support = [{ screen: "chat", orderId: null }]; render(); return; }
+    state.activeTab = "support"; state.tabStacks.support = [{ screen: "inbox" }]; actions.openSupport();
+  };
+  actions.toggleOnline = function () {
+    var on = !(state.user.courier && state.user.courier.online);
+    WAPI.post("/courier/status", { online: on }).then(function (r) {
+      applyUser(r.user);
+      if (on) { startGps(); subscribePush(); } else stopGps();
+      render(); loadCourier();
+    }).catch(errToast);
+  };
+  actions.openCourse = function (el, arg) { if (cur().screen !== "course") push("course", { orderId: arg }); };
+  actions.acceptCourse = function (el, arg) {
+    if (state.busy) return; state.busy = true;
+    WAPI.post("/courier/orders/" + arg + "/accept", {}).then(function (r) {
+      state.busy = false; state.courierData.offers = state.courierData.offers.filter(function (o) { return o.id !== arg; });
+      state.courierData.orders.unshift(r.order); toast(tc().taken);
+      if (cur().screen !== "course") push("course", { orderId: r.order.id }); else render();
+    }).catch(function (e) { state.busy = false; errToast(e); loadCourier(); });
+  };
+  function putCourse(o) { var l = state.courierData.orders; for (var i = 0; i < l.length; i++) if (l[i].id === o.id) { l[i] = o; return; } l.unshift(o); }
+  actions.courseStep = function (el, arg) {
+    if (state.busy) return; state.busy = true;
+    var p = arg.split("|");
+    WAPI.post("/courier/orders/" + p[0] + "/step", { to: p[1] }).then(function (r) { state.busy = false; putCourse(r.order); render(); })
+      .catch(function (e) { state.busy = false; errToast(e); loadCourier(); });
+  };
+  actions.startProof = function (el, arg) { state.proofForm = { orderId: arg, name: "", photo: null }; render(); };
+  actions.confirmDelivery = function (el, arg) {
+    var pf = state.proofForm; if (!pf || state.busy) return;
+    if (String(pf.name || "").trim().length < 2) { toast(tc().proofName); return; }
+    state.busy = true;
+    WAPI.post("/courier/orders/" + arg + "/step", { to: "delivered", receivedBy: pf.name.trim(), photo: pf.photo }).then(function (r) {
+      state.busy = false; state.proofForm = null; putCourse(r.order); popScreen();
+    }).catch(function (e) { state.busy = false; errToast(e); });
+  };
+  var baseToggleNotif = actions.toggleNotif;
+  actions.toggleNotif = function (el, arg) {
+    var was = state.notifPrefs.push;
+    baseToggleNotif(el, arg);
+    if (arg === "push" && srv()) setTimeout(function () {
+      if (state.notifPrefs.push && !was) subscribePush();
+      if (!state.notifPrefs.push && was && navigator.serviceWorker) navigator.serviceWorker.ready.then(function (reg) { return reg.pushManager.getSubscription(); })
+        .then(function (sub) { if (sub) { WAPI.post("/push/unsubscribe", { endpoint: sub.endpoint }).catch(function () {}); sub.unsubscribe(); } }).catch(function () {});
+    }, 1500);
+  };
+  document.addEventListener("keydown", function (e) {
+    if (e.key === "Enter" && e.target && e.target.getAttribute && e.target.getAttribute("data-bind") === "msgDraft") { e.preventDefault(); actions.sendMsg(null, cur().convId); }
+  });
 
   /* Persistance locale (cache de l'app ; en mode serveur, le serveur fait foi) */
   var KEEP = ["lang", "loggedIn", "phone", "user", "wallet", "settings", "orders", "seq", "chatByOrder", "addresses", "payAccounts", "defaultPay", "notifPrefs", "disputes"];
