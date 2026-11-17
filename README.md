@@ -66,3 +66,6 @@ Le bouton « Ouvrir dans Google Maps » fonctionne dans tous les cas.
 « Avancer la livraison » pour simuler le livreur. À passer à `false` une fois branchés
 les SMS, les paiements Orange Money / MTN MoMo et le suivi GPS.
 Les données sont gardées dans le navigateur (`localStorage`) en attendant l'API.
+
+## Backoffice
+Adresse : `/admin.html` (ex. https://wunago-app.netlify.app/admin.html). Connexion par code, réservée aux numéros de la variable Netlify `ADMIN_PHONES`.
