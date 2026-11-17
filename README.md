@@ -42,6 +42,14 @@ reprise après rechargement, mode hors connexion, petit écran.
 - Recherche et adresse de « Ma position » : [Photon](https://photon.komoot.io) (OpenStreetMap, sans clé). Pour un trafic important, prévoir un serveur Photon dédié ou un service payant.
 - Les centres des quartiers de Douala (`web/geo.js`) sont approximatifs : à affiner sur le terrain.
 
+## Google Maps
+
+Avec une clé (variable d'environnement Netlify `GOOGLE_MAPS_KEY`), l'app passe sur Google Maps :
+carte et itinéraire routier au suivi, recherche d'adresses, adresse de « Ma position ».
+APIs à activer : Maps JavaScript API, Places API (New), Directions API (ou Routes API), Geocoding API.
+Restreindre la clé au site (`https://wunago-app.netlify.app/*`). Sans clé : OpenStreetMap.
+Le bouton « Ouvrir dans Google Maps » fonctionne dans tous les cas.
+
 ## Mode démo
 
 `var DEMO = true;` en tête de `web/app.js` : code SMS affiché à l'écran et bouton
