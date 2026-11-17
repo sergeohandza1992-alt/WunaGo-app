@@ -136,6 +136,13 @@
     },
     chatByOrder: {},
     addresses: [],
+    addrForm: null,
+    payAccounts: [{ op: "orange_money", number: "6 90 12 34 56" }, { op: "mtn_momo", number: "6 77 88 88 91" }],
+    defaultPay: "orange_money",
+    notifPrefs: { orders: true, sms: true, push: false, promos: true },
+    disputes: [],
+    disputeForm: null,
+    cancelFor: null,
     addrTarget: "dropoff",
     suggest: null,
     payPending: false,
@@ -143,12 +150,71 @@
   };
 
   function t() { return STR[state.lang]; }
+  var STR3 = {
+    fr: {
+      addrTitle: "Mes adresses", addrEmpty: "Aucune adresse enregistrée. Ajoutez votre domicile ou votre bureau pour commander plus vite.",
+      addrAdd: "Ajouter une adresse", addrLabel: "Nom", addrLabels: ["Maison", "Bureau", "Autre"], addrField: "Adresse", addrSave: "Enregistrer l'adresse",
+      addrDelete: "Supprimer", addrDeleted: "Adresse supprimée.", addrNeedGeo: "Choisissez l'adresse dans les suggestions ou utilisez Ma position.", addrOther: "Nom de l'adresse",
+      payTitle: "Moyens de paiement", payDefault: "Par défaut", payMakeDefault: "Choisir par défaut", payAddNumber: "Ajouter un numéro Mobile Money",
+      payOperator: "Opérateur", payNumber: "Numéro", payAdded: "Numéro ajouté.", payRemoved: "Numéro retiré.", payInvalid: "Numéro à 9 chiffres commençant par 6.",
+      payNote: "Les paiements réels Orange Money et MTN MoMo seront branchés à la dernière étape. Aucun débit n'est fait aujourd'hui.",
+      notifTitle: "Notifications", notifOrders: "Suivi de mes commandes", notifOrdersSub: "Récupération, livraison, retard",
+      notifSms: "SMS", notifSmsSub: "Message texte à chaque étape clé", notifPush: "Notifications sur ce téléphone", notifPushSub: "Même quand l'app est fermée",
+      notifPromos: "Offres et promotions", notifPromosSub: "Au maximum une par semaine", notifDenied: "Notifications bloquées dans le navigateur : autorisez-les dans les réglages du téléphone.",
+      notifOn: "Notifications activées.", notifTest: "WunaGo — les notifications sont activées.",
+      cancel: "Annuler la commande", cancelTitle: "Annuler cette commande ?", cancelSub: "Possible tant que le colis n'a pas été récupéré.",
+      cancelReasons: ["Je n'en ai plus besoin", "Délai trop long", "Erreur d'adresse", "J'ai commandé par erreur", "Autre raison"],
+      cancelConfirm: "Confirmer l'annulation", cancelKeep: "Garder la commande", cancelled: "Commande annulée",
+      refundWallet: "Remboursé sur votre portefeuille.", refundMomo: "Remboursement sur votre compte Mobile Money sous 48 h.", refundNone: "Aucun montant n'a été débité.",
+      cancelledOn: "Annulée", reason: "Motif",
+      helpTitle: "Aide et litiges", helpChat: "Écrire à l'assistance", helpChatSub: "Réponse en moins de 2 min",
+      helpReport: "Signaler un problème", helpReportSub: "Colis abîmé, manquant, retard…", helpClaims: "Mes réclamations",
+      helpCall: "Appeler WunaGo", claimsEmpty: "Aucune réclamation en cours.",
+      disputeTitle: "Signaler un problème", disputeOrder: "Commande concernée", disputeNoOrder: "Aucune commande à signaler pour l'instant.",
+      disputeReason: "Problème", disputeReasons: ["Colis endommagé", "Article manquant", "Retard important", "Comportement du livreur", "Problème de paiement", "Autre"],
+      disputeDesc: "Décrivez ce qui s'est passé", disputeDescPh: "Ce qui est arrivé, quand, ce que vous attendez…", disputePhoto: "Ajouter une photo", disputePhotoOk: "Photo ajoutée",
+      disputeSend: "Envoyer la réclamation", disputeSent: "Réclamation envoyée. Un agent vous répond sous 24 h.", disputeNeed: "Choisissez le problème et décrivez-le en quelques mots.",
+      disputeStatus: { open: "OUVERTE", review: "EN COURS", closed: "RÉSOLUE" }, reportProblem: "Signaler un problème",
+      disputeChat: "Réclamation {code} enregistrée pour la commande {order} : {reason}."
+    },
+    en: {
+      addrTitle: "My addresses", addrEmpty: "No saved address yet. Add your home or office to order faster.",
+      addrAdd: "Add an address", addrLabel: "Name", addrLabels: ["Home", "Office", "Other"], addrField: "Address", addrSave: "Save address",
+      addrDelete: "Delete", addrDeleted: "Address deleted.", addrNeedGeo: "Pick the address from the suggestions or use My location.", addrOther: "Address name",
+      payTitle: "Payment methods", payDefault: "Default", payMakeDefault: "Set as default", payAddNumber: "Add a Mobile Money number",
+      payOperator: "Operator", payNumber: "Number", payAdded: "Number added.", payRemoved: "Number removed.", payInvalid: "9-digit number starting with 6.",
+      payNote: "Real Orange Money and MTN MoMo payments come in the last step. Nothing is charged today.",
+      notifTitle: "Notifications", notifOrders: "Order tracking", notifOrdersSub: "Pickup, delivery, delays",
+      notifSms: "SMS", notifSmsSub: "Text message at each key step", notifPush: "Notifications on this phone", notifPushSub: "Even when the app is closed",
+      notifPromos: "Offers and promotions", notifPromosSub: "At most one a week", notifDenied: "Notifications are blocked in the browser: allow them in your phone settings.",
+      notifOn: "Notifications enabled.", notifTest: "WunaGo — notifications are on.",
+      cancel: "Cancel order", cancelTitle: "Cancel this order?", cancelSub: "Possible until the parcel is picked up.",
+      cancelReasons: ["I no longer need it", "Takes too long", "Wrong address", "Ordered by mistake", "Other reason"],
+      cancelConfirm: "Confirm cancellation", cancelKeep: "Keep the order", cancelled: "Order cancelled",
+      refundWallet: "Refunded to your wallet.", refundMomo: "Refund to your Mobile Money account within 48 h.", refundNone: "Nothing was charged.",
+      cancelledOn: "Cancelled", reason: "Reason",
+      helpTitle: "Help and disputes", helpChat: "Chat with support", helpChatSub: "Replies in under 2 min",
+      helpReport: "Report a problem", helpReportSub: "Damaged, missing, late…", helpClaims: "My claims",
+      helpCall: "Call WunaGo", claimsEmpty: "No open claim.",
+      disputeTitle: "Report a problem", disputeOrder: "Order", disputeNoOrder: "No order to report yet.",
+      disputeReason: "Problem", disputeReasons: ["Damaged parcel", "Missing item", "Major delay", "Courier behaviour", "Payment issue", "Other"],
+      disputeDesc: "Describe what happened", disputeDescPh: "What happened, when, what you expect…", disputePhoto: "Add a photo", disputePhotoOk: "Photo added",
+      disputeSend: "Send claim", disputeSent: "Claim sent. An agent replies within 24 h.", disputeNeed: "Pick the problem and describe it briefly.",
+      disputeStatus: { open: "OPEN", review: "IN REVIEW", closed: "RESOLVED" }, reportProblem: "Report a problem",
+      disputeChat: "Claim {code} recorded for order {order}: {reason}."
+    }
+  };
+  function t3() { return STR3[state.lang] || STR3.fr; }
   function stack() { return state.tabStacks[state.activeTab]; }
   function cur() { var s = stack(); return s[s.length - 1]; }
   function push(screen, extra) { stack().push(Object.assign({ screen: screen }, extra || {})); try { history.pushState({ wg: stack().length }, ""); } catch (e) {} render(); }
   function replaceTop(screen, extra) { var s = stack(); s[s.length - 1] = Object.assign({ screen: screen }, extra || {}); render(); }
   function popScreen() { var s = stack(); if (s.length > 1) s.pop(); render(); }
-  function switchTab(tab) { state.activeTab = tab; render(); }
+  function switchTab(tab) {
+    /* toucher l'onglet déjà ouvert ramène à son premier écran */
+    if (state.activeTab === tab) { var s = state.tabStacks[tab]; state.tabStacks[tab] = [s[0]]; }
+    state.activeTab = tab; state.cancelFor = null; render();
+  }
   function toast(msg) { state.toast = msg; render(); setTimeout(function () { state.toast = null; render(); }, 1800); }
 
   /* ============================== helpers ============================== */
@@ -245,9 +311,10 @@
     if (!rows && !foot) return "";
     return '<div class="sg" role="listbox" aria-label="Suggestions">' + rows + foot + '</div>';
   }
+  function fobj(field) { return field === "addr" ? state.addrForm : state.draft; }
   function applyPlace(field, place) {
-    state.draft[field] = place.label;
-    state.draft[field + "Geo"] = { lat: place.lat, lng: place.lng };
+    fobj(field)[field] = place.label;
+    fobj(field)[field + "Geo"] = { lat: place.lat, lng: place.lng };
     state.suggest = null;
   }
 
@@ -490,7 +557,8 @@
     var price = computePrice(draft.service, draft.weightKg);
     var rows = PAYMENTS.map(function (p) {
       var on = draft.payMethod === p.key;
-      var detail = p.key === "wallet" ? fmtFcfa(state.wallet.balance) : p.key === "cash" ? d.cashNote : p.detail;
+      var acc = accountFor(p.key);
+      var detail = p.key === "wallet" ? fmtFcfa(state.wallet.balance) : p.key === "cash" ? d.cashNote : acc ? "•••• " + last4(acc.number) : p.detail;
       return '<button class="fx ac" data-action="pickPay" data-arg="' + p.key + '" style="gap:12px;text-align:left;border:1.5px solid ' + (on ? "#101010" : "var(--hair)") + ';background:#fff;border-radius:15px;padding:13px 14px;cursor:pointer">' +
         '<span class="fx ac jc" style="width:38px;height:27px;flex:none;border-radius:7px;background:' + p.bg + ';color:' + p.fg + ';font-family:var(--mono);font-weight:700;font-size:9px">' + p.chip + '</span>' +
         '<span class="col" style="gap:2px;flex:1"><span style="font-weight:700;font-size:13.5px">' + esc(d.paymentNames[p.key]) + '</span><span class="mono" style="font-size:10.5px;color:rgba(16,16,16,.5)">' + esc(detail || "") + '</span></span>' +
@@ -517,6 +585,7 @@
   function screenTrack(orderId) {
     var d = t();
     var o = findOrder(orderId);
+    if (o.status === "cancelled") return screenCancelled(o);
     var progress = Math.min(1, o.stage / 3);
     var left = (8 + progress * 84).toFixed(1) + "%";
     var timeline = d.timeline.map(function (label, i) {
@@ -549,6 +618,7 @@
         '<div style="height:1px;background:var(--hair)"></div>' +
         '<div class="col">' + timeline + '</div>' +
         gmapsButton(orderGeo(o).pickup, orderGeo(o).dropoff, false) +
+        (o.stage === 0 ? '<button class="btn btn-outline" data-action="askCancel" data-arg="' + orderId + '" style="width:100%;color:#101010">' + esc(t3().cancel) + '</button>' : '') +
         (DEMO ? '<button class="btn btn-outline" data-action="advanceOrder" data-arg="' + orderId + '" style="width:100%">' + esc(d.simulate) + '</button>' : '') +
       '</div></div>'
     );
@@ -576,7 +646,8 @@
         '<div style="background:#fff;border:1px solid var(--hair);border-radius:16px;padding:15px;display:flex;flex-direction:column;gap:11px">' +
           '<span style="font-weight:700;font-size:13.5px">' + esc(d.rate) + '</span><div class="fx" style="gap:7px">' + stars + '</div></div>' +
       '</div></div>' +
-      '<div style="padding:16px 20px 20px"><button class="btn btn-ink" data-action="finishProof" style="width:100%">' + esc(d.backHome) + '</button></div>'
+      '<div style="padding:16px 20px 20px;display:flex;flex-direction:column;gap:8px"><button class="btn btn-ink" data-action="finishProof" style="width:100%">' + esc(d.backHome) + '</button>' +
+      '<button class="btn" data-action="openDispute" data-arg="' + orderId + '" style="height:44px;background:transparent;font-weight:700;font-size:12.5px;text-decoration:underline">' + esc(t3().reportProblem) + '</button></div>'
     );
   }
 
@@ -632,12 +703,14 @@
     }
 
     var rows = [
-      [d.addresses, String((state.addresses || []).length)], [d.methods, "2"], [d.notifs, "SMS + push"],
+      [d.addresses, String((state.addresses || []).length), "openScreen", "addresses"],
+      [d.methods, String(2 + (state.payAccounts || []).length), "openScreen", "paymethods"],
+      [d.notifs, notifSummary(), "openScreen", "notifs"],
       [d.language, state.lang === "en" ? "English" : "Français", "openSettings"],
-      [d.help, "", "openChatGeneral"]
+      [d.help, (state.disputes || []).filter(function (x) { return x.status !== "closed"; }).length ? String((state.disputes || []).filter(function (x) { return x.status !== "closed"; }).length) : "", "openScreen", "help"]
     ];
     var rowsHtml = rows.map(function (r, i) {
-      return '<button class="fx ac" data-action="' + (r[2] || "noop") + '" style="gap:11px;text-align:left;border:0;background:transparent;padding:13px 12px;cursor:pointer;' + (i < rows.length - 1 ? "border-bottom:1px solid var(--hair)" : "") + '">' +
+      return '<button class="fx ac" data-action="' + (r[2] || "noop") + '"' + (r[3] ? ' data-arg="' + r[3] + '"' : '') + ' style="gap:11px;min-height:48px;text-align:left;border:0;background:transparent;padding:13px 12px;cursor:pointer;' + (i < rows.length - 1 ? "border-bottom:1px solid var(--hair)" : "") + '">' +
         '<span style="font-weight:700;font-size:13px;flex:1">' + esc(r[0]) + '</span>' + (r[1] ? '<span class="mono" style="font-size:10.5px;color:rgba(16,16,16,.45)">' + esc(r[1]) + '</span>' : "") + '<span style="color:rgba(16,16,16,.3);font-weight:600">→</span></button>';
     }).join("");
 
@@ -693,6 +766,189 @@
     '</div></div>';
   }
 
+  /* ============================== étape 3 : compte, annulation, litiges ============================== */
+
+  function accountFor(op) { return (state.payAccounts || []).filter(function (a) { return a.op === op; })[0] || null; }
+  function last4(num) { var s = String(num || "").replace(/\D/g, ""); return s.slice(-4); }
+  function notifSummary() {
+    var n = state.notifPrefs || {}, parts = [];
+    if (n.sms) parts.push("SMS"); if (n.push) parts.push("push");
+    return parts.length ? parts.join(" + ") : (state.lang === "en" ? "Off" : "Désactivées");
+  }
+  function hdr(title, action) {
+    return '<div class="fx ac" style="gap:11px"><button class="backbtn" aria-label="Retour" data-action="' + (action || "popScreen") + '">←</button>' +
+      '<h1 style="margin:0;font-weight:800;font-size:18px;letter-spacing:-.4px">' + esc(title) + '</h1></div>';
+  }
+  function page3(inner, footer) {
+    return '<div class="scroll"><div class="col" style="padding:calc(18px + var(--sat)) 20px 20px;gap:16px">' + inner + '</div></div>' + (footer || "");
+  }
+  var cardStyle = 'background:#fff;border:1px solid var(--hair);border-radius:16px';
+  function toggleRow(label, sub, on, action, arg) {
+    return '<div class="fx ac" style="gap:12px;padding:12px 14px;min-height:56px">' +
+      '<div class="col" style="gap:2px;flex:1"><span style="font-weight:700;font-size:13.5px">' + esc(label) + '</span><span style="font-size:11.5px;color:rgba(16,16,16,.6)">' + esc(sub) + '</span></div>' +
+      '<button role="switch" aria-checked="' + on + '" aria-label="' + esc(label) + '" data-action="' + action + '" data-arg="' + arg + '" style="border:0;width:44px;height:26px;flex:none;border-radius:99px;background:' + (on ? "#101010" : "rgba(16,16,16,.15)") + ';position:relative;cursor:pointer">' +
+      '<span style="position:absolute;top:3px;left:' + (on ? "21px" : "3px") + ';width:20px;height:20px;border-radius:99px;background:#FFD700"></span></button></div>';
+  }
+  function chip(label, on, action, arg) {
+    return '<button class="btn" data-action="' + action + '" data-arg="' + esc(arg) + '" aria-pressed="' + on + '" style="height:auto;min-height:36px;border-radius:99px;padding:8px 13px;font-weight:700;font-size:11.5px;border:1px solid ' + (on ? "#101010" : "rgba(16,16,16,.12)") + ';background:' + (on ? "#101010" : "#fff") + ';color:' + (on ? "#fff" : "#101010") + '">' + esc(label) + '</button>';
+  }
+
+  /* ---------- Mes adresses ---------- */
+  function screenAddresses() {
+    var e = t3(), list = state.addresses || [];
+    var rows = list.length ? list.map(function (a, i) {
+      return '<div class="fx ac" style="gap:12px;padding:12px 14px;' + (i < list.length - 1 ? "border-bottom:1px solid var(--hair)" : "") + '">' +
+        '<span class="sg-ic" style="background:#FFD700">' + ICON.star + '</span>' +
+        '<div class="col" style="gap:2px;flex:1;min-width:0"><span style="font-weight:700;font-size:13.5px">' + esc(a.label) + '</span><span style="font-size:11.5px;color:rgba(16,16,16,.6);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">' + esc(a.text) + '</span></div>' +
+        '<button class="btn" data-action="deleteAddress" data-arg="' + i + '" aria-label="' + esc(e.addrDelete + " " + a.label) + '" style="height:34px;border-radius:99px;padding:0 11px;background:rgba(16,16,16,.06);font-weight:700;font-size:11px">' + esc(e.addrDelete) + '</button></div>';
+    }).join("") : '<div style="padding:16px 14px;font-size:12.5px;line-height:1.5;color:rgba(16,16,16,.65)">' + esc(e.addrEmpty) + '</div>';
+    return page3(hdr(e.addrTitle) + '<div style="' + cardStyle + '">' + rows + '</div>',
+      '<div style="padding:16px 20px 20px"><button class="btn btn-yellow" data-action="newAddress" style="width:100%">' + esc(e.addrAdd) + '</button></div>');
+  }
+  function screenAddrForm() {
+    var e = t3(), d = t(), f = state.addrForm;
+    var labels = e.addrLabels;
+    var isOther = labels.slice(0, 2).indexOf(f.label) === -1;
+    return page3(hdr(e.addrAdd) +
+      '<div class="col" style="gap:8px"><div style="font-weight:700;font-size:12px;color:rgba(16,16,16,.55)">' + esc(e.addrLabel) + '</div>' +
+      '<div class="fx wrap" style="gap:7px">' + labels.map(function (l, i) { var on = i < 2 ? f.label === l : isOther; return chip(l, on, "setAddrLabel", i < 2 ? l : ""); }).join("") + '</div>' +
+      (isOther ? '<input data-bind="addrForm.label" aria-label="' + esc(e.addrOther) + '" placeholder="' + esc(e.addrOther) + '" value="' + esc(f.label) + '" style="' + cardStyle + ';height:48px;padding:0 14px;font-weight:600;font-size:13.5px" />' : '') + '</div>' +
+      '<div class="col" style="gap:8px"><div style="font-weight:700;font-size:12px;color:rgba(16,16,16,.55)">' + esc(e.addrField) + '</div>' +
+      '<div style="' + cardStyle + ';padding:0 15px"><div class="fx ac addr-row" style="gap:11px;min-height:52px"><span style="width:8px;height:8px;flex:none;background:#101010"></span>' +
+      '<input data-bind="addrForm.addr" data-field="addr" autocomplete="off" aria-autocomplete="list" aria-label="' + esc(e.addrField) + '" placeholder="' + esc(d.dropPh) + '" value="' + esc(f.addr) + '" style="flex:1;min-width:0;height:52px;font-weight:600;font-size:13.5px" />' +
+      (f.addrGeo ? '<span style="color:#101010">' + ICON.check + '</span>' : '') + '</div>' + suggestList("addr") + '</div>' +
+      '<div class="fx"><button class="btn" data-action="useMyLocation" data-arg="addr" style="height:auto;min-height:34px;border-radius:99px;padding:7px 12px;background:#101010;color:#FFD700;font-weight:600;font-size:11.5px;gap:5px">' + ICON.gps + esc(d.myPosition) + '</button></div></div>',
+      '<div style="padding:16px 20px 20px"><button class="btn btn-yellow" data-action="saveAddrForm" style="width:100%">' + esc(e.addrSave) + '</button></div>');
+  }
+
+  /* ---------- Moyens de paiement ---------- */
+  function screenPayMethods() {
+    var e = t3(), d = t();
+    var rows = PAYMENTS.map(function (p, i) {
+      var acc = accountFor(p.key), isDef = state.defaultPay === p.key;
+      var detail = p.key === "wallet" ? fmtFcfa(state.wallet.balance) : p.key === "cash" ? d.cashNote : acc ? "+237 " + acc.number : p.detail;
+      var canHave = (p.key !== "orange_money" && p.key !== "mtn_momo") || acc;
+      return '<div class="fx ac" style="gap:12px;padding:12px 14px;' + (i < PAYMENTS.length - 1 ? "border-bottom:1px solid var(--hair)" : "") + '">' +
+        '<span class="fx ac jc" style="width:38px;height:27px;flex:none;border-radius:7px;background:' + p.bg + ';color:' + p.fg + ';font-family:var(--mono);font-weight:700;font-size:9px">' + p.chip + '</span>' +
+        '<div class="col" style="gap:2px;flex:1;min-width:0"><span style="font-weight:700;font-size:13.5px">' + esc(d.paymentNames[p.key]) + '</span><span class="mono" style="font-size:10.5px;color:rgba(16,16,16,.55);white-space:nowrap">' + esc(detail || "") + '</span></div>' +
+        (isDef ? '<span class="mono" style="border-radius:99px;padding:5px 9px;background:#FFD700;font-weight:700;font-size:9.5px">' + esc(e.payDefault.toUpperCase()) + '</span>'
+          : canHave ? '<button class="btn" data-action="setDefaultPay" data-arg="' + p.key + '" style="height:32px;border-radius:99px;padding:0 10px;background:rgba(16,16,16,.06);font-weight:700;font-size:10.5px">' + esc(e.payMakeDefault) + '</button>' : '') +
+        (acc ? '<button class="btn" data-action="removeAccount" data-arg="' + p.key + '" aria-label="' + esc(e.addrDelete + " " + d.paymentNames[p.key]) + '" style="width:36px;height:36px;flex:none;border-radius:99px;background:rgba(16,16,16,.06);font-weight:700;font-size:15px;padding:0">×</button>' : '') +
+        '</div>';
+    }).join("");
+    var f = state.payForm;
+    var form = f ? '<div class="col" style="' + cardStyle + ';padding:14px;gap:11px">' +
+        '<div style="font-weight:700;font-size:12px;color:rgba(16,16,16,.55)">' + esc(e.payOperator) + '</div>' +
+        '<div class="fx" style="gap:7px">' + chip("Orange Money", f.op === "orange_money", "setPayFormOp", "orange_money") + chip("MTN MoMo", f.op === "mtn_momo", "setPayFormOp", "mtn_momo") + '</div>' +
+        '<label class="fx ac" style="gap:10px;background:rgba(16,16,16,.04);border-radius:12px;padding:0 13px;height:48px"><span class="mono" style="font-weight:600;font-size:13px;color:rgba(16,16,16,.6)">+237</span>' +
+        '<input data-bind="payForm.number" inputmode="numeric" aria-label="' + esc(e.payNumber) + '" placeholder="6 90 00 00 00" value="' + esc(f.number) + '" style="flex:1;height:100%;font-weight:600;font-size:14px" /></label>' +
+        '<button class="btn btn-ink" data-action="savePayAccount">' + esc(d.confirm) + '</button></div>'
+      : '<button class="btn btn-outline" data-action="openPayForm" style="width:100%;color:#101010">' + esc(e.payAddNumber) + '</button>';
+    return page3(hdr(e.payTitle) + '<div style="' + cardStyle + '">' + rows + '</div>' + form +
+      '<p style="margin:0;font-size:11px;line-height:1.5;color:rgba(16,16,16,.6)">' + esc(e.payNote) + '</p>');
+  }
+
+  /* ---------- Notifications ---------- */
+  function screenNotifs() {
+    var e = t3(), n = state.notifPrefs;
+    var denied = window.Notification && Notification.permission === "denied";
+    return page3(hdr(e.notifTitle) +
+      '<div style="' + cardStyle + '">' +
+        toggleRow(e.notifOrders, e.notifOrdersSub, n.orders, "toggleNotif", "orders") + '<div style="height:1px;background:var(--hair)"></div>' +
+        toggleRow(e.notifSms, e.notifSmsSub, n.sms, "toggleNotif", "sms") + '<div style="height:1px;background:var(--hair)"></div>' +
+        toggleRow(e.notifPush, e.notifPushSub, n.push, "toggleNotif", "push") + '<div style="height:1px;background:var(--hair)"></div>' +
+        toggleRow(e.notifPromos, e.notifPromosSub, n.promos, "toggleNotif", "promos") +
+      '</div>' + (denied ? '<p style="margin:0;font-size:11.5px;line-height:1.5;color:rgba(16,16,16,.7)">' + esc(e.notifDenied) + '</p>' : ''));
+  }
+
+  /* ---------- Annulation ---------- */
+  function cancelSheet() {
+    var e = t3(), c = state.cancelFor;
+    return '<div class="sheet-backdrop" data-action="closeCancel"></div><div class="sheet" role="dialog" aria-modal="true" aria-label="' + esc(e.cancelTitle) + '">' +
+      '<div style="width:34px;height:4px;border-radius:9px;background:rgba(16,16,16,.15);margin:0 auto 6px"></div>' +
+      '<h2 style="margin:0;font-weight:800;font-size:19px;letter-spacing:-.4px">' + esc(e.cancelTitle) + '</h2>' +
+      '<p style="margin:0;font-size:12.5px;color:rgba(16,16,16,.65)">' + esc(e.cancelSub) + '</p>' +
+      '<div class="col" style="gap:7px">' + e.cancelReasons.map(function (r, i) {
+        var on = c.reason === i;
+        return '<button class="fx ac" data-action="pickCancelReason" data-arg="' + i + '" role="radio" aria-checked="' + on + '" style="gap:11px;text-align:left;border:1.5px solid ' + (on ? "#101010" : "var(--hair)") + ';background:#fff;border-radius:13px;padding:12px 13px;cursor:pointer;color:#101010;min-height:46px">' +
+          '<span style="width:16px;height:16px;flex:none;box-sizing:border-box;border-radius:99px;border:2px solid ' + (on ? "#101010" : "rgba(16,16,16,.2)") + ';background:' + (on ? "#101010" : "transparent") + '"></span><span style="font-weight:600;font-size:13px">' + esc(r) + '</span></button>';
+      }).join("") + '</div>' +
+      '<button class="btn btn-ink" data-action="confirmCancel" ' + (c.reason == null ? "disabled" : "") + '>' + esc(e.cancelConfirm) + '</button>' +
+      '<button class="btn" data-action="closeCancel" style="height:44px;background:transparent;font-weight:700;font-size:13px">' + esc(e.cancelKeep) + '</button></div>';
+  }
+  function screenCancelled(o) {
+    var e = t3(), d = t(), price = computePrice(o.service, o.weightKg);
+    return page3(hdr(e.cancelled) +
+      '<div style="background:#101010;border-radius:18px;padding:16px;display:flex;flex-direction:column;gap:8px">' +
+        '<span class="mono" style="font-size:10.5px;color:#FFD700">' + o.code + ' · ' + esc(e.cancelledOn.toUpperCase()) + '</span>' +
+        '<span style="font-weight:700;font-size:15px;color:#fff">' + esc(svcName(o.service)) + ' · ' + esc(o.pickup) + ' → ' + esc(o.dropoff) + '</span>' +
+        '<span class="mono" style="font-size:11px;color:rgba(255,255,255,.65)">' + fmtFcfa(price.net) + '</span></div>' +
+      '<div style="' + cardStyle + ';padding:14px;display:flex;flex-direction:column;gap:8px">' +
+        '<div class="fx jb" style="gap:10px"><span class="mono" style="font-size:10.5px;color:rgba(16,16,16,.55)">' + esc(e.reason.toUpperCase()) + '</span><span style="font-weight:600;font-size:12.5px;text-align:right">' + esc(o.cancelReason || "—") + '</span></div>' +
+        '<div style="font-size:12.5px;line-height:1.5;color:rgba(16,16,16,.75)">' + esc(o.refundNote || "") + '</div></div>');
+  }
+
+  /* ---------- Aide et litiges ---------- */
+  function helpRow(label, sub, action, arg, href) {
+    var inner = '<span class="col" style="gap:2px;flex:1"><span style="font-weight:700;font-size:13.5px">' + esc(label) + '</span>' + (sub ? '<span style="font-size:11.5px;color:rgba(16,16,16,.6)">' + esc(sub) + '</span>' : '') + '</span><span aria-hidden="true" style="color:rgba(16,16,16,.3);font-weight:600">→</span>';
+    var st = 'gap:11px;text-align:left;border:0;background:transparent;padding:13px 14px;min-height:56px;cursor:pointer;color:#101010;text-decoration:none;width:100%;box-sizing:border-box';
+    return href ? '<a class="fx ac" href="' + href + '" style="' + st + '">' + inner + '</a>'
+      : '<button class="fx ac" data-action="' + action + '"' + (arg ? ' data-arg="' + arg + '"' : '') + ' style="' + st + '">' + inner + '</button>';
+  }
+  function screenHelp() {
+    var e = t3(), list = state.disputes || [];
+    var colors = { open: ["#FFD700", "#101010"], review: ["#101010", "#FFD700"], closed: ["rgba(16,16,16,.07)", "rgba(16,16,16,.55)"] };
+    var claims = list.length ? list.map(function (x, i) {
+      var c = colors[x.status] || colors.open;
+      return '<div class="col" style="gap:6px;padding:12px 14px;' + (i < list.length - 1 ? "border-bottom:1px solid var(--hair)" : "") + '">' +
+        '<div class="fx ac" style="gap:8px"><span class="mono" style="font-size:10px;color:rgba(16,16,16,.55)">' + x.code + ' · ' + x.orderCode + '</span>' +
+        '<span class="mono" style="margin-left:auto;border-radius:99px;padding:4px 9px;background:' + c[0] + ';color:' + c[1] + ';font-weight:700;font-size:9.5px">' + esc(e.disputeStatus[x.status]) + '</span></div>' +
+        '<span style="font-weight:700;font-size:13px">' + esc(x.reason) + '</span>' +
+        '<span style="font-size:12px;line-height:1.45;color:rgba(16,16,16,.7)">' + esc(x.desc) + '</span></div>';
+    }).join("") : '<div style="padding:14px;font-size:12.5px;color:rgba(16,16,16,.6)">' + esc(e.claimsEmpty) + '</div>';
+    return page3(hdr(e.helpTitle) +
+      '<div style="' + cardStyle + '">' + helpRow(e.helpChat, e.helpChatSub, "openChatGeneral") + '<div style="height:1px;background:var(--hair)"></div>' +
+        helpRow(e.helpReport, e.helpReportSub, "openDispute") + '<div style="height:1px;background:var(--hair)"></div>' +
+        helpRow(e.helpCall, "+237 6 00 00 00 00", null, null, "tel:+237600000000") + '</div>' +
+      '<div style="font-weight:700;font-size:12px;color:rgba(16,16,16,.55)">' + esc(e.helpClaims) + '</div>' +
+      '<div style="' + cardStyle + '">' + claims + '</div>');
+  }
+  function screenDispute() {
+    var e = t3(), f = state.disputeForm;
+    var orders = state.orders.filter(function (o) { return o.status !== "cancelled"; }).slice(0, 6);
+    if (!orders.length) return page3(hdr(e.disputeTitle) + '<div style="' + cardStyle + ';padding:14px;font-size:12.5px;color:rgba(16,16,16,.65)">' + esc(e.disputeNoOrder) + '</div>');
+    return page3(hdr(e.disputeTitle) +
+      '<div class="col" style="gap:8px"><div style="font-weight:700;font-size:12px;color:rgba(16,16,16,.55)">' + esc(e.disputeOrder) + '</div>' +
+        '<div class="fx wrap" style="gap:7px">' + orders.map(function (o) { return chip(o.code + " · " + svcName(o.service), f.orderId === o.id, "setDisputeOrder", o.id); }).join("") + '</div></div>' +
+      '<div class="col" style="gap:8px"><div style="font-weight:700;font-size:12px;color:rgba(16,16,16,.55)">' + esc(e.disputeReason) + '</div>' +
+        '<div class="fx wrap" style="gap:7px">' + e.disputeReasons.map(function (r, i) { return chip(r, f.reason === i, "setDisputeReason", String(i)); }).join("") + '</div></div>' +
+      '<div class="col" style="gap:8px"><div style="font-weight:700;font-size:12px;color:rgba(16,16,16,.55)">' + esc(e.disputeDesc) + '</div>' +
+        '<textarea data-bind="disputeForm.desc" aria-label="' + esc(e.disputeDesc) + '" placeholder="' + esc(e.disputeDescPh) + '" style="' + cardStyle + ';min-height:96px;padding:12px 14px;font-weight:500;font-size:13px;resize:none">' + esc(f.desc) + '</textarea></div>' +
+      '<label class="fx ac" style="gap:11px;' + cardStyle + ';padding:10px 14px;min-height:56px;cursor:pointer">' +
+        (f.photo ? '<img src="' + f.photo + '" alt="" width="44" height="44" style="border-radius:9px;object-fit:cover">' : '<span class="sg-ic">' + ICON.pin.replace('M12 21s-7-6.2-7-11.5A7 7 0 0 1 19 9.5C19 14.8 12 21 12 21z', 'M4 7h3l2-2.5h6L17 7h3v12H4z').replace('cy="9.5" r="2.5"', 'cy="12.5" r="3.5"') + '</span>') +
+        '<span style="font-weight:700;font-size:13px;flex:1">' + esc(f.photo ? e.disputePhotoOk : e.disputePhoto) + '</span>' +
+        '<input type="file" accept="image/*" capture="environment" data-file="dispute" aria-label="' + esc(e.disputePhoto) + '" style="position:absolute;width:1px;height:1px;opacity:0"></label>',
+      '<div style="padding:16px 20px 20px"><button class="btn btn-yellow" data-action="sendDispute" style="width:100%">' + esc(e.disputeSend) + '</button></div>');
+  }
+
+  /* photo de réclamation : réduite à 640 px pour rester légère */
+  document.addEventListener("change", function (ev) {
+    var el = ev.target;
+    if (!el || el.getAttribute("data-file") !== "dispute" || !el.files || !el.files[0] || !state.disputeForm) return;
+    var reader = new FileReader();
+    reader.onload = function () {
+      var img = new Image();
+      img.onload = function () {
+        var s = Math.min(1, 640 / Math.max(img.width, img.height)), c = document.createElement("canvas");
+        c.width = Math.round(img.width * s); c.height = Math.round(img.height * s);
+        c.getContext("2d").drawImage(img, 0, 0, c.width, c.height);
+        state.disputeForm.photo = c.toDataURL("image/jpeg", 0.75); render();
+      };
+      img.src = reader.result;
+    };
+    reader.readAsDataURL(el.files[0]);
+  });
+
   /* ============================== layout ============================== */
 
   function statusbar() {
@@ -733,12 +989,19 @@
         case "wallet": body = screenWallet(); break;
         case "chat": body = screenChat(c.orderId); break;
         case "settings": body = screenSettings(); break;
+        case "addresses": body = screenAddresses(); break;
+        case "addrForm": body = screenAddrForm(); break;
+        case "paymethods": body = screenPayMethods(); break;
+        case "notifs": body = screenNotifs(); break;
+        case "help": body = screenHelp(); break;
+        case "dispute": body = screenDispute(); break;
         default: body = screenHome();
       }
-      var key = state.activeTab + ":" + stack().length + ":" + c.screen + ":" + (state.draft ? state.draft.step : "");
+      var key = state.activeTab + ":" + stack().length + ":" + c.screen + ":" + (state.draft ? state.draft.step : "") + ":" + (c.orderId || "");
       var anim = key !== lastScreenKey ? " fade-in" : ""; lastScreenKey = key;
       html = offlineBar() + '<div class="screen-body' + anim + '">' + body + '</div>' + tabbar();
     }
+    if (state.loggedIn && state.cancelFor) html += cancelSheet();
     if (state.toast) html += '<div class="toast">' + esc(state.toast) + '</div>';
     var ae = document.activeElement, bindKey = ae && ae.getAttribute && ae.getAttribute("data-bind"), s0 = null, s1 = null;
     if (bindKey) { try { s0 = ae.selectionStart; s1 = ae.selectionEnd; } catch (e) {} }
@@ -798,7 +1061,7 @@
         service: arg, step: 1,
         pickup: "Bonamoussadi, rue 4.212", dropoff: "Akwa, av. du Général de Gaulle",
         pickupGeo: geoOf("Bonamoussadi"), dropoffGeo: geoOf("Akwa"),
-        weightKg: 2.5, note: "", vehicle: "bike", payMethod: "orange_money"
+        weightKg: 2.5, note: "", vehicle: "bike", payMethod: state.defaultPay || "orange_money"
       };
       push("order");
     },
@@ -807,10 +1070,10 @@
     setAddrTarget: function (el, arg) { state.addrTarget = arg; render(); },
     pickSuggest: function (el, arg) {
       var s = state.suggest; if (!s) return; var it = s.items[Number(arg)]; if (!it) return;
-      var field = s.field; state.addrTarget = "dropoff";
+      var field = s.field, ob = fobj(field); if (field !== "addr") state.addrTarget = "dropoff";
       if (it.resolve) {
-        state.draft[field] = it.label; state.draft[field + "Geo"] = null; state.suggest = null; render();
-        it.resolve().then(function (geo) { if (state.draft && state.draft[field] === it.label) { state.draft[field + "Geo"] = geo; render(); } }).catch(function () {});
+        ob[field] = it.label; ob[field + "Geo"] = null; state.suggest = null; render();
+        it.resolve().then(function (geo) { if (ob[field] === it.label) { ob[field + "Geo"] = geo; render(); } }).catch(function () {});
         return;
       }
       applyPlace(field, it); render();
@@ -820,16 +1083,17 @@
       state.addresses.push({ id: "a" + Date.now(), label: dr[arg].split(",")[0], text: dr[arg], geo: geo });
       toast(t().saved);
     },
-    useMyLocation: function () {
-      var d = t();
+    useMyLocation: function (el, arg) {
+      var d = t(), field = arg === "addr" ? "addr" : "pickup", ob = fobj(field);
       if (!navigator.geolocation) { toast(d.locError); return; }
-      state.draft.pickup = d.locating; state.draft.pickupGeo = null; state.suggest = null; render();
+      ob[field] = d.locating; ob[field + "Geo"] = null; state.suggest = null; render();
       navigator.geolocation.getCurrentPosition(function (pos) {
         var g = { lat: pos.coords.latitude, lng: pos.coords.longitude };
-        state.draft.pickupGeo = g; state.draft.pickup = d.myPosition; render();
-        WGeo.reverse(g.lat, g.lng).then(function (label) { if (label && state.draft && state.draft.pickupGeo === g) { state.draft.pickup = label; render(); } }).catch(function () {});
-      }, function () { state.draft.pickup = ""; render(); toast(d.locError); }, { enableHighAccuracy: true, timeout: 10000, maximumAge: 60000 });
+        ob[field + "Geo"] = g; ob[field] = d.myPosition; render();
+        WGeo.reverse(g.lat, g.lng).then(function (label) { if (label && ob[field + "Geo"] === g) { ob[field] = label; render(); } }).catch(function () {});
+      }, function () { ob[field] = ""; render(); toast(d.locError); }, { enableHighAccuracy: true, timeout: 10000, maximumAge: 60000 });
     },
+
     incWeight: function () { state.draft.weightKg = Math.round((state.draft.weightKg + 0.5) * 10) / 10; render(); },
     decWeight: function () { state.draft.weightKg = Math.max(0.5, Math.round((state.draft.weightKg - 0.5) * 10) / 10); render(); },
     pickVehicle: function (el, arg) { state.draft.vehicle = arg; render(); },
@@ -859,7 +1123,7 @@
         };
         state.orders.unshift(order);
         state.payPending = false;
-        replaceTop("track", { orderId: id });
+        var st0 = stack(); state.tabStacks[state.activeTab] = [st0[0], { screen: "track", orderId: id }]; try { history.pushState({ wg: 2 }, ""); } catch (e) {} render();
       };
       if (draft.payMethod === "orange_money" || draft.payMethod === "mtn_momo") {
         state.payPending = true; render();
@@ -938,6 +1202,79 @@
       state.activeTab = "home";
       render();
     },
+    openScreen: function (el, arg) { push(arg); },
+    newAddress: function () { state.addrForm = { label: t3().addrLabels[0], addr: "", addrGeo: null }; state.suggest = null; push("addrForm"); },
+    setAddrLabel: function (el, arg) { state.addrForm.label = arg; render(); },
+    saveAddrForm: function () {
+      var e = t3(), f = state.addrForm;
+      if (!f.addrGeo || !f.addr) { toast(e.addrNeedGeo); return; }
+      state.addresses.push({ id: "a" + Date.now(), label: (f.label || f.addr.split(",")[0]).trim(), text: f.addr, geo: f.addrGeo });
+      state.addrForm = null; state.suggest = null; popScreen(); toast(t().saved);
+    },
+    deleteAddress: function (el, arg) { state.addresses.splice(Number(arg), 1); toast(t3().addrDeleted); },
+    setDefaultPay: function (el, arg) { state.defaultPay = arg; render(); },
+    openPayForm: function () { state.payForm = { op: "orange_money", number: "" }; render(); },
+    setPayFormOp: function (el, arg) { state.payForm.op = arg; render(); },
+    savePayAccount: function () {
+      var f = state.payForm, digits = (f.number || "").replace(/\D/g, "");
+      if (!/^6\d{8}$/.test(digits)) { toast(t3().payInvalid); return; }
+      var pretty = digits.replace(/^(\d)(\d{2})(\d{2})(\d{2})(\d{2})$/, "$1 $2 $3 $4 $5");
+      state.payAccounts = (state.payAccounts || []).filter(function (a) { return a.op !== f.op; });
+      state.payAccounts.push({ op: f.op, number: pretty });
+      state.payForm = null; toast(t3().payAdded);
+    },
+    removeAccount: function (el, arg) {
+      state.payAccounts = (state.payAccounts || []).filter(function (a) { return a.op !== arg; });
+      if (state.defaultPay === arg) state.defaultPay = "wallet";
+      toast(t3().payRemoved);
+    },
+    toggleNotif: function (el, arg) {
+      var n = state.notifPrefs, e = t3();
+      if (arg !== "push") { n[arg] = !n[arg]; render(); return; }
+      if (n.push) { n.push = false; render(); return; }
+      if (!window.Notification) { toast(e.notifDenied); return; }
+      Notification.requestPermission().then(function (perm) {
+        if (perm !== "granted") { n.push = false; render(); toast(e.notifDenied); return; }
+        n.push = true; render(); toast(e.notifOn);
+        if (navigator.serviceWorker && navigator.serviceWorker.ready) navigator.serviceWorker.ready.then(function (reg) { reg.showNotification("WunaGo", { body: e.notifTest, icon: "icons/icon-192.png", badge: "icons/icon-192.png" }); }).catch(function () {});
+      });
+    },
+    askCancel: function (el, arg) { state.cancelFor = { orderId: arg, reason: null }; render(); },
+    closeCancel: function () { state.cancelFor = null; render(); },
+    pickCancelReason: function (el, arg) { state.cancelFor.reason = Number(arg); render(); },
+    confirmCancel: function () {
+      var e = t3(), c = state.cancelFor; if (!c || c.reason == null) return;
+      var o = findOrder(c.orderId); if (!o || o.stage > 0) { state.cancelFor = null; render(); return; }
+      var price = computePrice(o.service, o.weightKg);
+      o.status = "cancelled"; o.cancelledAt = Date.now(); o.cancelReason = e.cancelReasons[c.reason];
+      if (o.paymentMethod === "wallet") { state.wallet.balance += price.net; o.refundNote = e.refundWallet; }
+      else if (o.paymentMethod === "orange_money" || o.paymentMethod === "mtn_momo" || o.paymentMethod === "card") o.refundNote = e.refundMomo;
+      else o.refundNote = e.refundNone;
+      state.cancelFor = null; toast(e.cancelled + " · " + o.refundNote);
+    },
+    openDispute: function (el, arg) {
+      var first = state.orders.filter(function (o) { return o.status !== "cancelled"; })[0];
+      state.disputeForm = { orderId: arg || (first && first.id) || null, reason: null, desc: "", photo: null };
+      if (state.activeTab !== "wallet" && !arg) { state.activeTab = "wallet"; }
+      push("dispute");
+    },
+    setDisputeOrder: function (el, arg) { state.disputeForm.orderId = arg; render(); },
+    setDisputeReason: function (el, arg) { state.disputeForm.reason = Number(arg); render(); },
+    sendDispute: function () {
+      var e = t3(), f = state.disputeForm, o = findOrder(f.orderId);
+      if (!o || f.reason == null || (f.desc || "").trim().length < 5) { toast(e.disputeNeed); return; }
+      var n = (state.disputes || []).length + 1;
+      var x = { id: "l" + Date.now(), code: "LIT-" + new Date().getFullYear() + "-" + String(n).padStart(3, "0"), orderId: o.id, orderCode: o.code,
+        reason: e.disputeReasons[f.reason], desc: f.desc.trim(), photo: f.photo, status: "open", createdAt: Date.now() };
+      state.disputes.unshift(x);
+      var msgs = state.chatByOrder.general || (state.chatByOrder.general = [{ from: "bot", text: t().botGreet }]);
+      msgs.push({ from: "bot", text: e.disputeChat.replace("{code}", x.code).replace("{order}", o.code).replace("{reason}", x.reason) });
+      state.disputeForm = null;
+      var s = stack(); s.pop();
+      if (!s.length || s[s.length - 1].screen !== "help") { state.activeTab = "wallet"; state.tabStacks.wallet = [{ screen: "wallet" }, { screen: "help" }]; }
+      toast(e.disputeSent);
+    },
+
     noop: function () {}
   };
 
@@ -957,6 +1294,10 @@
     if (!bind) return;
 
     if (bind === "phone") state.phone = el.value.replace(/[^\d ]/g, "");
+    else if (bind === "addrForm.addr") { state.addrForm.addr = el.value; state.addrForm.addrGeo = null; suggest("addr", el.value); }
+    else if (bind === "addrForm.label") state.addrForm.label = el.value;
+    else if (bind === "payForm.number") state.payForm.number = el.value.replace(/[^\d ]/g, "");
+    else if (bind === "disputeForm.desc") state.disputeForm.desc = el.value;
     else if (bind === "draft.pickup" || bind === "draft.dropoff") {
       var fld = bind.slice(6); state.draft[fld] = el.value; state.draft[fld + "Geo"] = null; state.addrTarget = fld; suggest(fld, el.value);
     }
@@ -1032,7 +1373,7 @@
   });
 
   /* Persistance locale (sera remplacée par l'API WunaGo) */
-  var KEEP = ["lang", "loggedIn", "phone", "user", "wallet", "settings", "orders", "seq", "chatByOrder", "addresses"];
+  var KEEP = ["lang", "loggedIn", "phone", "user", "wallet", "settings", "orders", "seq", "chatByOrder", "addresses", "payAccounts", "defaultPay", "notifPrefs", "disputes"];
   function save() {
     try { var o = {}; KEEP.forEach(function (k) { o[k] = state[k]; }); localStorage.setItem(STORE_KEY, JSON.stringify(o)); } catch (e) {}
   }
