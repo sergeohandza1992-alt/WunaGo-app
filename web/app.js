@@ -9,7 +9,7 @@
   var SUPPORT_PHONE = "+237600000000", SUPPORT_PHONE_LABEL = "+237 6 00 00 00 00";
   var STORE_KEY = "wunago.client.v1";
   /* Version affichée dans Réglages : à changer avec CACHE dans sw.js à chaque mise en ligne */
-  var APP_VERSION = "22 · 18/11/2026";
+  var APP_VERSION = "23 · 18/11/2026";
   var deferredInstall = null;
   var lastScreenKey = "";
   var installDismissed = false;
@@ -41,16 +41,16 @@
 
   var PAYMENTS = [
     { key: "orange_money", chip: "OM", bg: "#ff7a00", fg: "#fff", detail: "•••• 3456" },
-    { key: "mtn_momo", chip: "MTN", bg: "#FFD700", fg: "#101010", detail: "•••• 8891" },
-    { key: "wallet", chip: "WG", bg: "#101010", fg: "#FFD700", detail: null },
-    { key: "cash", chip: "CASH", bg: "rgba(16,16,16,.08)", fg: "#101010", detail: null },
-    { key: "card", chip: "CB", bg: "#101010", fg: "#fff", detail: "Visa · Mastercard" }
+    { key: "mtn_momo", chip: "MTN", bg: "#1FD1B2", fg: "#0B1F3A", detail: "•••• 8891" },
+    { key: "wallet", chip: "WG", bg: "#0B1F3A", fg: "#1FD1B2", detail: null },
+    { key: "cash", chip: "CASH", bg: "rgba(11,31,58,.08)", fg: "#0B1F3A", detail: null },
+    { key: "card", chip: "CB", bg: "#0B1F3A", fg: "#fff", detail: "Visa · Mastercard" }
   ];
 
   var STR = {
     fr: {
       authTitle: "Douala, livré\nsans détour.",
-      authSub: "Colis, pressing, courses et déplacements. Un numéro, un prix, un suivi.",
+      authSub: "Envoyez un colis comme un message WhatsApp. Un numéro, un prix, un suivi.",
       continue: "Continuer", terms: "En continuant, vous acceptez les conditions d'utilisation.",
       phonePh: "6 99 12 34 56", otpSentPrefix: "Code envoyé par SMS au", verify: "Vérifier", resend: "Renvoyer le code",
       demoCode: "Démo — code affiché car il n'y a pas de vrai SMS ici :",
@@ -86,7 +86,7 @@
     },
     en: {
       authTitle: "Douala,\ndelivered.",
-      authSub: "Parcels, laundry, errands and rides. One number, one price, one live map.",
+      authSub: "Send a parcel like a WhatsApp message. One number, one price, one live map.",
       continue: "Continue", terms: "By continuing you accept the terms of use.",
       phonePh: "699 12 34 56", otpSentPrefix: "Code sent by SMS to", verify: "Verify", resend: "Resend code",
       demoCode: "Demo — shown here since there's no real SMS:",
@@ -376,7 +376,7 @@
   function gmapsButton(a, b, compact) {
     var d = t();
     return '<a class="btn' + (compact ? '' : ' btn-outline') + ' gmaps-link" href="' + gmapsLink(a, b) + '" target="_blank" rel="noopener" style="' +
-      (compact ? 'height:30px;border-radius:99px;padding:0 10px;background:rgba(16,16,16,.06);font-weight:700;font-size:10.5px;gap:5px;color:#101010;text-decoration:none' : 'width:100%;gap:7px;color:#101010;text-decoration:none') + '">' +
+      (compact ? 'height:30px;border-radius:99px;padding:0 10px;background:rgba(11,31,58,.06);font-weight:700;font-size:10.5px;gap:5px;color:#0B1F3A;text-decoration:none' : 'width:100%;gap:7px;color:#0B1F3A;text-decoration:none') + '">' +
       ICON.pin + esc(d.openGmaps) + '</a>';
   }
 
@@ -398,23 +398,23 @@
     var d = t();
     var canGo = state.phone.replace(/\D/g, "").length >= 6;
     return (
-      '<div class="col fill" style="background:#FFD700;padding:calc(30px + var(--sat)) 26px 40px;justify-content:space-between">' +
+      '<div class="col fill" style="background:#0B1F3A;color:#EAF1F7;padding:calc(30px + var(--sat)) 26px 40px;justify-content:space-between">' +
         '<div class="col" style="gap:24px">' +
-          '<div class="brand-row"><svg width="33" height="42" viewBox="0 0 60 76"><path d="M30 4C14.5 4 4 15.4 4 29.5C4 47 30 72 30 72C30 72 56 47 56 29.5C56 15.4 45.5 4 30 4Z" fill="#101010"/><rect x="20" y="20" width="20" height="20" rx="3" fill="#FFD700"/></svg><span class="brand-name" style="font-size:32px">WunaGo</span></div>' +
-          '<div class="slogan" style="margin-top:-14px">WE MAKE IT POSSIBLE</div>' +
+          '<div class="brand-row"><svg width="33" height="42" viewBox="0 0 60 76"><path d="M30 4C14.5 4 4 15.4 4 29.5C4 47 30 72 30 72C30 72 56 47 56 29.5C56 15.4 45.5 4 30 4Z" fill="#1FD1B2"/><rect x="20" y="20" width="20" height="20" rx="3" fill="#0B1F3A"/></svg><span class="brand-name" style="color:#fff;font-size:32px">WunaGo</span></div>' +
+          '<div class="col" style="gap:5px;margin-top:-14px"><div class="slogan" style="color:#1FD1B2">WE MAKE IT POSSIBLE</div><div style="font-weight:600;font-size:12.5px;line-height:1.4;color:rgba(234,241,247,.72)">' + esc(state.lang === "en" ? "Delivered to the right place, at the right time, to the right person." : "Livrer au bon endroit, au bon moment, à la bonne personne.") + '</div></div>' +
           '<div style="font-weight:800;font-size:34px;line-height:1.06;letter-spacing:-1.3px;white-space:pre-line">' + esc(d.authTitle) + '</div>' +
-          '<div style="font-weight:500;font-size:14px;line-height:1.5;color:rgba(16,16,16,.7);max-width:270px">' + esc(d.authSub) + '</div>' +
+          '<div style="font-weight:500;font-size:14px;line-height:1.5;color:rgba(234,241,247,.7);max-width:270px">' + esc(d.authSub) + '</div>' +
         '</div>' +
         '<div class="col" style="gap:11px">' +
-          '<div class="fx ac" style="gap:10px;background:#fff;border-radius:16px;padding:0 15px;height:54px">' +
-            '<span class="mono" style="font-weight:600;font-size:14px;color:rgba(16,16,16,.55)">+237</span>' +
-            '<div style="width:1px;height:20px;background:rgba(16,16,16,.12)"></div>' +
+          '<div class="fx ac" style="gap:10px;background:#fff;color:#0B1F3A;border-radius:16px;padding:0 15px;height:54px">' +
+            '<span class="mono" style="font-weight:600;font-size:14px;color:rgba(11,31,58,.55)">+237</span>' +
+            '<div style="width:1px;height:20px;background:rgba(11,31,58,.12)"></div>' +
             '<input data-bind="phone" aria-label="Numéro de téléphone" autocomplete="tel-national" value="' + esc(state.phone) + '" placeholder="' + d.phonePh + '" inputmode="numeric" style="flex:1;font-weight:600;font-size:15px;height:100%" />' +
           '</div>' +
-          '<button class="btn btn-ink" data-action="requestOtp" ' + (canGo ? "" : "disabled") + '>' + esc(d.continue) + '</button>' +
-          '<div style="font-size:11px;line-height:1.5;color:rgba(16,16,16,.6);text-align:center">' + esc(d.terms) + '</div>' +
-          '<button class="btn" data-action="openPrice" style="height:44px;background:transparent;font-weight:800;font-size:13.5px;text-decoration:underline">' + esc(te().seePrice) + '</button>' +
-          '<a href="livreur.html" style="display:flex;align-items:center;justify-content:center;min-height:44px;color:#101010;font-weight:700;font-size:12.5px">' + esc(state.lang === "en" ? "Courier? Join WunaGo →" : "Vous êtes livreur ? Rejoignez WunaGo →") + '</a>' +
+          '<button class="btn btn-yellow" data-action="requestOtp" ' + (canGo ? "" : "disabled") + '>' + esc(d.continue) + '</button>' +
+          '<div style="font-size:11px;line-height:1.5;color:rgba(234,241,247,.6);text-align:center">' + esc(d.terms) + '</div>' +
+          '<button class="btn" data-action="openPrice" style="height:44px;background:transparent;color:#1FD1B2;font-weight:800;font-size:13.5px;text-decoration:underline">' + esc(te().seePrice) + '</button>' +
+          '<a href="livreur.html" style="display:flex;align-items:center;justify-content:center;min-height:44px;color:#EAF1F7;font-weight:700;font-size:12.5px">' + esc(state.lang === "en" ? "Courier? Join WunaGo →" : "Vous êtes livreur ? Rejoignez WunaGo →") + '</a>' +
         '</div>' +
       '</div>'
     );
@@ -425,22 +425,22 @@
   function screenOtp() {
     var d = t();
     var cells = [0, 1, 2, 3].map(function (i) {
-      return '<div class="fx ac jc" style="flex:1;height:56px;background:#fff;border-radius:13px;font-family:var(--mono);font-weight:600;font-size:22px">' + (state.otpInput[i] || "") + '</div>';
+      return '<div class="fx ac jc" style="flex:1;height:56px;background:#fff;color:#0B1F3A;border-radius:13px;font-family:var(--mono);font-weight:600;font-size:22px">' + (state.otpInput[i] || "") + '</div>';
     }).join("");
     var keys = ["1", "2", "3", "4", "5", "6", "7", "8", "9", "", "0", "back"];
     var pad = keys.map(function (k) {
       if (!k) return '<div></div>';
       var label = k === "back" ? "←" : k;
-      return '<button class="btn" data-action="otpKey" data-arg="' + k + '" style="height:44px;border-radius:11px;background:rgba(16,16,16,.08);font-family:var(--mono);font-weight:700;font-size:16px;color:#101010">' + label + '</button>';
+      return '<button class="btn" data-action="otpKey" data-arg="' + k + '" style="height:44px;border-radius:11px;background:rgba(234,241,247,.08);font-family:var(--mono);font-weight:700;font-size:16px;color:#EAF1F7">' + label + '</button>';
     }).join("");
     return (
-      '<div class="col fill" style="background:#FFD700;padding:calc(30px + var(--sat)) 24px 30px;gap:16px">' +
-        '<div class="brand-row"><svg width="26" height="33" viewBox="0 0 60 76"><path d="M30 4C14.5 4 4 15.4 4 29.5C4 47 30 72 30 72C30 72 56 47 56 29.5C56 15.4 45.5 4 30 4Z" fill="#101010"/><rect x="20" y="20" width="20" height="20" rx="3" fill="#FFD700"/></svg><span class="brand-name" style="font-size:21px">WunaGo</span></div>' +
-        '<div style="font-weight:600;font-size:12.5px;line-height:1.4;color:rgba(16,16,16,.7)">' + esc(d.otpSentPrefix) + " +237 " + esc(state.phone) + '</div>' +
-        (DEMO && state.generatedOtp ? '<div style="background:rgba(16,16,16,.08);border-radius:11px;padding:9px 12px;font-family:var(--mono);font-size:11px;line-height:1.5;color:rgba(16,16,16,.75)">' + esc(d.demoCode) + ' <b style="letter-spacing:.1em">' + state.generatedOtp + '</b></div>' : '') +
+      '<div class="col fill" style="background:#0B1F3A;color:#EAF1F7;padding:calc(30px + var(--sat)) 24px 30px;gap:16px">' +
+        '<div class="brand-row"><svg width="26" height="33" viewBox="0 0 60 76"><path d="M30 4C14.5 4 4 15.4 4 29.5C4 47 30 72 30 72C30 72 56 47 56 29.5C56 15.4 45.5 4 30 4Z" fill="#1FD1B2"/><rect x="20" y="20" width="20" height="20" rx="3" fill="#0B1F3A"/></svg><span class="brand-name" style="color:#fff;font-size:21px">WunaGo</span></div>' +
+        '<div style="font-weight:600;font-size:12.5px;line-height:1.4;color:rgba(234,241,247,.7)">' + esc(d.otpSentPrefix) + " +237 " + esc(state.phone) + '</div>' +
+        (DEMO && state.generatedOtp ? '<div style="background:rgba(234,241,247,.08);border-radius:11px;padding:9px 12px;font-family:var(--mono);font-size:11px;line-height:1.5;color:rgba(234,241,247,.75)">' + esc(d.demoCode) + ' <b style="letter-spacing:.1em">' + state.generatedOtp + '</b></div>' : '') +
         '<div class="fx" style="gap:8px">' + cells + '</div>' +
         '<div style="display:grid;grid-template-columns:repeat(3,1fr);gap:7px">' + pad + '</div>' +
-        '<div style="text-align:center"><button data-action="resendOtp" style="background:none;border:0;font-weight:600;font-size:12px;text-decoration:underline;color:#101010;cursor:pointer">' + esc(d.resend) + '</button></div>' +
+        '<div style="text-align:center"><button data-action="resendOtp" style="background:none;border:0;font-weight:600;font-size:12px;text-decoration:underline;color:#EAF1F7;cursor:pointer">' + esc(d.resend) + '</button></div>' +
       '</div>'
     );
   }
@@ -452,45 +452,45 @@
     var active = state.orders.filter(function (o) { return ["received", "picked_up", "en_route"].indexOf(o.status) !== -1; })[0];
     var tiles = visibleServices().map(function (s) {
       return '<button class="fx col" data-action="pickService" data-arg="' + s.key + '" style="text-align:left;border:1px solid var(--hair);background:#fff;border-radius:17px;padding:14px;cursor:pointer;flex-direction:column;gap:24px;min-height:112px">' +
-        '<span class="fx ac jc" style="width:32px;height:32px;border-radius:9px;background:#FFD700;font-family:var(--mono);font-weight:700;font-size:11px">' + s.mark + '</span>' +
-        '<span class="col" style="gap:2px"><span style="font-weight:700;font-size:14px">' + esc(s[state.lang]) + '</span><span class="mono" style="font-size:10.5px;color:rgba(16,16,16,.5)">' + priceLabel(s) + '</span></span>' +
+        '<span class="fx ac jc" style="width:32px;height:32px;border-radius:9px;background:#1FD1B2;font-family:var(--mono);font-weight:700;font-size:11px">' + s.mark + '</span>' +
+        '<span class="col" style="gap:2px"><span style="font-weight:700;font-size:14px">' + esc(s[state.lang]) + '</span><span class="mono" style="font-size:10.5px;color:rgba(11,31,58,.5)">' + priceLabel(s) + '</span></span>' +
         '</button>';
     }).join("");
     var listRows = visibleServices().map(function (s) {
       return '<button class="fx ac" data-action="pickService" data-arg="' + s.key + '" style="gap:12px;text-align:left;border:1px solid var(--hair);background:#fff;border-radius:15px;padding:13px 14px;cursor:pointer">' +
-        '<span class="fx ac jc" style="width:36px;height:36px;flex:none;border-radius:10px;background:#FFD700;font-family:var(--mono);font-weight:700;font-size:11px">' + s.mark + '</span>' +
-        '<span class="col" style="gap:2px;flex:1"><span style="font-weight:700;font-size:14px">' + esc(s[state.lang]) + '</span><span class="mono" style="font-size:10.5px;color:rgba(16,16,16,.5)">' + priceLabel(s) + '</span></span>' +
-        '<span style="color:rgba(16,16,16,.3);font-weight:600">→</span></button>';
+        '<span class="fx ac jc" style="width:36px;height:36px;flex:none;border-radius:10px;background:#1FD1B2;font-family:var(--mono);font-weight:700;font-size:11px">' + s.mark + '</span>' +
+        '<span class="col" style="gap:2px;flex:1"><span style="font-weight:700;font-size:14px">' + esc(s[state.lang]) + '</span><span class="mono" style="font-size:10.5px;color:rgba(11,31,58,.5)">' + priceLabel(s) + '</span></span>' +
+        '<span style="color:rgba(11,31,58,.3);font-weight:600">→</span></button>';
     }).join("");
 
     var activeCard = "";
     if (active && state.settings.showActiveOrder) {
       var pr = Math.min(1, active.stage / 3) * 100;
-      activeCard = '<div style="padding:20px 20px 0"><div style="font-weight:700;font-size:12.5px;color:rgba(16,16,16,.45);padding-bottom:9px">' + esc(d.inProgress) + '</div>' +
-        '<button class="col" data-action="openOrder" data-arg="' + active.id + '" style="width:100%;text-align:left;border:0;background:#101010;border-radius:18px;padding:15px 16px;cursor:pointer;gap:12px">' +
-        '<span class="fx ac" style="gap:8px"><span style="position:relative;width:7px;height:7px"><span style="position:absolute;inset:0;border-radius:99px;background:#FFD700"></span></span>' +
-        '<span class="mono" style="font-size:10.5px;letter-spacing:.06em;color:#FFD700">' + active.code + '</span></span>' +
+      activeCard = '<div style="padding:20px 20px 0"><div style="font-weight:700;font-size:12.5px;color:rgba(11,31,58,.45);padding-bottom:9px">' + esc(d.inProgress) + '</div>' +
+        '<button class="col" data-action="openOrder" data-arg="' + active.id + '" style="width:100%;text-align:left;border:0;background:#0B1F3A;border-radius:18px;padding:15px 16px;cursor:pointer;gap:12px">' +
+        '<span class="fx ac" style="gap:8px"><span style="position:relative;width:7px;height:7px"><span style="position:absolute;inset:0;border-radius:99px;background:#1FD1B2"></span></span>' +
+        '<span class="mono" style="font-size:10.5px;letter-spacing:.06em;color:#1FD1B2">' + active.code + '</span></span>' +
         '<span style="font-weight:700;font-size:15px;color:#fff">' + esc(svcName(active.service)) + " · " + esc(active.pickup) + ' → ' + esc(active.dropoff) + '</span>' +
-        '<span class="fx" style="gap:4px"><span style="flex:1;height:4px;border-radius:9px;background:#FFD700;opacity:' + (pr >= 0 ? 1 : .2) + '"></span><span style="flex:1;height:4px;border-radius:9px;background:' + (pr >= 33 ? "#FFD700" : "rgba(255,255,255,.2)") + '"></span><span style="flex:1;height:4px;border-radius:9px;background:' + (pr >= 66 ? "#FFD700" : "rgba(255,255,255,.2)") + '"></span><span style="flex:1;height:4px;border-radius:9px;background:' + (pr >= 100 ? "#FFD700" : "rgba(255,255,255,.2)") + '"></span></span>' +
+        '<span class="fx" style="gap:4px"><span style="flex:1;height:4px;border-radius:9px;background:#1FD1B2;opacity:' + (pr >= 0 ? 1 : .2) + '"></span><span style="flex:1;height:4px;border-radius:9px;background:' + (pr >= 33 ? "#1FD1B2" : "rgba(255,255,255,.2)") + '"></span><span style="flex:1;height:4px;border-radius:9px;background:' + (pr >= 66 ? "#1FD1B2" : "rgba(255,255,255,.2)") + '"></span><span style="flex:1;height:4px;border-radius:9px;background:' + (pr >= 100 ? "#1FD1B2" : "rgba(255,255,255,.2)") + '"></span></span>' +
         '</button></div>';
     }
 
     return (
-      '<div class="col" style="background:#FFD700;padding:calc(18px + var(--sat)) 20px 20px;border-radius:0 0 24px 24px;flex:none">' +
+      '<div class="col" style="background:transparent;padding:calc(18px + var(--sat)) 20px 4px;flex:none">' +
         '<div class="fx ac jb">' +
-          '<div class="col" style="gap:1px"><span style="font-weight:500;font-size:12px;color:rgba(16,16,16,.6)">' + esc(d.greeting) + '</span><span style="font-weight:800;font-size:20px;letter-spacing:-.5px">' + esc(state.user.name) + '</span></div>' +
-          '<button data-action="toggleLang" style="border:0;background:rgba(16,16,16,.1);border-radius:99px;padding:7px 11px;font-family:var(--mono);font-weight:700;font-size:10.5px;cursor:pointer">' + (state.lang === "en" ? "EN" : "FR") + '</button>' +
+          '<div class="col" style="gap:1px"><span style="font-weight:500;font-size:12px;color:rgba(11,31,58,.6)">' + esc(d.greeting) + '</span><span style="font-weight:800;font-size:20px;letter-spacing:-.5px">' + esc(state.user.name) + '</span></div>' +
+          '<button data-action="toggleLang" style="border:0;background:rgba(11,31,58,.1);border-radius:99px;padding:7px 11px;font-family:var(--mono);font-weight:700;font-size:10.5px;cursor:pointer">' + (state.lang === "en" ? "EN" : "FR") + '</button>' +
         '</div>' +
-        '<button data-action="go" data-arg="wallet" style="margin-top:16px;background:#101010;border:0;border-radius:16px;padding:14px 15px;display:flex;align-items:center;justify-content:space-between;cursor:pointer;text-align:left">' +
-          '<span class="col" style="gap:2px"><span class="mono" style="font-size:10px;letter-spacing:.08em;color:rgba(255,255,255,.5)">' + esc(d.wallet) + '</span><span style="font-weight:800;font-size:19px;color:#FFD700">' + fmtFcfa(state.wallet.balance) + '</span></span>' +
-          '<span style="background:#FFD700;color:#101010;border-radius:99px;padding:9px 13px;font-weight:700;font-size:11.5px">' + esc(d.topUp) + '</span>' +
+        '<button data-action="go" data-arg="wallet" style="margin-top:16px;background:#0B1F3A;border:0;border-radius:16px;padding:14px 15px;display:flex;align-items:center;justify-content:space-between;cursor:pointer;text-align:left">' +
+          '<span class="col" style="gap:2px"><span class="mono" style="font-size:10px;letter-spacing:.08em;color:rgba(255,255,255,.5)">' + esc(d.wallet) + '</span><span style="font-weight:800;font-size:19px;color:#1FD1B2">' + fmtFcfa(state.wallet.balance) + '</span></span>' +
+          '<span style="background:#1FD1B2;color:#0B1F3A;border-radius:99px;padding:9px 13px;font-weight:700;font-size:11.5px">' + esc(d.topUp) + '</span>' +
         '</button>' +
       '</div>' +
-      '<div class="scroll">' + installBanner() + quickHero() + linksCard() + '<div style="padding:18px 20px 6px;font-weight:700;font-size:12.5px;color:rgba(16,16,16,.5)">' + esc(d.services) + '</div>' +
+      '<div class="scroll">' + installBanner() + quickHero() + linksCard() + '<div style="padding:18px 20px 6px;font-weight:700;font-size:12.5px;color:rgba(11,31,58,.5)">' + esc(d.services) + '</div>' +
       '<div style="padding:2px 20px 0">' + (state.settings.homeLayout === "tiles" ? '<div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">' + tiles + '</div>' : '<div class="col" style="gap:8px">' + listRows + '</div>') + '</div>' +
       activeCard + codeHomeCard() + recentBlock() +
-      (srv() ? '<div style="height:24px"></div>' : '<div style="padding:20px 20px 24px"><div style="border:1px dashed rgba(16,16,16,.2);border-radius:16px;padding:14px;background:repeating-linear-gradient(135deg,rgba(255,215,0,.16) 0 8px,transparent 8px 16px)">' +
-        '<div class="mono" style="font-size:9.5px;letter-spacing:.08em;color:rgba(16,16,16,.5)">PROMO</div><div style="font-weight:700;font-size:14px;margin-top:5px">' + esc(t4().promo) + '</div></div></div>') +
+      (srv() ? '<div style="height:24px"></div>' : '<div style="padding:20px 20px 24px"><div style="border:1px dashed rgba(11,31,58,.2);border-radius:16px;padding:14px;background:repeating-linear-gradient(135deg,rgba(31,209,178,.16) 0 8px,transparent 8px 16px)">' +
+        '<div class="mono" style="font-size:9.5px;letter-spacing:.08em;color:rgba(11,31,58,.5)">PROMO</div><div style="font-weight:700;font-size:14px;margin-top:5px">' + esc(t4().promo) + '</div></div></div>') +
       '</div>'
     );
   }
@@ -630,12 +630,12 @@
   }
 
   function stepper(action, arg, value, min) {
-    return '<div class="fx ac" style="gap:9px;background:rgba(16,16,16,.05);border-radius:99px;padding:4px;flex:none">' +
+    return '<div class="fx ac" style="gap:9px;background:rgba(11,31,58,.05);border-radius:99px;padding:4px;flex:none">' +
       '<button class="btn" data-action="' + action + '" data-arg="' + arg + '|-1" aria-label="Moins" style="width:34px;height:34px;border-radius:99px;background:#fff;font-size:16px;padding:0"' + (value <= min ? " disabled" : "") + '>–</button>' +
       '<span class="mono" style="min-width:34px;text-align:center;font-weight:600;font-size:13.5px">' + value + '</span>' +
       '<button class="btn btn-ink" data-action="' + action + '" data-arg="' + arg + '|1" aria-label="Plus" style="width:34px;height:34px;border-radius:99px;font-size:16px;padding:0">+</button></div>';
   }
-  function sectionTitle(txt) { return '<div style="font-weight:700;font-size:12px;color:rgba(16,16,16,.55)">' + esc(txt) + '</div>'; }
+  function sectionTitle(txt) { return '<div style="font-weight:700;font-size:12px;color:rgba(11,31,58,.55)">' + esc(txt) + '</div>'; }
   var card = 'background:#fff;border:1px solid var(--hair);border-radius:16px';
   function choiceChips(action, opts, current) {
     return '<div class="fx wrap" style="gap:7px">' + opts.map(function (o) { return chip(o[1], current === o[0], action, o[0]); }).join("") + '</div>';
@@ -651,13 +651,13 @@
     var vs = ["bike", "tricycle", "van"].map(function (v) {
       var ok = WPricing.vehicleAllows(v, kg), on = dr.vehicle === v;
       var q = ok ? WPricing.quote({ service: "parcel", pickup: dr.pickup, dropoff: dr.dropoff, pickupGeo: dr.pickupGeo, dropoffGeo: dr.dropoffGeo, vehicle: v, weightKg: kg, scheduledAt: whenAt(dr.when) }, Date.now()) : null;
-      return '<button class="col" data-action="pickVehicle" data-arg="' + v + '"' + (ok ? "" : " disabled") + ' style="flex:1;border:1.5px solid ' + (on ? "#101010" : "var(--hair)") + ';background:' + (on ? "#FFD700" : "#fff") + ';border-radius:14px;padding:11px 9px;gap:3px;align-items:flex-start;text-align:left;color:#101010;opacity:' + (ok ? 1 : .45) + '">' +
-        '<span style="font-weight:700;font-size:12px">' + esc(d.vehNames[v]) + '</span><span class="mono" style="font-size:9.5px;color:rgba(16,16,16,.6)">≤ ' + WPricing.TARIFS.vehicules[v].kgMax + ' kg</span>' +
+      return '<button class="col" data-action="pickVehicle" data-arg="' + v + '"' + (ok ? "" : " disabled") + ' style="flex:1;border:1.5px solid ' + (on ? "#0B1F3A" : "var(--hair)") + ';background:' + (on ? "#1FD1B2" : "#fff") + ';border-radius:14px;padding:11px 9px;gap:3px;align-items:flex-start;text-align:left;color:#0B1F3A;opacity:' + (ok ? 1 : .45) + '">' +
+        '<span style="font-weight:700;font-size:12px">' + esc(d.vehNames[v]) + '</span><span class="mono" style="font-size:9.5px;color:rgba(11,31,58,.6)">≤ ' + WPricing.TARIFS.vehicules[v].kgMax + ' kg</span>' +
         '<span class="mono" style="font-size:10.5px;font-weight:600">' + (ok ? fmtFcfa(q.net) : esc(e4.vehicleTooSmall)) + '</span></button>';
     }).join("");
     return '<div class="col" style="gap:10px">' + sectionTitle(e4.weightHint) +
       '<div class="fx ac jb" style="' + card + ';padding:12px 15px"><div style="font-weight:700;font-size:13.5px">' + esc(d.weight) + '</div>' +
-        '<div class="fx ac" style="gap:11px;background:rgba(16,16,16,.05);border-radius:99px;padding:4px"><button class="btn" data-action="decWeight" aria-label="Moins" style="width:34px;height:34px;border-radius:99px;background:#fff;font-size:16px;padding:0">–</button><span class="mono" style="min-width:52px;text-align:center;font-weight:600;font-size:14px">' + fmtW(kg) + '</span><button class="btn btn-ink" data-action="incWeight" aria-label="Plus" style="width:34px;height:34px;border-radius:99px;font-size:16px;padding:0">+</button></div></div>' +
+        '<div class="fx ac" style="gap:11px;background:rgba(11,31,58,.05);border-radius:99px;padding:4px"><button class="btn" data-action="decWeight" aria-label="Moins" style="width:34px;height:34px;border-radius:99px;background:#fff;font-size:16px;padding:0">–</button><span class="mono" style="min-width:52px;text-align:center;font-weight:600;font-size:14px">' + fmtW(kg) + '</span><button class="btn btn-ink" data-action="incWeight" aria-label="Plus" style="width:34px;height:34px;border-radius:99px;font-size:16px;padding:0">+</button></div></div>' +
       '<div class="fx" style="gap:8px">' + vs + '</div>' +
       '<textarea data-bind="draft.note" aria-label="Note" placeholder="' + esc(d.notePh) + '" style="' + card + ';min-height:56px;padding:12px 14px;font-weight:500;font-size:13px;resize:none">' + esc(dr.note) + '</textarea>' +
       whenBlock(dr) + '</div>';
@@ -667,11 +667,11 @@
     var rows = Object.keys(P.articles).map(function (k, i, arr) {
       var n = L.items[k] || 0;
       return '<div class="fx ac" style="gap:10px;padding:9px 14px;' + (i < arr.length - 1 ? "border-bottom:1px solid var(--hair)" : "") + '">' +
-        '<div class="col" style="gap:1px;flex:1"><span style="font-weight:700;font-size:13px">' + esc(e4.laundryItems[k]) + '</span><span class="mono" style="font-size:10px;color:rgba(16,16,16,.55)">' + fmtFcfa(P.articles[k]) + ' ' + esc(e4.perPiece) + '</span></div>' +
+        '<div class="col" style="gap:1px;flex:1"><span style="font-weight:700;font-size:13px">' + esc(e4.laundryItems[k]) + '</span><span class="mono" style="font-size:10px;color:rgba(11,31,58,.55)">' + fmtFcfa(P.articles[k]) + ' ' + esc(e4.perPiece) + '</span></div>' +
         stepper("laundryItem", k, n, 0) + '</div>';
     }).join("");
     return '<div class="col" style="gap:10px">' +
-      '<div class="fx ac" style="gap:10px;' + card + ';padding:12px 14px"><div class="col" style="gap:2px;flex:1"><span style="font-weight:700;font-size:13.5px">' + esc(e4.kiloTitle) + '</span><span style="font-size:11px;color:rgba(16,16,16,.6)">' + fmtFcfa(P.parKg) + '/kg · ' + esc(e4.kiloSub.split(" · ")[1] || "") + '</span></div>' +
+      '<div class="fx ac" style="gap:10px;' + card + ';padding:12px 14px"><div class="col" style="gap:2px;flex:1"><span style="font-weight:700;font-size:13.5px">' + esc(e4.kiloTitle) + '</span><span style="font-size:11px;color:rgba(11,31,58,.6)">' + fmtFcfa(P.parKg) + '/kg · ' + esc(e4.kiloSub.split(" · ")[1] || "") + '</span></div>' +
         stepper("laundryKg", "kg", (L.kg || 0), 0) + '</div>' +
       '<div style="' + card + '">' + rows + '</div>' +
       '<div class="col" style="gap:8px">' + sectionTitle(e4.mode) + choiceChips("setLaundryMode", Object.keys(e4.modes).map(function (k) { return [k, e4.modes[k]]; }), L.mode) + '</div>' +
@@ -685,13 +685,13 @@
       var p = Math.max(0, Number(it.price) || 0), q = Math.max(1, Number(it.qty) || 1); total += p * q;
       return '<div class="col" style="gap:8px;padding:10px 14px;' + (i < E.list.length - 1 ? "border-bottom:1px solid var(--hair)" : "") + '">' +
         '<div class="fx ac" style="gap:8px"><input data-bind="errand.name.' + i + '" aria-label="' + esc(e4.itemName) + ' ' + (i + 1) + '" placeholder="' + esc(e4.itemName) + '" value="' + esc(it.name) + '" style="flex:1;min-width:0;height:40px;font-weight:600;font-size:13.5px" />' +
-        '<button class="btn" data-action="removeErrandItem" data-arg="' + i + '" aria-label="Retirer" style="width:34px;height:34px;flex:none;border-radius:99px;background:rgba(16,16,16,.06);font-size:15px;padding:0">×</button></div>' +
+        '<button class="btn" data-action="removeErrandItem" data-arg="' + i + '" aria-label="Retirer" style="width:34px;height:34px;flex:none;border-radius:99px;background:rgba(11,31,58,.06);font-size:15px;padding:0">×</button></div>' +
         '<div class="fx ac" style="gap:10px">' + stepper("errandQty", String(i), q, 1) +
-        '<label class="fx ac" style="gap:6px;flex:1;background:rgba(16,16,16,.04);border-radius:11px;padding:0 11px;height:40px"><input data-bind="errand.price.' + i + '" inputmode="numeric" aria-label="' + esc(e4.itemPrice) + '" placeholder="' + esc(e4.itemPrice) + '" value="' + esc(it.price) + '" style="flex:1;min-width:0;font-weight:600;font-size:13px" /><span class="mono" style="font-size:10.5px;color:rgba(16,16,16,.55)">F</span></label></div></div>';
+        '<label class="fx ac" style="gap:6px;flex:1;background:rgba(11,31,58,.04);border-radius:11px;padding:0 11px;height:40px"><input data-bind="errand.price.' + i + '" inputmode="numeric" aria-label="' + esc(e4.itemPrice) + '" placeholder="' + esc(e4.itemPrice) + '" value="' + esc(it.price) + '" style="flex:1;min-width:0;font-weight:600;font-size:13px" /><span class="mono" style="font-size:10.5px;color:rgba(11,31,58,.55)">F</span></label></div></div>';
     }).join("");
     return '<div class="col" style="gap:10px">' + sectionTitle(e4.listTitle) +
       '<div style="' + card + '">' + rows + '</div>' +
-      '<div class="fx wrap" style="gap:7px">' + '<button class="btn" data-action="addErrandItem" style="height:auto;min-height:36px;border-radius:99px;padding:8px 13px;font-weight:700;font-size:11.5px;background:#101010;color:#FFD700">+ ' + esc(e4.addItem) + '</button>' +
+      '<div class="fx wrap" style="gap:7px">' + '<button class="btn" data-action="addErrandItem" style="height:auto;min-height:36px;border-radius:99px;padding:8px 13px;font-weight:700;font-size:11.5px;background:#0B1F3A;color:#1FD1B2">+ ' + esc(e4.addItem) + '</button>' +
         e4.quickItems.map(function (n) { return chip(n, false, "quickErrandItem", n); }).join("") + '</div>' +
       '<div class="fx jb ac" style="' + card + ';padding:12px 14px"><span style="font-weight:700;font-size:13px">' + esc(e4.articlesTotal) + '</span><span class="mono" style="font-weight:700;font-size:13.5px">' + fmtFcfa(total) + '</span></div>' +
       '<div class="col" style="gap:8px">' + sectionTitle(e4.load) + choiceChips("setErrandLoad", Object.keys(e4.loads).map(function (k) { return [k, e4.loads[k]]; }), E.load) + '</div>' +
@@ -704,8 +704,8 @@
     var vs = ["bike", "car"].map(function (v) {
       var ok = v === "car" || pax <= 1, on = dr.vehicle === v && ok;
       var q = ok ? WPricing.quote({ service: "ride", pickupGeo: dr.pickupGeo, dropoffGeo: dr.dropoffGeo, pickup: dr.pickup, dropoff: dr.dropoff, vehicle: v, ride: dr.ride, scheduledAt: whenAt(dr.when) }, Date.now()) : null;
-      return '<button class="col" data-action="pickVehicle" data-arg="' + v + '"' + (ok ? "" : " disabled") + ' style="flex:1;border:1.5px solid ' + (on ? "#101010" : "var(--hair)") + ';background:' + (on ? "#FFD700" : "#fff") + ';border-radius:14px;padding:12px 11px;gap:3px;align-items:flex-start;text-align:left;color:#101010;opacity:' + (ok ? 1 : .45) + '">' +
-        '<span style="font-weight:700;font-size:13px">' + esc(e4.rideVehicles[v]) + '</span><span class="mono" style="font-size:9.5px;color:rgba(16,16,16,.6)">' + esc(v === "bike" ? e4.rideBikeNote : e4.rideCarNote) + '</span>' +
+      return '<button class="col" data-action="pickVehicle" data-arg="' + v + '"' + (ok ? "" : " disabled") + ' style="flex:1;border:1.5px solid ' + (on ? "#0B1F3A" : "var(--hair)") + ';background:' + (on ? "#1FD1B2" : "#fff") + ';border-radius:14px;padding:12px 11px;gap:3px;align-items:flex-start;text-align:left;color:#0B1F3A;opacity:' + (ok ? 1 : .45) + '">' +
+        '<span style="font-weight:700;font-size:13px">' + esc(e4.rideVehicles[v]) + '</span><span class="mono" style="font-size:9.5px;color:rgba(11,31,58,.6)">' + esc(v === "bike" ? e4.rideBikeNote : e4.rideCarNote) + '</span>' +
         '<span class="mono" style="font-size:11px;font-weight:600">' + (ok ? fmtFcfa(q.net) : "—") + '</span></button>';
     }).join("");
     return '<div class="col" style="gap:10px">' +
@@ -727,7 +727,7 @@
       if (l.key === "articles") extra = " · " + l.info.count;
       var neg = l.amount < 0;
       return '<div class="fx jb" style="align-items:baseline;gap:10px"><span style="font-weight:500;font-size:12.5px;color:rgba(255,255,255,.65)">' + esc(label + extra) + '</span>' +
-        '<span class="mono" style="font-weight:600;font-size:12.5px;white-space:nowrap;color:' + (neg ? "#FFD700" : "#fff") + '">' + (neg ? "– " + fmtFcfa(-l.amount) : fmtFcfa(l.amount)) + '</span></div>';
+        '<span class="mono" style="font-weight:600;font-size:12.5px;white-space:nowrap;color:' + (neg ? "#1FD1B2" : "#fff") + '">' + (neg ? "– " + fmtFcfa(-l.amount) : fmtFcfa(l.amount)) + '</span></div>';
     }).join("");
     var notes = [];
     if (q.hour === "peak" || q.hour === "evening") notes.push(e4.hourNotes[q.hour]);
@@ -745,34 +745,34 @@
     var laundrySame = dr.service === "laundry" && dr.laundry.sameReturn;
 
     var progressBar = stepped ? '<div class="fx" style="gap:5px">' + [1, 2, 3].map(function (n) {
-      return '<span style="flex:1;height:3px;border-radius:9px;background:' + (n <= step ? "#101010" : "rgba(16,16,16,.13)") + '"></span>';
+      return '<span style="flex:1;height:3px;border-radius:9px;background:' + (n <= step ? "#0B1F3A" : "rgba(11,31,58,.13)") + '"></span>';
     }).join("") + '</div>' : "";
 
     function addrRow(field, ph, dot) {
       var geo = dr[field + "Geo"], v = dr[field];
-      var right = geo ? (isSavedAddr(v) ? '<span style="color:#101010" title="' + esc(d.kindSaved) + '">' + ICON.star + '</span>'
-        : '<button class="btn" data-action="saveAddress" data-arg="' + field + '" aria-label="' + esc(d.saveAddr) + '" style="height:30px;border-radius:99px;padding:0 9px;background:rgba(16,16,16,.06);font-weight:700;font-size:10.5px;gap:4px">' + ICON.starO + esc(d.saveAddr) + '</button>') : "";
+      var right = geo ? (isSavedAddr(v) ? '<span style="color:#0B1F3A" title="' + esc(d.kindSaved) + '">' + ICON.star + '</span>'
+        : '<button class="btn" data-action="saveAddress" data-arg="' + field + '" aria-label="' + esc(d.saveAddr) + '" style="height:30px;border-radius:99px;padding:0 9px;background:rgba(11,31,58,.06);font-weight:700;font-size:10.5px;gap:4px">' + ICON.starO + esc(d.saveAddr) + '</button>') : "";
       return '<div class="fx ac addr-row" style="gap:11px;min-height:52px">' + dot +
         '<input data-bind="draft.' + field + '" data-field="' + field + '" autocomplete="off" aria-autocomplete="list" aria-label="' + esc(ph) + '" value="' + esc(v) + '" placeholder="' + esc(ph) + '" style="flex:1;min-width:0;font-weight:600;font-size:13.5px;height:52px" />' +
         right + '</div>' + suggestList(field) + (v ? hintInput(field) : '');
     }
-    var chipStyle = 'border:1px solid rgba(16,16,16,.12);background:#fff;border-radius:99px;padding:7px 12px;height:auto;min-height:34px;font-weight:600;font-size:11.5px;color:#101010;gap:5px';
+    var chipStyle = 'border:1px solid rgba(11,31,58,.12);background:#fff;border-radius:99px;padding:7px 12px;height:auto;min-height:34px;font-weight:600;font-size:11.5px;color:#0B1F3A;gap:5px';
     var routeKm = dr.pickupGeo && (laundrySame ? null : dr.dropoffGeo) ? WGeo.roadKm(dr.pickupGeo, dr.dropoffGeo) : null;
     var targets = laundrySame ? ["pickup"] : ["pickup", "dropoff"];
     var addrSection = !showAddr ? "" : (
       '<div class="col" style="gap:10px">' + sectionTitle(titles[0]) +
       '<div style="' + card + ';padding:0 15px">' +
-        addrRow("pickup", roles[0], '<span style="width:8px;height:8px;flex:none;border-radius:99px;background:#FFD700;border:2.5px solid #101010"></span>') +
-        (laundrySame ? '' : '<div style="height:1px;background:var(--hair);margin-left:19px"></div>' + addrRow("dropoff", roles[1], '<span style="width:8px;height:8px;flex:none;background:#101010"></span>')) +
+        addrRow("pickup", roles[0], '<span style="width:8px;height:8px;flex:none;border-radius:99px;background:#1FD1B2;border:2.5px solid #0B1F3A"></span>') +
+        (laundrySame ? '' : '<div style="height:1px;background:var(--hair);margin-left:19px"></div>' + addrRow("dropoff", roles[1], '<span style="width:8px;height:8px;flex:none;background:#0B1F3A"></span>')) +
       '</div>' +
       (dr.service === "parcel" ? recipientBlock(dr) : '') +
       (dr.service === "laundry" ? '<div style="' + card + '">' + toggleRow(e4.sameReturn, WPricing.TARIFS.pressing.atelier.nom, dr.laundry.sameReturn, "toggleSameReturn", "x") + '</div>' : '') +
-      (routeKm != null ? '<div class="fx ac jb wrap" style="gap:8px"><div class="fx ac mono" style="gap:6px;font-size:11px;color:rgba(16,16,16,.6)">' + ICON.pin + d.approx + ' ' + fmtKm(routeKm) + '</div>' + gmapsButton(dr.pickupGeo, dr.dropoffGeo, true) + '</div>' : '') +
-      '<div class="fx wrap ac" style="gap:7px"><button class="btn" data-action="useMyLocation" style="' + chipStyle + ';background:#101010;color:#FFD700;border-color:#101010">' + ICON.gps + esc(d.myPosition) + '</button>' + codeEntry() + '</div>' +
+      (routeKm != null ? '<div class="fx ac jb wrap" style="gap:8px"><div class="fx ac mono" style="gap:6px;font-size:11px;color:rgba(11,31,58,.6)">' + ICON.pin + d.approx + ' ' + fmtKm(routeKm) + '</div>' + gmapsButton(dr.pickupGeo, dr.dropoffGeo, true) + '</div>' : '') +
+      '<div class="fx wrap ac" style="gap:7px"><button class="btn" data-action="useMyLocation" style="' + chipStyle + ';background:#0B1F3A;color:#1FD1B2;border-color:#0B1F3A">' + ICON.gps + esc(d.myPosition) + '</button>' + codeEntry() + '</div>' +
       (dr.service === "errand" ? '<div class="col" style="gap:7px">' + sectionTitle(e4.markets) + '<div class="fx wrap" style="gap:7px">' +
         MARKETS.map(function (m, i) { return '<button class="btn" data-action="pickMarket" data-arg="' + i + '" style="' + chipStyle + '">' + esc(m[0]) + '</button>'; }).join("") + '</div></div>' : '') +
-      '<div class="col" style="gap:7px">' + (targets.length > 1 ? '<div class="fx ac" style="gap:6px;font-size:11px;font-weight:600;color:rgba(16,16,16,.6)">' + esc(d.fillTarget) +
-        targets.map(function (f, i) { var on = state.addrTarget === f; return '<button class="btn" data-action="setAddrTarget" data-arg="' + f + '" aria-pressed="' + on + '" style="height:28px;border-radius:99px;padding:0 9px;font-weight:700;font-size:10.5px;background:' + (on ? "#101010" : "rgba(16,16,16,.06)") + ';color:' + (on ? "#fff" : "rgba(16,16,16,.65)") + '">' + esc(roles[i]) + '</button>'; }).join("") + '</div>' : '') +
+      '<div class="col" style="gap:7px">' + (targets.length > 1 ? '<div class="fx ac" style="gap:6px;font-size:11px;font-weight:600;color:rgba(11,31,58,.6)">' + esc(d.fillTarget) +
+        targets.map(function (f, i) { var on = state.addrTarget === f; return '<button class="btn" data-action="setAddrTarget" data-arg="' + f + '" aria-pressed="' + on + '" style="height:28px;border-radius:99px;padding:0 9px;font-weight:700;font-size:10.5px;background:' + (on ? "#0B1F3A" : "rgba(11,31,58,.06)") + ';color:' + (on ? "#fff" : "rgba(11,31,58,.65)") + '">' + esc(roles[i]) + '</button>'; }).join("") + '</div>' : '') +
       '<div class="fx wrap" style="gap:7px">' +
         (state.addresses || []).map(function (a, i) { return '<button class="btn" data-action="pickSaved" data-arg="' + i + '" style="' + chipStyle + '">' + ICON.star + esc(a.label) + '</button>'; }).join("") +
         QUARTIERS.map(function (qq) { return '<button class="btn" data-action="pickQuartier" data-arg="' + qq + '" style="' + chipStyle + '">' + qq + '</button>'; }).join("") +
@@ -785,17 +785,17 @@
     var err = isLast ? stepChecks(dr, 3) : null;
     var recapSection = !showRecap || !q ? "" : (
       '<div class="col" style="gap:10px">' + sectionTitle(titles[2]) +
-      '<div style="background:#101010;border-radius:18px;padding:16px;display:flex;flex-direction:column;gap:11px">' + quoteLines(q, dr) +
+      '<div style="background:#0B1F3A;border-radius:18px;padding:16px;display:flex;flex-direction:column;gap:11px">' + quoteLines(q, dr) +
         '<div style="height:1px;background:rgba(255,255,255,.14)"></div>' +
-        '<div class="fx jb" style="align-items:baseline"><span style="font-weight:700;font-size:14px;color:#fff">' + esc(d.total) + '</span><span style="font-weight:800;font-size:22px;color:#FFD700;letter-spacing:-.5px">' + fmtFcfa(q.net) + '</span></div>' +
-      '</div>' + (err ? '<div role="alert" style="background:rgba(255,215,0,.22);border-radius:12px;padding:10px 12px;font-size:12px;font-weight:600;line-height:1.45">' + esc(err) + '</div>' : '') + '</div>'
+        '<div class="fx jb" style="align-items:baseline"><span style="font-weight:700;font-size:14px;color:#fff">' + esc(d.total) + '</span><span style="font-weight:800;font-size:22px;color:#1FD1B2;letter-spacing:-.5px">' + fmtFcfa(q.net) + '</span></div>' +
+      '</div>' + (err ? '<div role="alert" style="background:rgba(31,209,178,.22);border-radius:12px;padding:10px 12px;font-size:12px;font-weight:600;line-height:1.45">' + esc(err) + '</div>' : '') + '</div>'
     );
 
     return (
       '<div class="scroll"><div class="col" style="padding:calc(18px + var(--sat)) 20px 20px;gap:16px">' +
         '<div class="fx ac" style="gap:11px"><button class="backbtn" aria-label="Retour" data-action="orderBack">←</button><div class="col" style="flex:1;gap:1px"><h1 style="margin:0;font-weight:800;font-size:18px;letter-spacing:-.4px">' + esc(svcName(dr.service)) + '</h1>' +
-          (stepped ? '<span style="font-size:11.5px;font-weight:600;color:rgba(16,16,16,.6)">' + esc(titles[step - 1]) + '</span>' : '') + '</div>' +
-          (stepped ? '<span class="mono" style="font-size:10.5px;color:rgba(16,16,16,.5)">' + d.stepOf + " " + step + '/3</span>' : "") + '</div>' +
+          (stepped ? '<span style="font-size:11.5px;font-weight:600;color:rgba(11,31,58,.6)">' + esc(titles[step - 1]) + '</span>' : '') + '</div>' +
+          (stepped ? '<span class="mono" style="font-size:10.5px;color:rgba(11,31,58,.5)">' + d.stepOf + " " + step + '/3</span>' : "") + '</div>' +
         progressBar + addrSection + detSection + recapSection +
       '</div></div>' +
       '<div style="padding:16px 20px 20px"><button class="btn btn-yellow" data-action="orderNext" style="width:100%"' + (isLast && err ? " disabled" : "") + '>' +
@@ -818,26 +818,26 @@
       var detail = p.key === "wallet" ? fmtFcfa(state.wallet.balance) + (off ? " · " + t4().insufficientShort : "") : p.key === "cash" ? d.cashNote : acc ? "•••• " + last4(acc.number) : p.detail;
       if (off) return '<div class="fx ac" style="gap:12px;border:1.5px dashed var(--hair);background:#fff;border-radius:15px;padding:11px 14px">' +
         '<span class="fx ac jc" style="width:38px;height:27px;flex:none;border-radius:7px;background:' + p.bg + ';color:' + p.fg + ';font-family:var(--mono);font-weight:700;font-size:9px;opacity:.5">' + p.chip + '</span>' +
-        '<span class="col" style="gap:2px;flex:1"><span style="font-weight:700;font-size:13.5px;color:rgba(16,16,16,.55)">' + esc(d.paymentNames[p.key]) + '</span><span class="mono" style="font-size:10.5px;color:rgba(16,16,16,.6)">' + esc(detail) + '</span></span>' +
-        '<button class="btn" data-action="goTopUp" style="height:34px;border-radius:99px;padding:0 12px;background:#FFD700;font-weight:800;font-size:11px">' + esc(t4().topUpNow) + '</button></div>';
-      return '<button class="fx ac" data-action="pickPay" data-arg="' + p.key + '" style="gap:12px;text-align:left;border:1.5px solid ' + (on ? "#101010" : "var(--hair)") + ';background:#fff;border-radius:15px;padding:13px 14px;cursor:pointer;color:#101010">' +
+        '<span class="col" style="gap:2px;flex:1"><span style="font-weight:700;font-size:13.5px;color:rgba(11,31,58,.55)">' + esc(d.paymentNames[p.key]) + '</span><span class="mono" style="font-size:10.5px;color:rgba(11,31,58,.6)">' + esc(detail) + '</span></span>' +
+        '<button class="btn" data-action="goTopUp" style="height:34px;border-radius:99px;padding:0 12px;background:#1FD1B2;font-weight:800;font-size:11px">' + esc(t4().topUpNow) + '</button></div>';
+      return '<button class="fx ac" data-action="pickPay" data-arg="' + p.key + '" style="gap:12px;text-align:left;border:1.5px solid ' + (on ? "#0B1F3A" : "var(--hair)") + ';background:#fff;border-radius:15px;padding:13px 14px;cursor:pointer;color:#0B1F3A">' +
         '<span class="fx ac jc" style="width:38px;height:27px;flex:none;border-radius:7px;background:' + p.bg + ';color:' + p.fg + ';font-family:var(--mono);font-weight:700;font-size:9px">' + p.chip + '</span>' +
-        '<span class="col" style="gap:2px;flex:1"><span style="font-weight:700;font-size:13.5px">' + esc(d.paymentNames[p.key]) + '</span><span class="mono" style="font-size:10.5px;color:rgba(16,16,16,.5)">' + esc(detail || "") + '</span></span>' +
-        '<span style="width:18px;height:18px;flex:none;border-radius:99px;border:2px solid ' + (on ? "#101010" : "rgba(16,16,16,.15)") + ';background:' + (on ? "#101010" : "transparent") + '"></span>' +
+        '<span class="col" style="gap:2px;flex:1"><span style="font-weight:700;font-size:13.5px">' + esc(d.paymentNames[p.key]) + '</span><span class="mono" style="font-size:10.5px;color:rgba(11,31,58,.5)">' + esc(detail || "") + '</span></span>' +
+        '<span style="width:18px;height:18px;flex:none;border-radius:99px;border:2px solid ' + (on ? "#0B1F3A" : "rgba(11,31,58,.15)") + ';background:' + (on ? "#0B1F3A" : "transparent") + '"></span>' +
       '</button>';
     }).join("");
 
     var ctaInner = state.payPending
-      ? '<div class="fx ac jc" style="gap:9px;height:54px;background:#101010;border-radius:16px"><span class="spinner"></span><span style="font-weight:700;font-size:13.5px;color:#FFD700">' + esc(d.processing) + '</span></div>'
+      ? '<div class="fx ac jc" style="gap:9px;height:54px;background:#0B1F3A;border-radius:16px"><span class="spinner"></span><span style="font-weight:700;font-size:13.5px;color:#1FD1B2">' + esc(d.processing) + '</span></div>'
       : '<button class="btn btn-ink" data-action="confirmPay" style="width:100%">' + esc(d.confirmPay) + '</button>';
 
     return (
       '<div class="col" style="padding:calc(18px + var(--sat)) 20px 20px;gap:16px">' +
         '<div class="fx ac" style="gap:11px"><button class="backbtn" aria-label="Retour" data-action="popScreen">←</button><div style="font-weight:800;font-size:18px;letter-spacing:-.4px">' + esc(d.payment) + '</div></div>' +
-        '<div style="background:#FFD700;border-radius:18px;padding:16px"><div class="mono" style="font-size:10px;letter-spacing:.07em;color:rgba(16,16,16,.6)">' + esc(d.toPay) + '</div><div style="font-weight:800;font-size:28px;letter-spacing:-.9px;margin-top:2px">' + fmtFcfa(price.net) + '</div></div>' +
+        '<div style="background:#DDF8F2;border-radius:18px;padding:16px"><div class="mono" style="font-size:10px;letter-spacing:.07em;color:rgba(11,31,58,.6)">' + esc(d.toPay) + '</div><div style="font-weight:800;font-size:28px;letter-spacing:-.9px;margin-top:2px">' + fmtFcfa(price.net) + '</div></div>' +
         '<div class="col" style="gap:8px">' + rows + '</div>' +
       '</div>' +
-      '<div style="padding:0 20px 20px;display:flex;flex-direction:column;gap:9px">' + ctaInner + '<div style="font-size:10.5px;line-height:1.5;color:rgba(16,16,16,.55);text-align:center">' + esc(d.paySafe) + '</div></div>'
+      '<div style="padding:0 20px 20px;display:flex;flex-direction:column;gap:9px">' + ctaInner + '<div style="font-size:10.5px;line-height:1.5;color:rgba(11,31,58,.55);text-align:center">' + esc(d.paySafe) + '</div></div>'
     );
   }
 
@@ -854,28 +854,28 @@
       var done = i < o.stage || o.status === "delivered";
       var active = i === o.stage && o.status !== "delivered";
       return '<div class="fx" style="gap:13px;align-items:flex-start"><div class="col" style="align-items:center;width:16px">' +
-        '<span style="width:13px;height:13px;border-radius:99px;background:' + (done ? "#101010" : active ? "#FFD700" : "#fff") + ';border:2.5px solid ' + (done || active ? "#101010" : "rgba(16,16,16,.18)") + '"></span>' +
-        (i < tlLabels.length - 1 ? '<span style="width:2px;height:18px;background:' + (done ? "#101010" : "rgba(16,16,16,.13)") + '"></span>' : '') +
-        '</div><span style="font-weight:700;font-size:13px;padding-bottom:13px;color:' + (done || active ? "#101010" : "rgba(16,16,16,.4)") + '">' + esc(label) + '</span></div>';
+        '<span style="width:13px;height:13px;border-radius:99px;background:' + (done ? "#0B1F3A" : active ? "#1FD1B2" : "#fff") + ';border:2.5px solid ' + (done || active ? "#0B1F3A" : "rgba(11,31,58,.18)") + '"></span>' +
+        (i < tlLabels.length - 1 ? '<span style="width:2px;height:18px;background:' + (done ? "#0B1F3A" : "rgba(11,31,58,.13)") + '"></span>' : '') +
+        '</div><span style="font-weight:700;font-size:13px;padding-bottom:13px;color:' + (done || active ? "#0B1F3A" : "rgba(11,31,58,.4)") + '">' + esc(label) + '</span></div>';
     }).join("");
 
     return (
-      '<div style="height:300px;position:relative;background:#eceae4;overflow:hidden;flex:none">' +
+      '<div style="height:300px;position:relative;background:#E4EBF0;overflow:hidden;flex:none">' +
         '<div id="track-map" style="position:absolute;inset:0 0 18px 0"></div>' +
-        (navigator.onLine === false || !(window.WMap && WMap.available()) ? '<div class="fx ac jc mono" style="position:absolute;inset:0;font-size:10.5px;color:rgba(16,16,16,.55)">' + esc(d.mapOffline) + '</div>' : '') +
-        '<div style="position:absolute;z-index:600;top:calc(14px + var(--sat));left:12px;right:12px;display:flex;align-items:center;gap:9px;background:#101010;border-radius:14px;padding:9px 12px">' +
+        (navigator.onLine === false || !(window.WMap && WMap.available()) ? '<div class="fx ac jc mono" style="position:absolute;inset:0;font-size:10.5px;color:rgba(11,31,58,.55)">' + esc(d.mapOffline) + '</div>' : '') +
+        '<div style="position:absolute;z-index:600;top:calc(14px + var(--sat));left:12px;right:12px;display:flex;align-items:center;gap:9px;background:#0B1F3A;border-radius:14px;padding:9px 12px">' +
           '<button class="backbtn" aria-label="Retour" data-action="popScreen" style="background:rgba(255,255,255,.12);color:#fff;width:26px;height:26px">←</button>' +
-          '<span class="mono" style="font-size:10px;color:#FFD700">' + o.code + '</span>' +
+          '<span class="mono" style="font-size:10px;color:#1FD1B2">' + o.code + '</span>' +
           '<span id="track-eta" style="margin-left:auto;font-weight:700;font-size:11px;color:#fff">' + esc(d.arriving) + (window.WGeo ? ' · ' + courierInfo(o).min + ' ' + d.min : '') + '</span>' +
         '</div>' +
       '</div>' +
-      '<div class="scroll" style="background:#fbfaf7;border-radius:22px 22px 0 0;margin-top:-18px;padding:16px 20px 20px;position:relative;z-index:500"><div class="col" style="gap:16px">' +
-        '<div style="width:34px;height:4px;border-radius:9px;background:rgba(16,16,16,.15);margin:0 auto"></div>' +
+      '<div class="scroll" style="background:#F5F8FA;border-radius:22px 22px 0 0;margin-top:-18px;padding:16px 20px 20px;position:relative;z-index:500"><div class="col" style="gap:16px">' +
+        '<div style="width:34px;height:4px;border-radius:9px;background:rgba(11,31,58,.15);margin:0 auto"></div>' +
         arrivedBanner(o) + receiveBox(o) + pickupBanner(o) + linkInfo(o) + courierBlock(o, orderId) + codeCard(o) + notifPrompt() +
         '<div style="height:1px;background:var(--hair)"></div>' +
         '<div class="col">' + timeline + '</div>' +
         gmapsButton(orderGeo(o).pickup, orderGeo(o).dropoff, false) +
-        (o.stage === 0 ? '<button class="btn btn-outline" data-action="askCancel" data-arg="' + orderId + '" style="width:100%;color:#101010">' + esc(t3().cancel) + '</button>' : '') +
+        (o.stage === 0 ? '<button class="btn btn-outline" data-action="askCancel" data-arg="' + orderId + '" style="width:100%;color:#0B1F3A">' + esc(t3().cancel) + '</button>' : '') +
         (DEMO && !o.courier && !(srv() && WAPI.status.demo === false) ? '<button class="btn btn-outline" data-action="advanceOrder" data-arg="' + orderId + '" style="width:100%">' + esc(d.simulate) + '</button>' : '') +
       '</div></div>'
     );
@@ -888,18 +888,18 @@
     var o = findOrder(orderId);
     var stars = [1, 2, 3, 4, 5].map(function (n) {
       var on = n <= (o.rating || 0);
-      return '<button class="btn" data-action="rate" data-arg="' + orderId + '|' + n + '" style="flex:1;height:40px;border-radius:11px;background:' + (on ? "#FFD700" : "rgba(16,16,16,.06)") + ';font-family:var(--mono);font-weight:700;font-size:13px;color:' + (on ? "#101010" : "rgba(16,16,16,.35)") + '">' + n + '</button>';
+      return '<button class="btn" data-action="rate" data-arg="' + orderId + '|' + n + '" style="flex:1;height:40px;border-radius:11px;background:' + (on ? "#1FD1B2" : "rgba(11,31,58,.06)") + ';font-family:var(--mono);font-weight:700;font-size:13px;color:' + (on ? "#0B1F3A" : "rgba(11,31,58,.35)") + '">' + n + '</button>';
     }).join("");
     return (
       '<div class="scroll"><div class="col" style="padding:calc(18px + var(--sat)) 20px 20px;gap:16px">' +
-        '<div><div class="mono" style="font-size:10px;letter-spacing:.06em;color:rgba(16,16,16,.5)">' + o.code + '</div><div style="font-weight:800;font-size:23px;letter-spacing:-.7px;margin-top:4px">' + esc(t4().delivered[o.service] || d.delivered) + '</div></div>' +
+        '<div><div class="mono" style="font-size:10px;letter-spacing:.06em;color:rgba(11,31,58,.5)">' + o.code + '</div><div style="font-weight:800;font-size:23px;letter-spacing:-.7px;margin-top:4px">' + esc(t4().delivered[o.service] || d.delivered) + '</div></div>' +
         '<div style="border-radius:17px;overflow:hidden;border:1px solid var(--hair)">' +
           (o.proofPhoto ? '<img src="' + o.proofPhoto + '" alt="Photo de livraison" style="display:block;width:100%;height:220px;object-fit:cover">' :
-          '<div style="height:180px;background:repeating-linear-gradient(135deg,#e6e3dc 0 10px,#efece5 10px 20px);display:flex;align-items:center;justify-content:center"><span class="mono" style="font-size:10.5px;color:rgba(16,16,16,.5)">' + (o.courier ? esc(tm().proofNone) : 'photo de livraison') + '</span></div>') +
+          '<div style="height:180px;background:repeating-linear-gradient(135deg,#DCE4EA 0 10px,#E7EDF2 10px 20px);display:flex;align-items:center;justify-content:center"><span class="mono" style="font-size:10.5px;color:rgba(11,31,58,.5)">' + (o.courier ? esc(tm().proofNone) : 'photo de livraison') + '</span></div>') +
           '<div style="background:#fff;padding:13px 15px;display:flex;flex-direction:column;gap:5px">' +
-            '<div class="fx jb"><span class="mono" style="font-size:10.5px;color:rgba(16,16,16,.5)">' + esc(d.gps) + '</span><span class="mono" style="font-size:10.5px;font-weight:600">4.0511 N · 9.7679 E</span></div>' +
-            '<div class="fx jb"><span class="mono" style="font-size:10.5px;color:rgba(16,16,16,.5)">' + esc(d.timestamp) + '</span><span class="mono" style="font-size:10.5px;font-weight:600">' + nowLabel() + '</span></div>' +
-            '<div class="fx jb"><span class="mono" style="font-size:10.5px;color:rgba(16,16,16,.5)">' + esc(d.receivedBy) + '</span><span class="mono" style="font-size:10.5px;font-weight:600">' + esc(o.deliveredWith === "code" ? (o.proofName || tu().withCode) : (o.proofName || (o.courier ? "—" : "A. Ngono"))) + '</span></div>' +
+            '<div class="fx jb"><span class="mono" style="font-size:10.5px;color:rgba(11,31,58,.5)">' + esc(d.gps) + '</span><span class="mono" style="font-size:10.5px;font-weight:600">4.0511 N · 9.7679 E</span></div>' +
+            '<div class="fx jb"><span class="mono" style="font-size:10.5px;color:rgba(11,31,58,.5)">' + esc(d.timestamp) + '</span><span class="mono" style="font-size:10.5px;font-weight:600">' + nowLabel() + '</span></div>' +
+            '<div class="fx jb"><span class="mono" style="font-size:10.5px;color:rgba(11,31,58,.5)">' + esc(d.receivedBy) + '</span><span class="mono" style="font-size:10.5px;font-weight:600">' + esc(o.deliveredWith === "code" ? (o.proofName || tu().withCode) : (o.proofName || (o.courier ? "—" : "A. Ngono"))) + '</span></div>' +
           '</div></div>' +
         '<div style="background:#fff;border:1px solid var(--hair);border-radius:16px;padding:15px;display:flex;flex-direction:column;gap:11px">' +
           '<span style="font-weight:700;font-size:13.5px">' + esc(d.rate) + '</span><div class="fx" style="gap:7px">' + stars + '</div></div>' +
@@ -955,7 +955,7 @@
     var keys = Object.keys(obj).sort(function (a, b) { return obj[b] - obj[a]; }), max = Math.max.apply(null, keys.map(function (k) { return obj[k]; }).concat([1]));
     return keys.map(function (k) {
       return '<div class="col" style="gap:4px"><div class="fx jb"><span style="font-weight:700;font-size:12.5px">' + esc(label(k)) + '</span><span class="mono" style="font-size:11.5px">' + fmtFcfa(obj[k]) + '</span></div>' +
-        '<div style="height:8px;border-radius:4px;background:rgba(16,16,16,.06);overflow:hidden"><div style="height:100%;width:' + (obj[k] / max * 100).toFixed(1) + '%;background:#101010;border-radius:0 4px 4px 0"></div></div></div>';
+        '<div style="height:8px;border-radius:4px;background:rgba(11,31,58,.06);overflow:hidden"><div style="height:100%;width:' + (obj[k] / max * 100).toFixed(1) + '%;background:#0B1F3A;border-radius:0 4px 4px 0"></div></div></div>';
     }).join("");
   }
   function screenHistory() {
@@ -965,17 +965,17 @@
     var base = spendOrders();
     var periodChips = '<div class="fx" style="gap:6px">' + L.modes.map(function (m) {
       var on = S2.mode === m[0];
-      return '<button class="btn" data-action="spendMode" data-arg="' + m[0] + '" style="flex:1;height:38px;padding:0 4px;border-radius:99px;font-size:11.5px;font-weight:700;background:' + (on ? "#101010" : "#fff") + ';color:' + (on ? "#FFD700" : "#101010") + ';border:1px solid ' + (on ? "#101010" : "var(--hair)") + '">' + m[1] + '</button>';
+      return '<button class="btn" data-action="spendMode" data-arg="' + m[0] + '" style="flex:1;height:38px;padding:0 4px;border-radius:99px;font-size:11.5px;font-weight:700;background:' + (on ? "#0B1F3A" : "#fff") + ';color:' + (on ? "#1FD1B2" : "#0B1F3A") + ';border:1px solid ' + (on ? "#0B1F3A" : "var(--hair)") + '">' + m[1] + '</button>';
     }).join("") + '</div>';
-    var nav = S2.mode === "all" ? '' : '<div class="fx ac jb"><button class="btn" data-action="spendShift" data-arg="-1" aria-label="Période précédente" style="width:44px;height:44px;border-radius:12px;background:rgba(16,16,16,.06);padding:0">‹</button>' +
+    var nav = S2.mode === "all" ? '' : '<div class="fx ac jb"><button class="btn" data-action="spendShift" data-arg="-1" aria-label="Période précédente" style="width:44px;height:44px;border-radius:12px;background:rgba(11,31,58,.06);padding:0">‹</button>' +
       '<span style="font-weight:800;font-size:15px;text-transform:capitalize">' + esc(earnLabel(S2)) + '</span>' +
-      '<button class="btn" data-action="spendShift" data-arg="1" aria-label="Période suivante" style="width:44px;height:44px;border-radius:12px;background:rgba(16,16,16,.06);padding:0">›</button></div>';
+      '<button class="btn" data-action="spendShift" data-arg="1" aria-label="Période suivante" style="width:44px;height:44px;border-radius:12px;background:rgba(11,31,58,.06);padding:0">›</button></div>';
     if (!base) return '<div class="scroll"><div class="col" style="padding:calc(18px + var(--sat)) 20px 20px;gap:14px"><div style="font-weight:800;font-size:23px;letter-spacing:-.7px">' + esc(d.orders) + '</div>' +
-      periodChips + nav + '<p style="margin:0;text-align:center;color:rgba(16,16,16,.5);font-size:13px">' + (S2.err ? "—" : L.loading) + '</p></div></div>';
+      periodChips + nav + '<p style="margin:0;text-align:center;color:rgba(11,31,58,.5);font-size:13px">' + (S2.err ? "—" : L.loading) + '</p></div></div>';
     var orders = base.filter(function (o) { return !svcFilter || o.service === svcFilter; });
     var sm = spendSummary(orders), valid = sm.n - sm.cancelled;
-    var spendCard = '<div class="col" style="background:#101010;border-radius:19px;padding:17px;gap:6px"><span class="mono" style="font-size:10px;letter-spacing:.08em;color:rgba(255,255,255,.6)">' + L.spent + (S2.mode === "all" ? "" : " · " + esc(earnLabel(S2)).toUpperCase()) + '</span>' +
-      '<span style="font-weight:800;font-size:28px;color:#FFD700">' + fmtFcfa(sm.spent) + '</span>' +
+    var spendCard = '<div class="col" style="background:#0B1F3A;border-radius:19px;padding:17px;gap:6px"><span class="mono" style="font-size:10px;letter-spacing:.08em;color:rgba(255,255,255,.6)">' + L.spent + (S2.mode === "all" ? "" : " · " + esc(earnLabel(S2)).toUpperCase()) + '</span>' +
+      '<span style="font-weight:800;font-size:28px;color:#1FD1B2">' + fmtFcfa(sm.spent) + '</span>' +
       '<span class="mono" style="font-size:11px;color:rgba(255,255,255,.75)">' + valid + ' ' + L.orders + ' · ' + sm.delivered + ' ' + L.delivered + (sm.cancelled ? ' · ' + sm.cancelled + ' ' + L.cancelled : '') + '</span></div>';
     var details = valid ? '<div style="' + card + ';padding:4px 14px">' +
       '<div class="fx jb" style="padding:10px 0;border-bottom:1px solid var(--hair)"><span style="font-weight:700;font-size:13px">' + L.basket + '</span><span class="mono" style="font-size:12px">' + fmtFcfa(Math.round(sm.spent / valid)) + '</span></div>' +
@@ -985,17 +985,17 @@
       '<div style="' + card + ';padding:14px;display:flex;flex-direction:column;gap:10px">' + sectionTitle(L.byPay) + spendBars(sm.pay, function (k) { return (d.paymentNames && d.paymentNames[k]) || k; }) + '</div>' : '';
     var chips = t4().filters.map(function (f, i) {
       var on = filter === i;
-      return '<button class="btn" data-action="setHistoryFilter" data-arg="' + i + '" style="border:0;border-radius:99px;padding:8px 13px;height:auto;min-height:36px;flex:none;background:' + (on ? "#101010" : "rgba(16,16,16,.06)") + ';color:' + (on ? "#fff" : "rgba(16,16,16,.6)") + ';font-weight:700;font-size:11.5px">' + esc(f) + '</button>';
+      return '<button class="btn" data-action="setHistoryFilter" data-arg="' + i + '" style="border:0;border-radius:99px;padding:8px 13px;height:auto;min-height:36px;flex:none;background:' + (on ? "#0B1F3A" : "rgba(11,31,58,.06)") + ';color:' + (on ? "#fff" : "rgba(11,31,58,.6)") + ';font-weight:700;font-size:11.5px">' + esc(f) + '</button>';
     }).join("");
-    var badgeStyle = { received: ["#FFD700", "#101010"], picked_up: ["#FFD700", "#101010"], en_route: ["#FFD700", "#101010"], delivered: ["#101010", "#FFD700"], cancelled: ["rgba(16,16,16,.07)", "rgba(16,16,16,.5)"] };
+    var badgeStyle = { received: ["#1FD1B2", "#0B1F3A"], picked_up: ["#1FD1B2", "#0B1F3A"], en_route: ["#1FD1B2", "#0B1F3A"], delivered: ["#0B1F3A", "#1FD1B2"], cancelled: ["rgba(11,31,58,.07)", "rgba(11,31,58,.5)"] };
     var rows = orders.map(function (o) {
       var bs = badgeStyle[o.status] || badgeStyle.cancelled;
       return '<button class="col" data-action="openOrder" data-arg="' + o.id + '" style="width:100%;text-align:left;border:1px solid var(--hair);background:#fff;border-radius:15px;padding:14px;gap:9px;cursor:pointer;margin-bottom:9px">' +
-        '<div class="fx ac" style="gap:8px"><span class="mono" style="font-size:10px;color:rgba(16,16,16,.5)">' + o.code + (o.createdAt ? ' · ' + fmtTime(o.createdAt) : '') + '</span><span style="margin-left:auto;border-radius:99px;padding:4px 9px;background:' + bs[0] + ';color:' + bs[1] + ';font-family:var(--mono);font-weight:700;font-size:9.5px">' + esc(statusLabel(o.status)) + '</span></div>' +
+        '<div class="fx ac" style="gap:8px"><span class="mono" style="font-size:10px;color:rgba(11,31,58,.5)">' + o.code + (o.createdAt ? ' · ' + fmtTime(o.createdAt) : '') + '</span><span style="margin-left:auto;border-radius:99px;padding:4px 9px;background:' + bs[0] + ';color:' + bs[1] + ';font-family:var(--mono);font-weight:700;font-size:9.5px">' + esc(statusLabel(o.status)) + '</span></div>' +
         '<div style="font-weight:700;font-size:13.5px">' + esc(o.pickup) + (o.dropoff && o.dropoff !== o.pickup ? ' → ' + esc(o.dropoff) : '') + '</div>' +
-        '<div class="fx jb" style="align-items:baseline"><span class="mono" style="font-size:10.5px;color:rgba(16,16,16,.5)">' + esc(svcName(o.service)) + '</span><span style="font-weight:700;font-size:13px">' + fmtFcfa(orderNet(o)) + '</span></div>' +
+        '<div class="fx jb" style="align-items:baseline"><span class="mono" style="font-size:10.5px;color:rgba(11,31,58,.5)">' + esc(svcName(o.service)) + '</span><span style="font-weight:700;font-size:13px">' + fmtFcfa(orderNet(o)) + '</span></div>' +
       '</button>';
-    }).join("") || '<div style="padding:24px 0;text-align:center;color:rgba(16,16,16,.45);font-size:13px">' + L.none + '</div>';
+    }).join("") || '<div style="padding:24px 0;text-align:center;color:rgba(11,31,58,.45);font-size:13px">' + L.none + '</div>';
     return '<div class="scroll"><div class="col" style="padding:calc(18px + var(--sat)) 20px 20px;gap:14px">' +
       '<div style="font-weight:800;font-size:23px;letter-spacing:-.7px">' + esc(d.orders) + '</div>' +
       periodChips + nav + spendCard + details +
@@ -1014,7 +1014,7 @@
       panelHtml = '<div class="col" style="gap:9px;padding-top:2px">' +
         '<div class="fx" style="gap:7px">' + ["orange_money", "mtn_momo"].map(function (m) {
           var on = state.topUpMethod === m;
-          return '<button class="btn" data-action="setTopUpMethod" data-arg="' + m + '" style="flex:1;height:38px;border-radius:11px;background:' + (on ? "#FFD700" : "rgba(255,255,255,.1)") + ';color:' + (on ? "#101010" : "#fff") + ';font-weight:700;font-size:11.5px">' + esc(d.paymentNames[m]) + '</button>';
+          return '<button class="btn" data-action="setTopUpMethod" data-arg="' + m + '" style="flex:1;height:38px;border-radius:11px;background:' + (on ? "#1FD1B2" : "rgba(255,255,255,.1)") + ';color:' + (on ? "#0B1F3A" : "#fff") + ';font-weight:700;font-size:11.5px">' + esc(d.paymentNames[m]) + '</button>';
         }).join("") + '</div>' +
         '<input data-bind="topUpAmount" value="' + esc(state.topUpAmount || "") + '" placeholder="' + d.topUpAmount + '" inputmode="numeric" style="height:42px;border-radius:11px;background:rgba(255,255,255,.08);padding:0 13px;color:#fff;font-weight:600;font-size:13px" />' +
         '<button class="btn btn-yellow" data-action="doTopUp">' + esc(d.confirm) + '</button></div>';
@@ -1036,14 +1036,14 @@
     ]);
     var rowsHtml = rows.map(function (r, i) {
       return '<button class="fx ac" data-action="' + (r[2] || "noop") + '"' + (r[3] ? ' data-arg="' + r[3] + '"' : '') + ' style="gap:11px;min-height:48px;text-align:left;border:0;background:transparent;padding:13px 12px;cursor:pointer;' + (i < rows.length - 1 ? "border-bottom:1px solid var(--hair)" : "") + '">' +
-        '<span style="font-weight:700;font-size:13px;flex:1">' + esc(r[0]) + '</span>' + (r[1] ? '<span class="mono" style="font-size:10.5px;color:rgba(16,16,16,.45)">' + esc(r[1]) + '</span>' : "") + '<span style="color:rgba(16,16,16,.3);font-weight:600">→</span></button>';
+        '<span style="font-weight:700;font-size:13px;flex:1">' + esc(r[0]) + '</span>' + (r[1] ? '<span class="mono" style="font-size:10.5px;color:rgba(11,31,58,.45)">' + esc(r[1]) + '</span>' : "") + '<span style="color:rgba(11,31,58,.3);font-weight:600">→</span></button>';
     }).join("");
 
     return '<div class="scroll"><div class="col" style="padding:calc(18px + var(--sat)) 20px 20px;gap:15px">' +
-      '<div class="fx ac" style="gap:12px"><div class="fx ac jc" style="width:46px;height:46px;border-radius:99px;background:#FFD700;font-weight:800;font-size:14px">' + state.user.initials + '</div><div class="col" style="gap:2px"><span style="font-weight:800;font-size:17px;letter-spacing:-.4px">' + esc(state.user.name) + '</span><span class="mono" style="font-size:11px;color:rgba(16,16,16,.55)">+237 ' + esc(state.phone) + '</span></div></div>' +
-      '<div class="col" style="background:#101010;border-radius:19px;padding:17px;gap:14px">' +
-        '<div class="col" style="gap:2px"><span class="mono" style="font-size:10px;letter-spacing:.08em;color:rgba(255,255,255,.5)">' + esc(d.wallet) + '</span><span style="font-weight:800;font-size:29px;color:#FFD700;letter-spacing:-1px">' + fmtFcfa(state.wallet.balance) + '</span></div>' +
-        '<div class="fx" style="gap:8px"><button class="btn" data-action="toggleWalletPanel" data-arg="topup" style="flex:1;height:44px;border-radius:12px;background:#FFD700;font-weight:700;font-size:12px">' + esc(d.topUp) + '</button><button class="btn" data-action="toggleWalletPanel" data-arg="send" style="flex:1;height:44px;border-radius:12px;background:transparent;border:1.5px solid rgba(255,255,255,.25);color:#fff;font-weight:700;font-size:12px">' + esc(d.send) + '</button></div>' +
+      '<div class="fx ac" style="gap:12px"><div class="fx ac jc" style="width:46px;height:46px;border-radius:99px;background:#1FD1B2;font-weight:800;font-size:14px">' + state.user.initials + '</div><div class="col" style="gap:2px"><span style="font-weight:800;font-size:17px;letter-spacing:-.4px">' + esc(state.user.name) + '</span><span class="mono" style="font-size:11px;color:rgba(11,31,58,.55)">+237 ' + esc(state.phone) + '</span></div></div>' +
+      '<div class="col" style="background:#0B1F3A;border-radius:19px;padding:17px;gap:14px">' +
+        '<div class="col" style="gap:2px"><span class="mono" style="font-size:10px;letter-spacing:.08em;color:rgba(255,255,255,.5)">' + esc(d.wallet) + '</span><span style="font-weight:800;font-size:29px;color:#1FD1B2;letter-spacing:-1px">' + fmtFcfa(state.wallet.balance) + '</span></div>' +
+        '<div class="fx" style="gap:8px"><button class="btn" data-action="toggleWalletPanel" data-arg="topup" style="flex:1;height:44px;border-radius:12px;background:#1FD1B2;font-weight:700;font-size:12px">' + esc(d.topUp) + '</button><button class="btn" data-action="toggleWalletPanel" data-arg="send" style="flex:1;height:44px;border-radius:12px;background:transparent;border:1.5px solid rgba(255,255,255,.25);color:#fff;font-weight:700;font-size:12px">' + esc(d.send) + '</button></div>' +
         panelHtml +
       '</div>' +
       '<div style="background:#fff;border:1px solid var(--hair);border-radius:16px;padding:0 3px">' + rowsHtml + '</div>' +
@@ -1058,11 +1058,11 @@
     var msgs = state.chatByOrder[key] || (state.chatByOrder[key] = [{ from: "bot", text: d.botGreet }]);
     var rows = msgs.map(function (m) {
       var me = m.from === "user";
-      return '<div class="fx" style="justify-content:' + (me ? "flex-end" : "flex-start") + '"><div style="max-width:76%;background:' + (me ? "#101010" : "#fff") + ';color:' + (me ? "#fff" : "#101010") + ';border:' + (me ? "0" : "1px solid var(--hair)") + ';border-radius:' + (me ? "15px 15px 4px 15px" : "15px 15px 15px 4px") + ';padding:11px 13px;font-weight:500;font-size:13px;line-height:1.4">' + esc(m.text) + '</div></div>';
+      return '<div class="fx" style="justify-content:' + (me ? "flex-end" : "flex-start") + '"><div style="max-width:76%;background:' + (me ? "#0B1F3A" : "#fff") + ';color:' + (me ? "#fff" : "#0B1F3A") + ';border:' + (me ? "0" : "1px solid var(--hair)") + ';border-radius:' + (me ? "15px 15px 4px 15px" : "15px 15px 15px 4px") + ';padding:11px 13px;font-weight:500;font-size:13px;line-height:1.4">' + esc(m.text) + '</div></div>';
     }).join("");
-    return '<div style="background:#FFD700;padding:calc(18px + var(--sat)) 20px 13px;flex:none"><div style="font-weight:800;font-size:14px">' + esc(d.support) + '</div><div class="mono" style="font-size:9.5px;color:rgba(16,16,16,.6);margin-top:1px">' + esc(d.replyTime) + '</div></div>' +
+    return '<div style="background:#DDF8F2;padding:calc(18px + var(--sat)) 20px 13px;flex:none"><div style="font-weight:800;font-size:14px">' + esc(d.support) + '</div><div class="mono" style="font-size:9.5px;color:rgba(11,31,58,.6);margin-top:1px">' + esc(d.replyTime) + '</div></div>' +
       '<div class="scroll" id="chat-scroll"><div class="col" style="padding:16px 20px;gap:9px">' + rows + '</div></div>' +
-      '<div class="fx" style="gap:8px;padding:11px 20px 18px;border-top:1px solid var(--hair);background:#fbfaf7">' +
+      '<div class="fx" style="gap:8px;padding:11px 20px 18px;border-top:1px solid var(--hair);background:#F5F8FA">' +
         '<input data-bind="chatDraft" aria-label="Votre message" data-arg="' + key + '" value="' + esc(state.chatDraft || "") + '" placeholder="' + d.messagePh + '" style="flex:1;height:42px;border:1px solid var(--hair);border-radius:12px;background:#fff;padding:0 13px;font-weight:500;font-size:13px" />' +
         '<button class="btn btn-ink" aria-label="Envoyer" data-action="sendChat" data-arg="' + key + '" style="width:42px;height:42px;border-radius:12px;padding:0;font-weight:700">→</button>' +
       '</div>';
@@ -1074,9 +1074,9 @@
     var d = t();
     function seg(label, value, options, action) {
       return '<div class="col" style="gap:8px"><div style="font-weight:700;font-size:13px">' + esc(label) + '</div>' +
-        '<div class="fx" style="background:rgba(16,16,16,.05);border-radius:11px;padding:3px;gap:3px">' + options.map(function (o) {
+        '<div class="fx" style="background:rgba(11,31,58,.05);border-radius:11px;padding:3px;gap:3px">' + options.map(function (o) {
           var on = value === o[0];
-          return '<button class="btn" data-action="' + action + '" data-arg="' + o[0] + '" style="flex:1;height:36px;border-radius:8px;background:' + (on ? "#101010" : "transparent") + ';color:' + (on ? "#FFD700" : "#101010") + ';font-weight:700;font-size:11.5px">' + esc(o[1]) + '</button>';
+          return '<button class="btn" data-action="' + action + '" data-arg="' + o[0] + '" style="flex:1;height:36px;border-radius:8px;background:' + (on ? "#0B1F3A" : "transparent") + ';color:' + (on ? "#1FD1B2" : "#0B1F3A") + ';font-weight:700;font-size:11.5px">' + esc(o[1]) + '</button>';
         }).join("") + '</div></div>';
     }
     return '<div class="scroll"><div class="col" style="padding:calc(18px + var(--sat)) 20px 20px;gap:20px">' +
@@ -1085,10 +1085,10 @@
       seg(d.orderFlowLabel, state.settings.orderFlow, [["stepped", d.stepped], ["single_page", d.singlePage]], "setOrderFlow") +
       seg(d.language, state.lang, [["fr", "Français"], ["en", "English"]], "setLang") +
       '<div class="fx ac jb"><div style="font-weight:700;font-size:13px">' + esc(d.showActive) + '</div>' +
-        '<button data-action="toggleShowActive" style="border:0;width:44px;height:26px;border-radius:99px;background:' + (state.settings.showActiveOrder ? "#101010" : "rgba(16,16,16,.15)") + ';position:relative;cursor:pointer">' +
-        '<span style="position:absolute;top:3px;left:' + (state.settings.showActiveOrder ? "21px" : "3px") + ';width:20px;height:20px;border-radius:99px;background:#FFD700;transition:left .15s"></span></button></div>' +
+        '<button data-action="toggleShowActive" style="border:0;width:44px;height:26px;border-radius:99px;background:' + (state.settings.showActiveOrder ? "#0B1F3A" : "rgba(11,31,58,.15)") + ';position:relative;cursor:pointer">' +
+        '<span style="position:absolute;top:3px;left:' + (state.settings.showActiveOrder ? "21px" : "3px") + ';width:20px;height:20px;border-radius:99px;background:#1FD1B2;transition:left .15s"></span></button></div>' +
       '<button class="btn btn-outline" data-action="logOut" style="margin-top:6px">' + esc(d.logOut) + '</button>' +
-      '<div class="col" style="gap:8px;align-items:center;padding-top:6px"><span class="mono" style="font-size:10.5px;color:rgba(16,16,16,.5)">' + (state.lang === "en" ? "Version " : "Version ") + APP_VERSION + '</span>' +
+      '<div class="col" style="gap:8px;align-items:center;padding-top:6px"><span class="mono" style="font-size:10.5px;color:rgba(11,31,58,.5)">' + (state.lang === "en" ? "Version " : "Version ") + APP_VERSION + '</span>' +
       '<button class="btn" data-action="forceUpdate" style="height:44px;background:transparent;font-weight:700;font-size:12.5px;text-decoration:underline">' + (state.lang === "en" ? "Check for updates" : "Rechercher une mise à jour") + '</button></div>' +
     '</div></div>';
   }
@@ -1112,12 +1112,12 @@
   var cardStyle = 'background:#fff;border:1px solid var(--hair);border-radius:16px';
   function toggleRow(label, sub, on, action, arg) {
     return '<div class="fx ac" style="gap:12px;padding:12px 14px;min-height:56px">' +
-      '<div class="col" style="gap:2px;flex:1"><span style="font-weight:700;font-size:13.5px">' + esc(label) + '</span><span style="font-size:11.5px;color:rgba(16,16,16,.6)">' + esc(sub) + '</span></div>' +
-      '<button role="switch" aria-checked="' + on + '" aria-label="' + esc(label) + '" data-action="' + action + '" data-arg="' + arg + '" style="border:0;width:44px;height:26px;flex:none;border-radius:99px;background:' + (on ? "#101010" : "rgba(16,16,16,.15)") + ';position:relative;cursor:pointer">' +
-      '<span style="position:absolute;top:3px;left:' + (on ? "21px" : "3px") + ';width:20px;height:20px;border-radius:99px;background:#FFD700"></span></button></div>';
+      '<div class="col" style="gap:2px;flex:1"><span style="font-weight:700;font-size:13.5px">' + esc(label) + '</span><span style="font-size:11.5px;color:rgba(11,31,58,.6)">' + esc(sub) + '</span></div>' +
+      '<button role="switch" aria-checked="' + on + '" aria-label="' + esc(label) + '" data-action="' + action + '" data-arg="' + arg + '" style="border:0;width:44px;height:26px;flex:none;border-radius:99px;background:' + (on ? "#0B1F3A" : "rgba(11,31,58,.15)") + ';position:relative;cursor:pointer">' +
+      '<span style="position:absolute;top:3px;left:' + (on ? "21px" : "3px") + ';width:20px;height:20px;border-radius:99px;background:#1FD1B2"></span></button></div>';
   }
   function chip(label, on, action, arg) {
-    return '<button class="btn" data-action="' + action + '" data-arg="' + esc(arg) + '" aria-pressed="' + on + '" style="height:auto;min-height:36px;border-radius:99px;padding:8px 13px;font-weight:700;font-size:11.5px;border:1px solid ' + (on ? "#101010" : "rgba(16,16,16,.12)") + ';background:' + (on ? "#101010" : "#fff") + ';color:' + (on ? "#fff" : "#101010") + '">' + esc(label) + '</button>';
+    return '<button class="btn" data-action="' + action + '" data-arg="' + esc(arg) + '" aria-pressed="' + on + '" style="height:auto;min-height:36px;border-radius:99px;padding:8px 13px;font-weight:700;font-size:11.5px;border:1px solid ' + (on ? "#0B1F3A" : "rgba(11,31,58,.12)") + ';background:' + (on ? "#0B1F3A" : "#fff") + ';color:' + (on ? "#fff" : "#0B1F3A") + '">' + esc(label) + '</button>';
   }
 
   /* ---------- Mes adresses ---------- */
@@ -1125,10 +1125,10 @@
     var e = t3(), list = state.addresses || [];
     var rows = list.length ? list.map(function (a, i) {
       return '<div class="fx ac" style="gap:12px;padding:12px 14px;' + (i < list.length - 1 ? "border-bottom:1px solid var(--hair)" : "") + '">' +
-        '<span class="sg-ic" style="background:#FFD700">' + ICON.star + '</span>' +
-        '<div class="col" style="gap:2px;flex:1;min-width:0"><span style="font-weight:700;font-size:13.5px">' + esc(a.label) + '</span><span style="font-size:11.5px;color:rgba(16,16,16,.6);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">' + esc(a.text) + '</span></div>' +
-        '<button class="btn" data-action="deleteAddress" data-arg="' + i + '" aria-label="' + esc(e.addrDelete + " " + a.label) + '" style="height:34px;border-radius:99px;padding:0 11px;background:rgba(16,16,16,.06);font-weight:700;font-size:11px">' + esc(e.addrDelete) + '</button></div>';
-    }).join("") : '<div style="padding:16px 14px;font-size:12.5px;line-height:1.5;color:rgba(16,16,16,.65)">' + esc(e.addrEmpty) + '</div>';
+        '<span class="sg-ic" style="background:#1FD1B2">' + ICON.star + '</span>' +
+        '<div class="col" style="gap:2px;flex:1;min-width:0"><span style="font-weight:700;font-size:13.5px">' + esc(a.label) + '</span><span style="font-size:11.5px;color:rgba(11,31,58,.6);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">' + esc(a.text) + '</span></div>' +
+        '<button class="btn" data-action="deleteAddress" data-arg="' + i + '" aria-label="' + esc(e.addrDelete + " " + a.label) + '" style="height:34px;border-radius:99px;padding:0 11px;background:rgba(11,31,58,.06);font-weight:700;font-size:11px">' + esc(e.addrDelete) + '</button></div>';
+    }).join("") : '<div style="padding:16px 14px;font-size:12.5px;line-height:1.5;color:rgba(11,31,58,.65)">' + esc(e.addrEmpty) + '</div>';
     return page3(hdr(e.addrTitle) + '<div style="' + cardStyle + '">' + rows + '</div>',
       '<div style="padding:16px 20px 20px"><button class="btn btn-yellow" data-action="newAddress" style="width:100%">' + esc(e.addrAdd) + '</button></div>');
   }
@@ -1137,14 +1137,14 @@
     var labels = e.addrLabels;
     var isOther = labels.slice(0, 2).indexOf(f.label) === -1;
     return page3(hdr(e.addrAdd) +
-      '<div class="col" style="gap:8px"><div style="font-weight:700;font-size:12px;color:rgba(16,16,16,.55)">' + esc(e.addrLabel) + '</div>' +
+      '<div class="col" style="gap:8px"><div style="font-weight:700;font-size:12px;color:rgba(11,31,58,.55)">' + esc(e.addrLabel) + '</div>' +
       '<div class="fx wrap" style="gap:7px">' + labels.map(function (l, i) { var on = i < 2 ? f.label === l : isOther; return chip(l, on, "setAddrLabel", i < 2 ? l : ""); }).join("") + '</div>' +
       (isOther ? '<input data-bind="addrForm.label" aria-label="' + esc(e.addrOther) + '" placeholder="' + esc(e.addrOther) + '" value="' + esc(f.label) + '" style="' + cardStyle + ';height:48px;padding:0 14px;font-weight:600;font-size:13.5px" />' : '') + '</div>' +
-      '<div class="col" style="gap:8px"><div style="font-weight:700;font-size:12px;color:rgba(16,16,16,.55)">' + esc(e.addrField) + '</div>' +
-      '<div style="' + cardStyle + ';padding:0 15px"><div class="fx ac addr-row" style="gap:11px;min-height:52px"><span style="width:8px;height:8px;flex:none;background:#101010"></span>' +
+      '<div class="col" style="gap:8px"><div style="font-weight:700;font-size:12px;color:rgba(11,31,58,.55)">' + esc(e.addrField) + '</div>' +
+      '<div style="' + cardStyle + ';padding:0 15px"><div class="fx ac addr-row" style="gap:11px;min-height:52px"><span style="width:8px;height:8px;flex:none;background:#0B1F3A"></span>' +
       '<input data-bind="addrForm.addr" data-field="addr" autocomplete="off" aria-autocomplete="list" aria-label="' + esc(e.addrField) + '" placeholder="' + esc(d.dropPh) + '" value="' + esc(f.addr) + '" style="flex:1;min-width:0;height:52px;font-weight:600;font-size:13.5px" />' +
-      (f.addrGeo ? '<span style="color:#101010">' + ICON.check + '</span>' : '') + '</div>' + suggestList("addr") + '</div>' +
-      '<div class="fx"><button class="btn" data-action="useMyLocation" data-arg="addr" style="height:auto;min-height:34px;border-radius:99px;padding:7px 12px;background:#101010;color:#FFD700;font-weight:600;font-size:11.5px;gap:5px">' + ICON.gps + esc(d.myPosition) + '</button></div></div>',
+      (f.addrGeo ? '<span style="color:#0B1F3A">' + ICON.check + '</span>' : '') + '</div>' + suggestList("addr") + '</div>' +
+      '<div class="fx"><button class="btn" data-action="useMyLocation" data-arg="addr" style="height:auto;min-height:34px;border-radius:99px;padding:7px 12px;background:#0B1F3A;color:#1FD1B2;font-weight:600;font-size:11.5px;gap:5px">' + ICON.gps + esc(d.myPosition) + '</button></div></div>',
       '<div style="padding:16px 20px 20px"><button class="btn btn-yellow" data-action="saveAddrForm" style="width:100%">' + esc(e.addrSave) + '</button></div>');
   }
 
@@ -1157,22 +1157,22 @@
       var canHave = (p.key !== "orange_money" && p.key !== "mtn_momo") || acc;
       return '<div class="fx ac" style="gap:12px;padding:12px 14px;' + (i < PAYMENTS.length - 1 ? "border-bottom:1px solid var(--hair)" : "") + '">' +
         '<span class="fx ac jc" style="width:38px;height:27px;flex:none;border-radius:7px;background:' + p.bg + ';color:' + p.fg + ';font-family:var(--mono);font-weight:700;font-size:9px">' + p.chip + '</span>' +
-        '<div class="col" style="gap:2px;flex:1;min-width:0"><span style="font-weight:700;font-size:13.5px">' + esc(d.paymentNames[p.key]) + '</span><span class="mono" style="font-size:10.5px;color:rgba(16,16,16,.55);white-space:nowrap">' + esc(detail || "") + '</span></div>' +
-        (isDef ? '<span class="mono" style="border-radius:99px;padding:5px 9px;background:#FFD700;font-weight:700;font-size:9.5px">' + esc(e.payDefault.toUpperCase()) + '</span>'
-          : canHave ? '<button class="btn" data-action="setDefaultPay" data-arg="' + p.key + '" style="height:32px;border-radius:99px;padding:0 10px;background:rgba(16,16,16,.06);font-weight:700;font-size:10.5px">' + esc(e.payMakeDefault) + '</button>' : '') +
-        (acc ? '<button class="btn" data-action="removeAccount" data-arg="' + p.key + '" aria-label="' + esc(e.addrDelete + " " + d.paymentNames[p.key]) + '" style="width:36px;height:36px;flex:none;border-radius:99px;background:rgba(16,16,16,.06);font-weight:700;font-size:15px;padding:0">×</button>' : '') +
+        '<div class="col" style="gap:2px;flex:1;min-width:0"><span style="font-weight:700;font-size:13.5px">' + esc(d.paymentNames[p.key]) + '</span><span class="mono" style="font-size:10.5px;color:rgba(11,31,58,.55);white-space:nowrap">' + esc(detail || "") + '</span></div>' +
+        (isDef ? '<span class="mono" style="border-radius:99px;padding:5px 9px;background:#1FD1B2;font-weight:700;font-size:9.5px">' + esc(e.payDefault.toUpperCase()) + '</span>'
+          : canHave ? '<button class="btn" data-action="setDefaultPay" data-arg="' + p.key + '" style="height:32px;border-radius:99px;padding:0 10px;background:rgba(11,31,58,.06);font-weight:700;font-size:10.5px">' + esc(e.payMakeDefault) + '</button>' : '') +
+        (acc ? '<button class="btn" data-action="removeAccount" data-arg="' + p.key + '" aria-label="' + esc(e.addrDelete + " " + d.paymentNames[p.key]) + '" style="width:36px;height:36px;flex:none;border-radius:99px;background:rgba(11,31,58,.06);font-weight:700;font-size:15px;padding:0">×</button>' : '') +
         '</div>';
     }).join("");
     var f = state.payForm;
     var form = f ? '<div class="col" style="' + cardStyle + ';padding:14px;gap:11px">' +
-        '<div style="font-weight:700;font-size:12px;color:rgba(16,16,16,.55)">' + esc(e.payOperator) + '</div>' +
+        '<div style="font-weight:700;font-size:12px;color:rgba(11,31,58,.55)">' + esc(e.payOperator) + '</div>' +
         '<div class="fx" style="gap:7px">' + chip("Orange Money", f.op === "orange_money", "setPayFormOp", "orange_money") + chip("MTN MoMo", f.op === "mtn_momo", "setPayFormOp", "mtn_momo") + '</div>' +
-        '<label class="fx ac" style="gap:10px;background:rgba(16,16,16,.04);border-radius:12px;padding:0 13px;height:48px"><span class="mono" style="font-weight:600;font-size:13px;color:rgba(16,16,16,.6)">+237</span>' +
+        '<label class="fx ac" style="gap:10px;background:rgba(11,31,58,.04);border-radius:12px;padding:0 13px;height:48px"><span class="mono" style="font-weight:600;font-size:13px;color:rgba(11,31,58,.6)">+237</span>' +
         '<input data-bind="payForm.number" inputmode="numeric" aria-label="' + esc(e.payNumber) + '" placeholder="6 90 00 00 00" value="' + esc(f.number) + '" style="flex:1;height:100%;font-weight:600;font-size:14px" /></label>' +
         '<button class="btn btn-ink" data-action="savePayAccount">' + esc(d.confirm) + '</button></div>'
-      : '<button class="btn btn-outline" data-action="openPayForm" style="width:100%;color:#101010">' + esc(e.payAddNumber) + '</button>';
+      : '<button class="btn btn-outline" data-action="openPayForm" style="width:100%;color:#0B1F3A">' + esc(e.payAddNumber) + '</button>';
     return page3(hdr(e.payTitle) + '<div style="' + cardStyle + '">' + rows + '</div>' + form +
-      '<p style="margin:0;font-size:11px;line-height:1.5;color:rgba(16,16,16,.6)">' + esc(e.payNote) + '</p>');
+      '<p style="margin:0;font-size:11px;line-height:1.5;color:rgba(11,31,58,.6)">' + esc(e.payNote) + '</p>');
   }
 
   /* ---------- Notifications ---------- */
@@ -1185,20 +1185,20 @@
         toggleRow(e.notifSms, e.notifSmsSub, n.sms, "toggleNotif", "sms") + '<div style="height:1px;background:var(--hair)"></div>' +
         toggleRow(e.notifPush, e.notifPushSub, n.push, "toggleNotif", "push") + '<div style="height:1px;background:var(--hair)"></div>' +
         toggleRow(e.notifPromos, e.notifPromosSub, n.promos, "toggleNotif", "promos") +
-      '</div>' + (denied ? '<p style="margin:0;font-size:11.5px;line-height:1.5;color:rgba(16,16,16,.7)">' + esc(e.notifDenied) + '</p>' : ''));
+      '</div>' + (denied ? '<p style="margin:0;font-size:11.5px;line-height:1.5;color:rgba(11,31,58,.7)">' + esc(e.notifDenied) + '</p>' : ''));
   }
 
   /* ---------- Annulation ---------- */
   function cancelSheet() {
     var e = t3(), c = state.cancelFor;
     return '<div class="sheet-backdrop" data-action="closeCancel"></div><div class="sheet" role="dialog" aria-modal="true" aria-label="' + esc(e.cancelTitle) + '">' +
-      '<div style="width:34px;height:4px;border-radius:9px;background:rgba(16,16,16,.15);margin:0 auto 6px"></div>' +
+      '<div style="width:34px;height:4px;border-radius:9px;background:rgba(11,31,58,.15);margin:0 auto 6px"></div>' +
       '<h2 style="margin:0;font-weight:800;font-size:19px;letter-spacing:-.4px">' + esc(e.cancelTitle) + '</h2>' +
-      '<p style="margin:0;font-size:12.5px;color:rgba(16,16,16,.65)">' + esc(e.cancelSub) + '</p>' +
+      '<p style="margin:0;font-size:12.5px;color:rgba(11,31,58,.65)">' + esc(e.cancelSub) + '</p>' +
       '<div class="col" style="gap:7px">' + e.cancelReasons.map(function (r, i) {
         var on = c.reason === i;
-        return '<button class="fx ac" data-action="pickCancelReason" data-arg="' + i + '" role="radio" aria-checked="' + on + '" style="gap:11px;text-align:left;border:1.5px solid ' + (on ? "#101010" : "var(--hair)") + ';background:#fff;border-radius:13px;padding:12px 13px;cursor:pointer;color:#101010;min-height:46px">' +
-          '<span style="width:16px;height:16px;flex:none;box-sizing:border-box;border-radius:99px;border:2px solid ' + (on ? "#101010" : "rgba(16,16,16,.2)") + ';background:' + (on ? "#101010" : "transparent") + '"></span><span style="font-weight:600;font-size:13px">' + esc(r) + '</span></button>';
+        return '<button class="fx ac" data-action="pickCancelReason" data-arg="' + i + '" role="radio" aria-checked="' + on + '" style="gap:11px;text-align:left;border:1.5px solid ' + (on ? "#0B1F3A" : "var(--hair)") + ';background:#fff;border-radius:13px;padding:12px 13px;cursor:pointer;color:#0B1F3A;min-height:46px">' +
+          '<span style="width:16px;height:16px;flex:none;box-sizing:border-box;border-radius:99px;border:2px solid ' + (on ? "#0B1F3A" : "rgba(11,31,58,.2)") + ';background:' + (on ? "#0B1F3A" : "transparent") + '"></span><span style="font-weight:600;font-size:13px">' + esc(r) + '</span></button>';
       }).join("") + '</div>' +
       '<button class="btn btn-ink" data-action="confirmCancel" ' + (c.reason == null ? "disabled" : "") + '>' + esc(e.cancelConfirm) + '</button>' +
       '<button class="btn" data-action="closeCancel" style="height:44px;background:transparent;font-weight:700;font-size:13px">' + esc(e.cancelKeep) + '</button></div>';
@@ -1206,50 +1206,50 @@
   function screenCancelled(o) {
     var e = t3(), d = t(), price = { net: orderNet(o) };
     return page3(hdr(e.cancelled) +
-      '<div style="background:#101010;border-radius:18px;padding:16px;display:flex;flex-direction:column;gap:8px">' +
-        '<span class="mono" style="font-size:10.5px;color:#FFD700">' + o.code + ' · ' + esc(e.cancelledOn.toUpperCase()) + '</span>' +
+      '<div style="background:#0B1F3A;border-radius:18px;padding:16px;display:flex;flex-direction:column;gap:8px">' +
+        '<span class="mono" style="font-size:10.5px;color:#1FD1B2">' + o.code + ' · ' + esc(e.cancelledOn.toUpperCase()) + '</span>' +
         '<span style="font-weight:700;font-size:15px;color:#fff">' + esc(svcName(o.service)) + ' · ' + esc(o.pickup) + ' → ' + esc(o.dropoff) + '</span>' +
         '<span class="mono" style="font-size:11px;color:rgba(255,255,255,.65)">' + fmtFcfa(price.net) + '</span></div>' +
       '<div style="' + cardStyle + ';padding:14px;display:flex;flex-direction:column;gap:8px">' +
-        '<div class="fx jb" style="gap:10px"><span class="mono" style="font-size:10.5px;color:rgba(16,16,16,.55)">' + esc(e.reason.toUpperCase()) + '</span><span style="font-weight:600;font-size:12.5px;text-align:right">' + esc(o.cancelReason || "—") + '</span></div>' +
-        '<div style="font-size:12.5px;line-height:1.5;color:rgba(16,16,16,.75)">' + esc(o.refundNote || "") + '</div></div>' + reorderButton(o));
+        '<div class="fx jb" style="gap:10px"><span class="mono" style="font-size:10.5px;color:rgba(11,31,58,.55)">' + esc(e.reason.toUpperCase()) + '</span><span style="font-weight:600;font-size:12.5px;text-align:right">' + esc(o.cancelReason || "—") + '</span></div>' +
+        '<div style="font-size:12.5px;line-height:1.5;color:rgba(11,31,58,.75)">' + esc(o.refundNote || "") + '</div></div>' + reorderButton(o));
   }
 
   /* ---------- Aide et litiges ---------- */
   function helpRow(label, sub, action, arg, href) {
-    var inner = '<span class="col" style="gap:2px;flex:1"><span style="font-weight:700;font-size:13.5px">' + esc(label) + '</span>' + (sub ? '<span style="font-size:11.5px;color:rgba(16,16,16,.6)">' + esc(sub) + '</span>' : '') + '</span><span aria-hidden="true" style="color:rgba(16,16,16,.3);font-weight:600">→</span>';
-    var st = 'gap:11px;text-align:left;border:0;background:transparent;padding:13px 14px;min-height:56px;cursor:pointer;color:#101010;text-decoration:none;width:100%;box-sizing:border-box';
+    var inner = '<span class="col" style="gap:2px;flex:1"><span style="font-weight:700;font-size:13.5px">' + esc(label) + '</span>' + (sub ? '<span style="font-size:11.5px;color:rgba(11,31,58,.6)">' + esc(sub) + '</span>' : '') + '</span><span aria-hidden="true" style="color:rgba(11,31,58,.3);font-weight:600">→</span>';
+    var st = 'gap:11px;text-align:left;border:0;background:transparent;padding:13px 14px;min-height:56px;cursor:pointer;color:#0B1F3A;text-decoration:none;width:100%;box-sizing:border-box';
     return href ? '<a class="fx ac" href="' + href + '" style="' + st + '">' + inner + '</a>'
       : '<button class="fx ac" data-action="' + action + '"' + (arg ? ' data-arg="' + arg + '"' : '') + ' style="' + st + '">' + inner + '</button>';
   }
   function screenHelp() {
     var e = t3(), list = state.disputes || [];
-    var colors = { open: ["#FFD700", "#101010"], review: ["#101010", "#FFD700"], closed: ["rgba(16,16,16,.07)", "rgba(16,16,16,.55)"] };
+    var colors = { open: ["#1FD1B2", "#0B1F3A"], review: ["#0B1F3A", "#1FD1B2"], closed: ["rgba(11,31,58,.07)", "rgba(11,31,58,.55)"] };
     var claims = list.length ? list.map(function (x, i) {
       var c = colors[x.status] || colors.open;
       return '<div class="col" style="gap:6px;padding:12px 14px;' + (i < list.length - 1 ? "border-bottom:1px solid var(--hair)" : "") + '">' +
-        '<div class="fx ac" style="gap:8px"><span class="mono" style="font-size:10px;color:rgba(16,16,16,.55)">' + x.code + ' · ' + x.orderCode + '</span>' +
+        '<div class="fx ac" style="gap:8px"><span class="mono" style="font-size:10px;color:rgba(11,31,58,.55)">' + x.code + ' · ' + x.orderCode + '</span>' +
         '<span class="mono" style="margin-left:auto;border-radius:99px;padding:4px 9px;background:' + c[0] + ';color:' + c[1] + ';font-weight:700;font-size:9.5px">' + esc(e.disputeStatus[x.status]) + '</span></div>' +
         '<span style="font-weight:700;font-size:13px">' + esc(x.reason) + '</span>' +
-        '<span style="font-size:12px;line-height:1.45;color:rgba(16,16,16,.7)">' + esc(x.desc) + '</span></div>';
-    }).join("") : '<div style="padding:14px;font-size:12.5px;color:rgba(16,16,16,.6)">' + esc(e.claimsEmpty) + '</div>';
+        '<span style="font-size:12px;line-height:1.45;color:rgba(11,31,58,.7)">' + esc(x.desc) + '</span></div>';
+    }).join("") : '<div style="padding:14px;font-size:12.5px;color:rgba(11,31,58,.6)">' + esc(e.claimsEmpty) + '</div>';
     return page3(hdr(e.helpTitle) +
       '<div style="' + cardStyle + '">' + helpRow(e.helpChat, e.helpChatSub, "openChatGeneral") + '<div style="height:1px;background:var(--hair)"></div>' +
         helpRow(e.helpReport, e.helpReportSub, "openDispute") + '<div style="height:1px;background:var(--hair)"></div>' +
         helpRow(e.helpCall, SUPPORT_PHONE_LABEL, null, null, "tel:" + SUPPORT_PHONE) + '</div>' +
-      '<div style="font-weight:700;font-size:12px;color:rgba(16,16,16,.55)">' + esc(e.helpClaims) + '</div>' +
+      '<div style="font-weight:700;font-size:12px;color:rgba(11,31,58,.55)">' + esc(e.helpClaims) + '</div>' +
       '<div style="' + cardStyle + '">' + claims + '</div>');
   }
   function screenDispute() {
     var e = t3(), f = state.disputeForm;
     var orders = state.orders.filter(function (o) { return o.status !== "cancelled"; }).slice(0, 6);
-    if (!orders.length) return page3(hdr(e.disputeTitle) + '<div style="' + cardStyle + ';padding:14px;font-size:12.5px;color:rgba(16,16,16,.65)">' + esc(e.disputeNoOrder) + '</div>');
+    if (!orders.length) return page3(hdr(e.disputeTitle) + '<div style="' + cardStyle + ';padding:14px;font-size:12.5px;color:rgba(11,31,58,.65)">' + esc(e.disputeNoOrder) + '</div>');
     return page3(hdr(e.disputeTitle) +
-      '<div class="col" style="gap:8px"><div style="font-weight:700;font-size:12px;color:rgba(16,16,16,.55)">' + esc(e.disputeOrder) + '</div>' +
+      '<div class="col" style="gap:8px"><div style="font-weight:700;font-size:12px;color:rgba(11,31,58,.55)">' + esc(e.disputeOrder) + '</div>' +
         '<div class="fx wrap" style="gap:7px">' + orders.map(function (o) { return chip(o.code + " · " + svcName(o.service), f.orderId === o.id, "setDisputeOrder", o.id); }).join("") + '</div></div>' +
-      '<div class="col" style="gap:8px"><div style="font-weight:700;font-size:12px;color:rgba(16,16,16,.55)">' + esc(e.disputeReason) + '</div>' +
+      '<div class="col" style="gap:8px"><div style="font-weight:700;font-size:12px;color:rgba(11,31,58,.55)">' + esc(e.disputeReason) + '</div>' +
         '<div class="fx wrap" style="gap:7px">' + e.disputeReasons.map(function (r, i) { return chip(r, f.reason === i, "setDisputeReason", String(i)); }).join("") + '</div></div>' +
-      '<div class="col" style="gap:8px"><div style="font-weight:700;font-size:12px;color:rgba(16,16,16,.55)">' + esc(e.disputeDesc) + '</div>' +
+      '<div class="col" style="gap:8px"><div style="font-weight:700;font-size:12px;color:rgba(11,31,58,.55)">' + esc(e.disputeDesc) + '</div>' +
         '<textarea data-bind="disputeForm.desc" aria-label="' + esc(e.disputeDesc) + '" placeholder="' + esc(e.disputeDescPh) + '" style="' + cardStyle + ';min-height:96px;padding:12px 14px;font-weight:500;font-size:13px;resize:none">' + esc(f.desc) + '</textarea></div>' +
       '<label class="fx ac" style="gap:11px;' + cardStyle + ';padding:10px 14px;min-height:56px;cursor:pointer">' +
         (f.photo ? '<img src="' + f.photo + '" alt="" width="44" height="44" style="border-radius:9px;object-fit:cover">' : '<span class="sg-ic">' + ICON.pin.replace('M12 21s-7-6.2-7-11.5A7 7 0 0 1 19 9.5C19 14.8 12 21 12 21z', 'M4 7h3l2-2.5h6L17 7h3v12H4z').replace('cy="9.5" r="2.5"', 'cy="12.5" r="3.5"') + '</span>') +
@@ -1293,17 +1293,17 @@
       '<div class="col" style="gap:8px">' + sectionTitle(p.name) +
         '<input data-bind="profileName" autocomplete="name" aria-label="' + esc(p.name) + '" value="' + esc(state.profileName) + '" style="background:#fff;border:1px solid var(--hair);border-radius:16px;height:52px;padding:0 15px;font-weight:600;font-size:14px" /></div>' +
       '<div class="col" style="gap:8px">' + sectionTitle(p.phone) +
-        '<div class="mono" style="background:rgba(16,16,16,.04);border-radius:16px;height:52px;padding:0 15px;display:flex;align-items:center;font-weight:600;font-size:13.5px">+237 ' + esc(state.phone) + '</div></div>' +
+        '<div class="mono" style="background:rgba(11,31,58,.04);border-radius:16px;height:52px;padding:0 15px;display:flex;align-items:center;font-weight:600;font-size:13.5px">+237 ' + esc(state.phone) + '</div></div>' +
       '<button class="btn btn-ink" data-action="saveProfile">' + esc(p.save) + '</button>' +
       '<div style="height:1px;background:var(--hair);margin:6px 0"></div>' +
-      '<button class="btn" data-action="askDeleteAccount" style="height:48px;background:transparent;border:1.5px solid rgba(16,16,16,.12);color:#101010;font-weight:700;font-size:13px">' + esc(p.del) + '</button>');
+      '<button class="btn" data-action="askDeleteAccount" style="height:48px;background:transparent;border:1.5px solid rgba(11,31,58,.12);color:#0B1F3A;font-weight:700;font-size:13px">' + esc(p.del) + '</button>');
   }
   function deleteSheet() {
     var p = tp();
     return '<div class="sheet-backdrop" data-action="closeDeleteAccount"></div><div class="sheet" role="dialog" aria-modal="true" aria-label="' + esc(p.delTitle) + '">' +
-      '<div style="width:34px;height:4px;border-radius:9px;background:rgba(16,16,16,.15);margin:0 auto 6px"></div>' +
+      '<div style="width:34px;height:4px;border-radius:9px;background:rgba(11,31,58,.15);margin:0 auto 6px"></div>' +
       '<h2 style="margin:0;font-weight:800;font-size:19px;letter-spacing:-.4px">' + esc(p.delTitle) + '</h2>' +
-      '<p style="margin:0;font-size:12.5px;line-height:1.5;color:rgba(16,16,16,.7)">' + esc(p.delSub) + '</p>' +
+      '<p style="margin:0;font-size:12.5px;line-height:1.5;color:rgba(11,31,58,.7)">' + esc(p.delSub) + '</p>' +
       '<button class="btn btn-ink" data-action="confirmDeleteAccount">' + esc(p.delConfirm) + '</button>' +
       '<button class="btn" data-action="closeDeleteAccount" style="height:44px;background:transparent;font-weight:700;font-size:13px">' + esc(p.keep) + '</button></div>';
   }
@@ -1314,8 +1314,8 @@
     var d = new Date();
     var time = d.toLocaleTimeString(state.lang === "en" ? "en-US" : "fr-FR", { hour: "2-digit", minute: "2-digit" });
     return '<div class="statusbar"><span>' + time + '</span><span class="icons">' +
-      '<svg width="15" height="10" viewBox="0 0 15 10"><rect x="0" y="6" width="2.6" height="4" rx="0.5" fill="#101010"/><rect x="4" y="4" width="2.6" height="6" rx="0.5" fill="#101010"/><rect x="8" y="2" width="2.6" height="8" rx="0.5" fill="#101010"/><rect x="12" y="0" width="2.6" height="10" rx="0.5" fill="#101010"/></svg>' +
-      '<svg width="20" height="10" viewBox="0 0 20 10"><rect x="0.5" y="0.5" width="17" height="9" rx="2.5" stroke="#101010" fill="none"/><rect x="2" y="2" width="14" height="6" rx="1.5" fill="#101010"/></svg>' +
+      '<svg width="15" height="10" viewBox="0 0 15 10"><rect x="0" y="6" width="2.6" height="4" rx="0.5" fill="#0B1F3A"/><rect x="4" y="4" width="2.6" height="6" rx="0.5" fill="#0B1F3A"/><rect x="8" y="2" width="2.6" height="8" rx="0.5" fill="#0B1F3A"/><rect x="12" y="0" width="2.6" height="10" rx="0.5" fill="#0B1F3A"/></svg>' +
+      '<svg width="20" height="10" viewBox="0 0 20 10"><rect x="0.5" y="0.5" width="17" height="9" rx="2.5" stroke="#0B1F3A" fill="none"/><rect x="2" y="2" width="14" height="6" rx="1.5" fill="#0B1F3A"/></svg>' +
       '</span></div>';
   }
 
@@ -1782,7 +1782,7 @@
     if (isStandalone || installDismissed) return "";
     if (!deferredInstall && !isIOS) return "";
     var d = p();
-    return '<div style="padding:16px 20px 0"><div class="install-card" role="region" aria-label="' + esc(d.install) + '" style="display:flex;gap:12px;align-items:center;background:#101010;border-radius:16px;padding:13px 14px">' +
+    return '<div style="padding:16px 20px 0"><div class="install-card" role="region" aria-label="' + esc(d.install) + '" style="display:flex;gap:12px;align-items:center;background:#0B1F3A;border-radius:16px;padding:13px 14px">' +
       '<img src="icons/icon-192.png" alt="" width="38" height="38" style="border-radius:10px;flex:none">' +
       '<div class="col" style="gap:2px;flex:1"><span style="font-weight:800;font-size:13.5px;color:#fff">' + esc(d.install) + '</span>' +
       '<span style="font-size:11.5px;line-height:1.4;color:rgba(255,255,255,.7)">' + esc(isIOS && !deferredInstall ? d.iosHint : d.installSub) + '</span></div>' +
@@ -1797,7 +1797,7 @@
     /* réseau présent mais serveur WunaGo injoignable (certains réseaux mobiles bloquent l'adresse) : on le dit clairement */
     if (window.WAPI && WAPI.status.unreachable && location.protocol === "https:") return '<div class="offline-bar" role="status" style="display:flex;align-items:center;gap:8px;justify-content:center;flex-wrap:wrap">' +
       esc(state.lang === "en" ? "WunaGo server unreachable on this network: the app may be outdated. Try Wi-Fi." : "Serveur WunaGo injoignable sur ce réseau : l'app peut être ancienne. Essayez en Wi-Fi.") +
-      '<button class="btn" data-action="retryServer" style="height:30px;border-radius:99px;padding:0 12px;background:#FFD700;color:#101010;font-size:11px;font-weight:700">' + (state.lang === "en" ? "Retry" : "Réessayer") + '</button></div>';
+      '<button class="btn" data-action="retryServer" style="height:30px;border-radius:99px;padding:0 12px;background:#1FD1B2;color:#0B1F3A;font-size:11px;font-weight:700">' + (state.lang === "en" ? "Retry" : "Réessayer") + '</button></div>';
     return "";
   }
   actions.retryServer = function () { WAPI.check().then(function (on) { if (on) location.reload(); else { render(); toast(state.lang === "en" ? "Still unreachable." : "Toujours injoignable."); } }); };
@@ -1869,16 +1869,16 @@
   function tu() { return UX[state.lang] || UX.fr; }
   function hintInput(field) {
     var dr = state.draft, v = (dr.hints && dr.hints[field]) || "";
-    return '<div class="fx ac" style="gap:8px;padding:0 0 10px 19px"><span class="mono" style="font-size:9.5px;color:rgba(16,16,16,.5);flex:none">' + esc(tu().landmark.toUpperCase()) + '</span>' +
-      '<input data-bind="draft.hint.' + field + '" aria-label="' + esc(tu().hint) + '" placeholder="' + esc(tu().hint) + '" value="' + esc(v) + '" style="flex:1;min-width:0;height:36px;border-radius:10px;background:rgba(16,16,16,.04);padding:0 10px;font-weight:500;font-size:12.5px" /></div>';
+    return '<div class="fx ac" style="gap:8px;padding:0 0 10px 19px"><span class="mono" style="font-size:9.5px;color:rgba(11,31,58,.5);flex:none">' + esc(tu().landmark.toUpperCase()) + '</span>' +
+      '<input data-bind="draft.hint.' + field + '" aria-label="' + esc(tu().hint) + '" placeholder="' + esc(tu().hint) + '" value="' + esc(v) + '" style="flex:1;min-width:0;height:36px;border-radius:10px;background:rgba(11,31,58,.04);padding:0 10px;font-weight:500;font-size:12.5px" /></div>';
   }
   function recipientBlock(dr) {
     var u = tu(), r = dr.recipient || (dr.recipient = { self: true, name: "", phone: "" });
-    var chipB = function (on, arg, label) { return '<button class="btn" data-action="setRecipient" data-arg="' + arg + '" aria-pressed="' + on + '" style="flex:1;height:40px;border-radius:99px;font-weight:700;font-size:12px;background:' + (on ? "#101010" : "#fff") + ';color:' + (on ? "#FFD700" : "#101010") + ';border:1px solid ' + (on ? "#101010" : "var(--hair)") + '">' + esc(label) + '</button>'; };
+    var chipB = function (on, arg, label) { return '<button class="btn" data-action="setRecipient" data-arg="' + arg + '" aria-pressed="' + on + '" style="flex:1;height:40px;border-radius:99px;font-weight:700;font-size:12px;background:' + (on ? "#0B1F3A" : "#fff") + ';color:' + (on ? "#1FD1B2" : "#0B1F3A") + ';border:1px solid ' + (on ? "#0B1F3A" : "var(--hair)") + '">' + esc(label) + '</button>'; };
     return '<div class="col" style="gap:8px">' + sectionTitle(u.who) + '<div class="fx" style="gap:7px">' + chipB(r.self, "self", u.me) + chipB(!r.self, "other", u.other) + '</div>' +
-      (r.self ? '' : (canPickContact() ? '<button class="btn btn-outline" data-action="pickContact" style="height:44px;color:#101010;font-size:12.5px">👤 ' + esc(te().contacts) + '</button>' : '') + '<div style="' + card + ';padding:0 14px">' +
+      (r.self ? '' : (canPickContact() ? '<button class="btn btn-outline" data-action="pickContact" style="height:44px;color:#0B1F3A;font-size:12.5px">👤 ' + esc(te().contacts) + '</button>' : '') + '<div style="' + card + ';padding:0 14px">' +
         '<input data-bind="draft.rname" autocomplete="off" aria-label="' + esc(u.rName) + '" placeholder="' + esc(u.rName) + '" value="' + esc(r.name) + '" style="width:100%;height:48px;font-weight:600;font-size:13.5px;border-bottom:1px solid var(--hair)" />' +
-        '<div class="fx ac" style="gap:8px"><span class="mono" style="font-weight:600;font-size:13px;color:rgba(16,16,16,.55)">+237</span><input data-bind="draft.rphone" inputmode="numeric" autocomplete="off" aria-label="' + esc(u.rPhone) + '" placeholder="' + esc(u.rPhone) + '" value="' + esc(r.phone) + '" style="flex:1;height:48px;font-weight:600;font-size:13.5px" /></div></div>') + '</div>';
+        '<div class="fx ac" style="gap:8px"><span class="mono" style="font-weight:600;font-size:13px;color:rgba(11,31,58,.55)">+237</span><input data-bind="draft.rphone" inputmode="numeric" autocomplete="off" aria-label="' + esc(u.rPhone) + '" placeholder="' + esc(u.rPhone) + '" value="' + esc(r.phone) + '" style="flex:1;height:48px;font-weight:600;font-size:13.5px" /></div></div>') + '</div>';
   }
   function recipientOk(dr) {
     var r = dr.recipient; if (!r || r.self) return true;
@@ -1895,8 +1895,8 @@
     if (!o.arrivedAt || o.status === "delivered" || o.status === "cancelled") return "";
     var en = state.lang === "en", ride = o.service === "ride";
     if (!ride && receiveBox(o)) return "";
-    return '<div role="status" class="fx ac" style="gap:10px;background:#101010;color:#fff;border-radius:16px;padding:13px 14px"><span style="font-size:20px" aria-hidden="true">📍</span>' +
-      '<span class="col" style="gap:2px"><b style="color:#FFD700">' + (ride ? (en ? "Your driver has arrived" : "Votre chauffeur est arrivé") : (en ? "Your courier has arrived" : "Votre livreur est arrivé")) + '</b>' +
+    return '<div role="status" class="fx ac" style="gap:10px;background:#0B1F3A;color:#fff;border-radius:16px;padding:13px 14px"><span style="font-size:20px" aria-hidden="true">📍</span>' +
+      '<span class="col" style="gap:2px"><b style="color:#1FD1B2">' + (ride ? (en ? "Your driver has arrived" : "Votre chauffeur est arrivé") : (en ? "Your courier has arrived" : "Votre livreur est arrivé")) + '</b>' +
       '<span style="font-size:12px;color:rgba(255,255,255,.75)">' + (ride ? (en ? "He is waiting at the pickup point." : "Il vous attend au point de départ.") : (iAmRecipient(o) ? (en ? "Type the code shown on their phone." : "Tapez le code affiché sur son téléphone.") : (en ? "The recipient confirms receipt on their phone." : "Le destinataire confirme la réception sur son téléphone."))) + '</span></span></div>';
   }
   /* invitation à activer les notifications, une fois la première commande passée */
@@ -1904,7 +1904,7 @@
     if (!srv() || !window.Notification || !("serviceWorker" in navigator) || state.notifPrefs.push || Notification.permission === "denied" || state.notifPromptHidden) return "";
     var en = state.lang === "en";
     return '<div class="fx ac" style="gap:10px;' + card + ';padding:12px 14px"><span class="col" style="gap:2px;flex:1"><b style="font-size:13px">' + (en ? "Get notified on your phone" : "Soyez prévenu sur votre téléphone") + '</b>' +
-      '<span style="font-size:11.5px;color:rgba(16,16,16,.65);line-height:1.4">' + (en ? "Courier found, on the way, arrived, messages." : "Livreur trouvé, en route, arrivé, messages.") + '</span></span>' +
+      '<span style="font-size:11.5px;color:rgba(11,31,58,.65);line-height:1.4">' + (en ? "Courier found, on the way, arrived, messages." : "Livreur trouvé, en route, arrivé, messages.") + '</span></span>' +
       '<button class="btn btn-ink" data-action="enablePush" style="height:40px;border-radius:12px;padding:0 13px;font-size:12px">' + (en ? "Enable" : "Activer") + '</button>' +
       '<button class="btn" data-action="hideNotifPrompt" aria-label="' + (en ? "Close" : "Fermer") + '" style="width:36px;height:40px;padding:0;background:transparent;font-size:16px">✕</button></div>';
   }
@@ -1922,11 +1922,11 @@
     var x = o.details || {}, en = state.lang === "en";
     if (!o.trackToken || o.service === "ride" || x.returned || o.status === "delivered" || o.status === "cancelled" || o.stage !== 2 || !iAmRecipient(o)) return "";
     var cn = o.courier ? String(o.courier.name).split(" ")[0] : (en ? "The courier" : "Le livreur");
-    return '<div class="col" style="gap:10px;background:#101010;color:#fff;border-radius:18px;padding:15px">' +
-      '<span class="mono" style="font-size:9.5px;letter-spacing:.08em;color:#FFD700">' + (en ? "CONFIRM RECEIPT" : "CONFIRMER LA RÉCEPTION") + '</span>' +
+    return '<div class="col" style="gap:10px;background:#0B1F3A;color:#fff;border-radius:18px;padding:15px">' +
+      '<span class="mono" style="font-size:9.5px;letter-spacing:.08em;color:#1FD1B2">' + (en ? "CONFIRM RECEIPT" : "CONFIRMER LA RÉCEPTION") + '</span>' +
       '<span style="font-weight:800;font-size:15.5px;line-height:1.3">' + esc(o.arrivedAt ? (en ? cn + " is at your door." : cn + " est devant chez vous.") : (en ? "When " + cn + " arrives:" : "Quand " + cn + " arrive :")) + '</span>' +
       '<span style="font-size:12.5px;line-height:1.45;color:rgba(255,255,255,.8)">' + esc(en ? "Check the parcel, then type the code shown on the courier's phone." : "Vérifiez le colis, puis tapez le code affiché sur le téléphone du livreur.") + '</span>' +
-      '<input data-bind="rcvCode" inputmode="numeric" maxlength="4" autocomplete="off" aria-label="' + esc(en ? "Code shown by the courier" : "Code affiché par le livreur") + '" placeholder="• • • •" value="' + esc(state.rcvCode || "") + '" style="background:#fff;color:#101010;border-radius:12px;height:56px;padding:0 13px;font-family:var(--mono);font-weight:600;font-size:26px;letter-spacing:.4em;text-align:center" />' +
+      '<input data-bind="rcvCode" inputmode="numeric" maxlength="4" autocomplete="off" aria-label="' + esc(en ? "Code shown by the courier" : "Code affiché par le livreur") + '" placeholder="• • • •" value="' + esc(state.rcvCode || "") + '" style="background:#fff;color:#0B1F3A;border-radius:12px;height:56px;padding:0 13px;font-family:var(--mono);font-weight:600;font-size:26px;letter-spacing:.4em;text-align:center" />' +
       '<button class="btn btn-yellow" data-action="confirmReceipt" data-arg="' + o.id + '"' + (state.busy ? " disabled" : "") + '>' + esc(en ? "I've received my parcel" : "J'ai reçu mon colis") + '</button></div>';
   }
   actions.confirmReceipt = function (el, id) {
@@ -1944,7 +1944,7 @@
   function pickupBanner(o) {
     if (o.stage !== 0 || !o.courier || o.service === "ride" || o.status === "cancelled" || iAmRecipient(o) && (o.details || {}).pickupContact) return "";
     var en = state.lang === "en", cn = String(o.courier.name).split(" ")[0];
-    return '<div role="status" class="col" style="gap:9px;background:#FFD700;border-radius:14px;padding:11px 13px;font-size:12.5px;line-height:1.45;font-weight:700">🛵 ' +
+    return '<div role="status" class="col" style="gap:9px;background:#1FD1B2;border-radius:14px;padding:11px 13px;font-size:12.5px;line-height:1.45;font-weight:700">🛵 ' +
       esc(en ? cn + " is coming to pick up the parcel: hand it over to them." : cn + " vient récupérer le colis : remettez-le-lui.") +
       '<button class="btn btn-ink" data-action="handedOver" data-arg="' + o.id + '" style="height:46px"' + (state.busy ? " disabled" : "") + '>' + esc(en ? "I've handed the parcel over" : "J'ai remis le colis au livreur") + '</button></div>';
   }
@@ -1957,12 +1957,12 @@
   function codeCard(o) {
     if (!o.deliveryCode || o.status === "delivered" || o.status === "cancelled" || iAmRecipient(o)) return "";
     var u = tu();
-    return '<div class="fx ac" style="gap:12px;background:#FFD700;border-radius:16px;padding:13px 14px">' +
-      '<div class="col" style="gap:3px;flex:1"><span class="mono" style="font-size:9.5px;letter-spacing:.08em;color:rgba(16,16,16,.7)">' + u.codeTitle + '</span>' +
-      '<span class="mono" style="font-weight:600;font-size:26px;letter-spacing:.3em">' + esc(o.deliveryCode) + '</span><span style="font-size:11px;line-height:1.4;color:rgba(16,16,16,.75)">' + esc(u.codeSub) + '</span></div>' +
+    return '<div class="fx ac" style="gap:12px;background:#1FD1B2;border-radius:16px;padding:13px 14px">' +
+      '<div class="col" style="gap:3px;flex:1"><span class="mono" style="font-size:9.5px;letter-spacing:.08em;color:rgba(11,31,58,.7)">' + u.codeTitle + '</span>' +
+      '<span class="mono" style="font-weight:600;font-size:26px;letter-spacing:.3em">' + esc(o.deliveryCode) + '</span><span style="font-size:11px;line-height:1.4;color:rgba(11,31,58,.75)">' + esc(u.codeSub) + '</span></div>' +
       '<button class="btn btn-ink" data-action="shareTracking" data-arg="' + o.id + '" style="flex:none;height:44px;border-radius:12px;padding:0 13px;font-size:12px;gap:6px">' + ICON_SHARE + esc(u.share) + '</button></div>';
   }
-  var ICON_SHARE = '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#FFD700" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="18" cy="5" r="2.5"/><circle cx="6" cy="12" r="2.5"/><circle cx="18" cy="19" r="2.5"/><path d="M8.2 10.8l7.6-4.4M8.2 13.2l7.6 4.4"/></svg>';
+  var ICON_SHARE = '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#1FD1B2" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="18" cy="5" r="2.5"/><circle cx="6" cy="12" r="2.5"/><circle cx="18" cy="19" r="2.5"/><path d="M8.2 10.8l7.6-4.4M8.2 13.2l7.6 4.4"/></svg>';
   function reorderButton(o) {
     var u = tu();
     return '<button class="btn btn-yellow" data-action="reorder" data-arg="' + o.id + '" style="width:100%;gap:8px">↻ ' + esc(u.reorder) + '</button>';
@@ -2020,12 +2020,12 @@
   function recentBlock() {
     var list = recentTrips(); if (!list.length) return "";
     var short = function (s) { return String(s || "").split(",")[0]; };
-    return '<div style="padding:18px 20px 0"><div style="font-weight:700;font-size:12.5px;color:rgba(16,16,16,.5);margin-bottom:8px">' + esc(te().recent) + '</div><div class="col" style="gap:8px">' +
+    return '<div style="padding:18px 20px 0"><div style="font-weight:700;font-size:12.5px;color:rgba(11,31,58,.5);margin-bottom:8px">' + esc(te().recent) + '</div><div class="col" style="gap:8px">' +
       list.map(function (o) {
-        return '<button class="fx ac" data-action="reorder" data-arg="' + o.id + '" style="gap:11px;width:100%;text-align:left;' + card + ';padding:11px 13px;min-height:56px;cursor:pointer;color:#101010">' +
-          '<span class="fx ac jc" aria-hidden="true" style="width:34px;height:34px;flex:none;border-radius:10px;background:#FFD700;font-weight:800;font-size:15px">↻</span>' +
+        return '<button class="fx ac" data-action="reorder" data-arg="' + o.id + '" style="gap:11px;width:100%;text-align:left;' + card + ';padding:11px 13px;min-height:56px;cursor:pointer;color:#0B1F3A">' +
+          '<span class="fx ac jc" aria-hidden="true" style="width:34px;height:34px;flex:none;border-radius:10px;background:#1FD1B2;font-weight:800;font-size:15px">↻</span>' +
           '<span class="col" style="gap:2px;flex:1;min-width:0"><span style="font-weight:700;font-size:13.5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">' + esc(short(o.pickup)) + (o.dropoff !== o.pickup ? ' → ' + esc(short(o.dropoff)) : '') + '</span>' +
-          '<span class="mono" style="font-size:10px;color:rgba(16,16,16,.55)">' + esc(svcName(o.service)) + ' · ' + fmtFcfa(orderNet(o)) + '</span></span><span aria-hidden="true" style="color:rgba(16,16,16,.35);font-weight:600">→</span></button>';
+          '<span class="mono" style="font-size:10px;color:rgba(11,31,58,.55)">' + esc(svcName(o.service)) + ' · ' + fmtFcfa(orderNet(o)) + '</span></span><span aria-hidden="true" style="color:rgba(11,31,58,.35);font-weight:600">→</span></button>';
       }).join("") + '</div></div>';
   }
 
@@ -2047,25 +2047,25 @@
   function screenPrice() {
     var e = te(), S2 = state.sim, qs = (window.WPricing && WPricing.QUARTIERS) || [];
     var sel = function (k, label) {
-      return '<label class="col" style="gap:6px"><span class="mono" style="font-size:10px;letter-spacing:.06em;color:rgba(16,16,16,.6)">' + esc(label.toUpperCase()) + '</span>' +
-        '<select data-sim="' + k + '" aria-label="' + esc(label) + '" style="height:52px;border-radius:16px;border:0;background:#fff;padding:0 14px;font:inherit;font-weight:700;font-size:15px;color:#101010">' +
+      return '<label class="col" style="gap:6px"><span class="mono" style="font-size:10px;letter-spacing:.06em;color:rgba(234,241,247,.6)">' + esc(label.toUpperCase()) + '</span>' +
+        '<select data-sim="' + k + '" aria-label="' + esc(label) + '" style="height:52px;border-radius:16px;border:0;background:#fff;color:#0B1F3A;padding:0 14px;font:inherit;font-weight:700;font-size:15px;color:#EAF1F7">' +
         '<option value="">' + esc(e.pick) + '</option>' + qs.map(function (q) { return '<option' + (S2[k] === q.name ? " selected" : "") + '>' + esc(q.name) + '</option>'; }).join("") + '</select></label>';
     };
     var price = "";
     if (S2.from && S2.to && window.WPricing) {
       var g = function (n) { var q = qs.filter(function (x) { return x.name === n; })[0]; return { lat: q.lat, lng: q.lng }; };
       var q = WPricing.quote({ service: S2.service, pickup: S2.from, dropoff: S2.to, pickupGeo: g(S2.from), dropoffGeo: g(S2.to), vehicle: "bike", weightKg: 2, ride: { passengers: 1 } }, Date.now());
-      price = q.closed ? '<div style="background:#101010;color:#fff;border-radius:16px;padding:14px;font-weight:700;font-size:13px">' + esc(e.closed) + '</div>'
-        : '<div class="col" style="gap:4px;background:#101010;border-radius:18px;padding:16px"><span class="mono" style="font-size:10px;letter-spacing:.08em;color:rgba(255,255,255,.6)">' + esc(e.priceFrom.toUpperCase()) + ' · ' + String(q.distanceKm).replace(".", ",") + ' KM</span>' +
-          '<span style="font-weight:800;font-size:30px;color:#FFD700">' + fmtFcfa(q.net) + '</span><span style="font-size:11.5px;line-height:1.4;color:rgba(255,255,255,.7)">' + esc(e.priceNote) + '</span></div>';
+      price = q.closed ? '<div style="background:rgba(255,255,255,.08);color:#fff;border-radius:16px;padding:14px;font-weight:700;font-size:13px">' + esc(e.closed) + '</div>'
+        : '<div class="col" style="gap:4px;background:rgba(255,255,255,.08);border-radius:18px;padding:16px"><span class="mono" style="font-size:10px;letter-spacing:.08em;color:rgba(255,255,255,.6)">' + esc(e.priceFrom.toUpperCase()) + ' · ' + String(q.distanceKm).replace(".", ",") + ' KM</span>' +
+          '<span style="font-weight:800;font-size:30px;color:#1FD1B2">' + fmtFcfa(q.net) + '</span><span style="font-size:11.5px;line-height:1.4;color:rgba(255,255,255,.7)">' + esc(e.priceNote) + '</span></div>';
     }
-    var svcBtn = function (k, label) { var on = S2.service === k; return '<button class="btn" data-action="simService" data-arg="' + k + '" aria-pressed="' + on + '" style="flex:1;height:44px;border-radius:99px;font-weight:700;font-size:12.5px;background:' + (on ? "#101010" : "rgba(255,255,255,.6)") + ';color:' + (on ? "#FFD700" : "#101010") + '">' + esc(label) + '</button>'; };
-    return '<div class="col fill" style="background:#FFD700;padding:calc(24px + var(--sat)) 24px 30px;gap:16px;overflow-y:auto">' +
-      '<button class="backbtn" data-action="simBack" aria-label="' + esc(e.back) + '" style="background:rgba(16,16,16,.1)">←</button>' +
-      '<div class="col" style="gap:6px"><h1 style="margin:0;font-weight:800;font-size:26px;letter-spacing:-.8px">' + esc(e.priceTitle) + '</h1><p style="margin:0;font-size:13.5px;line-height:1.5;color:rgba(16,16,16,.75)">' + esc(e.priceSub) + '</p></div>' +
+    var svcBtn = function (k, label) { var on = S2.service === k; return '<button class="btn" data-action="simService" data-arg="' + k + '" aria-pressed="' + on + '" style="flex:1;height:44px;border-radius:99px;font-weight:700;font-size:12.5px;background:' + (on ? "#0B1F3A" : "rgba(255,255,255,.6)") + ';color:' + (on ? "#1FD1B2" : "#0B1F3A") + '">' + esc(label) + '</button>'; };
+    return '<div class="col fill" style="background:#0B1F3A;color:#EAF1F7;padding:calc(24px + var(--sat)) 24px 30px;gap:16px;overflow-y:auto">' +
+      '<button class="backbtn" data-action="simBack" aria-label="' + esc(e.back) + '" style="background:rgba(234,241,247,.1)">←</button>' +
+      '<div class="col" style="gap:6px"><h1 style="margin:0;font-weight:800;font-size:26px;letter-spacing:-.8px">' + esc(e.priceTitle) + '</h1><p style="margin:0;font-size:13.5px;line-height:1.5;color:rgba(234,241,247,.75)">' + esc(e.priceSub) + '</p></div>' +
       '<div class="fx" style="gap:8px">' + svcBtn("parcel", e.parcel) + svcBtn("ride", e.ride) + '</div>' +
       sel("from", e.from) + sel("to", e.to) + price +
-      '<button class="btn btn-ink" data-action="simBack" style="margin-top:auto">' + esc(e.order) + '</button></div>';
+      '<button class="btn btn-yellow" data-action="simBack" style="margin-top:auto">' + esc(e.order) + '</button></div>';
   }
   actions.openPrice = function () { state.authScreen = "price"; render(); };
   actions.simBack = function () { state.authScreen = "login"; render(); };
@@ -2117,34 +2117,34 @@
   function codeHomeCard() {
     if (!srv()) return "";
     var w = tw(), p = state.places[0];
-    if (p) return '<div style="padding:16px 20px 0"><button class="fx ac" data-action="openScreen" data-arg="codes" style="gap:12px;width:100%;text-align:left;background:#101010;color:#fff;border:0;border-radius:16px;padding:13px 14px;cursor:pointer">' +
-      '<span class="col" style="gap:2px;flex:1"><span class="mono" style="font-size:9.5px;letter-spacing:.08em;color:rgba(255,255,255,.6)">' + esc(w.title.toUpperCase()) + '</span><span class="mono" style="font-weight:600;font-size:20px;color:#FFD700;letter-spacing:.06em">' + esc(p.code) + '</span></span>' +
-      '<span style="font-weight:700;font-size:12px;color:#FFD700">' + esc(w.share) + ' →</span></button></div>';
-    return '<div style="padding:16px 20px 0"><button class="col" data-action="openScreen" data-arg="codeForm" style="gap:4px;width:100%;text-align:left;border:1.5px dashed #101010;background:#FFD700;border-radius:16px;padding:14px;cursor:pointer;color:#101010">' +
+    if (p) return '<div style="padding:16px 20px 0"><button class="fx ac" data-action="openScreen" data-arg="codes" style="gap:12px;width:100%;text-align:left;background:#0B1F3A;color:#fff;border:0;border-radius:16px;padding:13px 14px;cursor:pointer">' +
+      '<span class="col" style="gap:2px;flex:1"><span class="mono" style="font-size:9.5px;letter-spacing:.08em;color:rgba(255,255,255,.6)">' + esc(w.title.toUpperCase()) + '</span><span class="mono" style="font-weight:600;font-size:20px;color:#1FD1B2;letter-spacing:.06em">' + esc(p.code) + '</span></span>' +
+      '<span style="font-weight:700;font-size:12px;color:#1FD1B2">' + esc(w.share) + ' →</span></button></div>';
+    return '<div style="padding:16px 20px 0"><button class="col" data-action="openScreen" data-arg="codeForm" style="gap:4px;width:100%;text-align:left;border:1.5px dashed #0B1F3A;background:#1FD1B2;border-radius:16px;padding:14px;cursor:pointer;color:#0B1F3A">' +
       '<span class="mono" style="font-size:9.5px;letter-spacing:.08em">NOUVEAU · ' + esc(w.short.toUpperCase()) + '</span><span style="font-weight:800;font-size:16px">' + esc(w.pitch) + '</span>' +
-      '<span style="font-size:12px;line-height:1.45;color:rgba(16,16,16,.75)">' + esc(w.pitchSub) + '</span><span style="font-weight:800;font-size:13px;margin-top:4px">' + esc(w.create) + ' →</span></button></div>';
+      '<span style="font-size:12px;line-height:1.45;color:rgba(11,31,58,.75)">' + esc(w.pitchSub) + '</span><span style="font-weight:800;font-size:13px;margin-top:4px">' + esc(w.create) + ' →</span></button></div>';
   }
   function screenCodes() {
     var w = tw();
     if (!state.places.length) return screenCodeForm();
     var cards = state.places.map(function (p) {
       return '<div class="col" style="gap:12px;' + card + ';padding:16px;align-items:center;text-align:center">' +
-        '<span class="mono" style="font-size:10px;letter-spacing:.08em;color:rgba(16,16,16,.55)">' + esc((p.label || "").toUpperCase()) + '</span>' +
+        '<span class="mono" style="font-size:10px;letter-spacing:.08em;color:rgba(11,31,58,.55)">' + esc((p.label || "").toUpperCase()) + '</span>' +
         '<span class="mono" style="font-weight:600;font-size:34px;letter-spacing:.08em">' + esc(p.code) + '</span>' +
         '<div style="width:190px;height:190px">' + qrSvg(codeUrl(p.code), 5) + '</div>' +
-        '<span style="font-weight:700;font-size:13.5px">' + esc(p.address) + '</span>' + (p.hint ? '<span style="font-size:12px;color:rgba(16,16,16,.7)">' + esc(p.hint) + '</span>' : '') +
-        '<span class="mono" style="font-size:10.5px;color:rgba(16,16,16,.5)">' + p.uses + ' ' + esc(w.uses) + '</span>' +
+        '<span style="font-weight:700;font-size:13.5px">' + esc(p.address) + '</span>' + (p.hint ? '<span style="font-size:12px;color:rgba(11,31,58,.7)">' + esc(p.hint) + '</span>' : '') +
+        '<span class="mono" style="font-size:10.5px;color:rgba(11,31,58,.5)">' + p.uses + ' ' + esc(w.uses) + '</span>' +
         '<button class="btn btn-ink" data-action="shareCode" data-arg="' + p.code + '" style="width:100%">' + esc(w.share) + '</button>' +
-        '<a class="btn btn-outline" href="' + codeUrl(p.code) + '&print=1" target="_blank" rel="noopener" style="width:100%;color:#101010;text-decoration:none">' + esc(w.print) + '</a>' +
+        '<a class="btn btn-outline" href="' + codeUrl(p.code) + '&print=1" target="_blank" rel="noopener" style="width:100%;color:#0B1F3A;text-decoration:none">' + esc(w.print) + '</a>' +
         '<button class="btn" data-action="moveCode" data-arg="' + p.code + '" style="height:44px;background:transparent;font-weight:700;font-size:12.5px;text-decoration:underline">' + esc(w.move) + '</button>' +
-        '<button class="btn" data-action="deleteCode" data-arg="' + p.code + '" style="height:40px;background:transparent;font-weight:600;font-size:12px;color:rgba(16,16,16,.55)">' + esc(w.del) + '</button></div>';
+        '<button class="btn" data-action="deleteCode" data-arg="' + p.code + '" style="height:40px;background:transparent;font-weight:600;font-size:12px;color:rgba(11,31,58,.55)">' + esc(w.del) + '</button></div>';
     }).join("");
-    return page3(hdr(w.title) + cards + (state.places.length < 5 ? '<button class="btn btn-outline" data-action="openScreen" data-arg="codeForm" style="color:#101010">+ ' + esc(w.add) + '</button>' : ''));
+    return page3(hdr(w.title) + cards + (state.places.length < 5 ? '<button class="btn btn-outline" data-action="openScreen" data-arg="codeForm" style="color:#0B1F3A">+ ' + esc(w.add) + '</button>' : ''));
   }
   state.codeForm = { label: "Maison", placeName: "", hint: "", busy: false };
   function screenCodeForm() {
     var w = tw(), f = state.codeForm;
-    return page3(hdr(w.createTitle) + '<p style="margin:0;font-size:13px;line-height:1.5;color:rgba(16,16,16,.75)">' + esc(w.createSub) + '</p>' +
+    return page3(hdr(w.createTitle) + '<p style="margin:0;font-size:13px;line-height:1.5;color:rgba(11,31,58,.75)">' + esc(w.createSub) + '</p>' +
       sectionTitle(w.label) + '<div class="fx wrap" style="gap:7px">' + w.labels.map(function (l) { return chip(l[1], f.label === l[0], "codeLabel", l[0]); }).join("") + '</div>' +
       '<input data-bind="codeForm.placeName" aria-label="' + esc(w.placeName) + '" placeholder="' + esc(w.placeName) + '" value="' + esc(f.placeName) + '" style="' + card + ';height:50px;padding:0 14px;font-weight:600;font-size:13.5px" />' +
       '<input data-bind="codeForm.hint" aria-label="' + esc(w.hint) + '" placeholder="' + esc(w.hint) + '" value="' + esc(f.hint) + '" style="' + card + ';height:50px;padding:0 14px;font-weight:600;font-size:13.5px" />' +
@@ -2191,10 +2191,10 @@
   function codeEntry() {
     if (!srv()) return "";
     var w = tw(), ce = state.codeEntry;
-    if (!ce || !ce.open) return '<button class="btn" data-action="openCodeEntry" style="border:1.5px solid #101010;background:#FFD700;border-radius:99px;padding:7px 12px;height:auto;min-height:34px;font-weight:800;font-size:11.5px;color:#101010;gap:5px">🔑 ' + esc(w.enter) + '</button>';
-    var scan = "BarcodeDetector" in window ? '<label class="btn" aria-label="' + esc(w.scan) + '" style="width:44px;height:44px;flex:none;border-radius:12px;background:rgba(16,16,16,.07);padding:0;position:relative;cursor:pointer">' + CAMERA +
+    if (!ce || !ce.open) return '<button class="btn" data-action="openCodeEntry" style="border:1.5px solid #0B1F3A;background:#1FD1B2;border-radius:99px;padding:7px 12px;height:auto;min-height:34px;font-weight:800;font-size:11.5px;color:#0B1F3A;gap:5px">🔑 ' + esc(w.enter) + '</button>';
+    var scan = "BarcodeDetector" in window ? '<label class="btn" aria-label="' + esc(w.scan) + '" style="width:44px;height:44px;flex:none;border-radius:12px;background:rgba(11,31,58,.07);padding:0;position:relative;cursor:pointer">' + CAMERA +
       '<input type="file" accept="image/*" capture="environment" data-file="qrscan" style="position:absolute;width:1px;height:1px;opacity:0"></label>' : '';
-    return '<div class="fx ac" style="gap:7px;width:100%"><input data-bind="codeEntry" autocapitalize="characters" autocomplete="off" aria-label="' + esc(w.enter) + '" placeholder="WG-7K3Q" value="' + esc(ce.value || "") + '" style="flex:1;min-width:0;height:44px;border-radius:12px;border:1.5px solid #101010;background:#fff;padding:0 12px;font-family:var(--mono);font-weight:600;font-size:16px;letter-spacing:.08em" />' +
+    return '<div class="fx ac" style="gap:7px;width:100%"><input data-bind="codeEntry" autocapitalize="characters" autocomplete="off" aria-label="' + esc(w.enter) + '" placeholder="WG-7K3Q" value="' + esc(ce.value || "") + '" style="flex:1;min-width:0;height:44px;border-radius:12px;border:1.5px solid #0B1F3A;background:#fff;padding:0 12px;font-family:var(--mono);font-weight:600;font-size:16px;letter-spacing:.08em" />' +
       scan + '<button class="btn btn-ink" data-action="applyCode" style="height:44px;border-radius:12px;padding:0 14px">' + esc(w.apply) + '</button></div>';
   }
   actions.openCodeEntry = function () { state.codeEntry = { open: true, value: "" }; render(); var el = document.querySelector('[data-bind="codeEntry"]'); if (el) el.focus(); };
@@ -2260,29 +2260,29 @@
   }
   function initials2(n) { var p = String(n || "?").trim().split(/\s+/); return ((p[0] || "?")[0] + ((p[1] || "")[0] || "")).toUpperCase(); }
   function contactBubble(code, name, sub, mine) {
-    return '<button class="col" data-action="flashTo" data-arg="' + esc(code) + '" style="gap:5px;align-items:center;width:72px;flex:none;border:0;background:transparent;cursor:pointer;color:#101010;padding:0">' +
-      '<span class="fx ac jc" style="width:52px;height:52px;border-radius:99px;background:' + (mine ? "#fff" : "#101010") + ';color:' + (mine ? "#101010" : "#FFD700") + ';border:2px solid #101010;font-weight:800;font-size:15px">' + esc(mine ? "🏠" : initials2(name)) + '</span>' +
+    return '<button class="col" data-action="flashTo" data-arg="' + esc(code) + '" style="gap:5px;align-items:center;width:72px;flex:none;border:0;background:transparent;cursor:pointer;color:#0B1F3A;padding:0">' +
+      '<span class="fx ac jc" style="width:52px;height:52px;border-radius:99px;background:' + (mine ? "#fff" : "#0B1F3A") + ';color:' + (mine ? "#0B1F3A" : "#1FD1B2") + ';border:2px solid #0B1F3A;font-weight:800;font-size:15px">' + esc(mine ? "🏠" : initials2(name)) + '</span>' +
       '<span style="font-weight:700;font-size:11.5px;max-width:72px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">' + esc(name) + '</span>' +
-      '<span class="mono" style="font-size:9px;color:rgba(16,16,16,.55)">' + esc(sub) + '</span></button>';
+      '<span class="mono" style="font-size:9px;color:rgba(11,31,58,.55)">' + esc(sub) + '</span></button>';
   }
   function quickHero() {
     if (!srv() || isCourier()) return "";
     var f = tf(), Q = state.quick, ride = Q.service === "ride";
-    var seg = function (k, label) { var on = Q.service === k; return '<button class="btn" data-action="quickService" data-arg="' + k + '" aria-pressed="' + on + '" style="flex:1;height:40px;border-radius:99px;font-weight:800;font-size:12px;background:' + (on ? "#101010" : "rgba(255,255,255,.55)") + ';color:' + (on ? "#FFD700" : "#101010") + '">' + f[k] + '</button>'; };
+    var seg = function (k, label) { var on = Q.service === k; return '<button class="btn" data-action="quickService" data-arg="' + k + '" aria-pressed="' + on + '" style="flex:1;height:40px;border-radius:99px;font-weight:800;font-size:12px;background:' + (on ? "#0B1F3A" : "rgba(255,255,255,.55)") + ';color:' + (on ? "#1FD1B2" : "#0B1F3A") + '">' + f[k] + '</button>'; };
     var scan = "BarcodeDetector" in window ? '<label class="btn" aria-label="' + esc(tw().scan) + '" style="width:48px;height:48px;flex:none;border-radius:14px;background:#fff;padding:0;position:relative;cursor:pointer">' + CAMERA +
       '<input type="file" accept="image/*" capture="environment" data-file="qrquick" style="position:absolute;width:1px;height:1px;opacity:0"></label>' : '';
     if (!ride && canPickContact()) scan = '<button class="btn" data-action="quickContact" aria-label="' + esc(tl().contacts) + '" style="width:48px;height:48px;flex:none;border-radius:14px;background:#fff;padding:0;font-size:19px">👤</button>' + scan;
     var people = (state.codebook || []).slice(0, 8).map(function (c) { return contactBubble(c.code, c.name, c.code, false); });
     var mine = (state.places || []).map(function (p) { return contactBubble(p.code, f.me + " · " + p.label, p.code, true); });
     var row = people.concat(ride ? [] : mine.slice(1)).concat(ride ? mine : []);
-    return '<div style="padding:14px 20px 0"><div class="col" style="gap:11px;background:#FFD700;border-radius:20px;padding:14px">' +
+    return '<div style="padding:14px 20px 0"><div class="col" style="gap:11px;background:#1FD1B2;border-radius:20px;padding:14px">' +
       '<div class="fx" style="gap:6px">' + seg("parcel", f.parcel) + seg("ride", f.ride) + '</div>' +
       '<div class="fx ac" style="gap:7px"><input data-bind="quickCode" autocapitalize="characters" autocomplete="off" enterkeyhint="go" aria-label="' + esc(ride ? f.toRide : f.toParcel) + '" placeholder="' + esc((ride ? f.toRide : f.toParcel) + "  " + (ride ? f.ph : tl().phoneOrCode)) + '" value="' + esc(Q.value) + '" style="flex:1;min-width:0;height:48px;border-radius:14px;background:#fff;padding:0 14px;font-weight:700;font-size:14px" />' +
         scan + '<button class="btn btn-ink" data-action="quickGo" aria-label="OK" style="width:48px;height:48px;border-radius:14px;padding:0;font-size:18px">→</button></div>' +
-      (row.length ? '<div class="fx ac jb"><span class="mono" style="font-size:9.5px;letter-spacing:.08em;color:rgba(16,16,16,.65)">' + esc(f.book.toUpperCase()) + '</span>' +
+      (row.length ? '<div class="fx ac jb"><span class="mono" style="font-size:9.5px;letter-spacing:.08em;color:rgba(11,31,58,.65)">' + esc(f.book.toUpperCase()) + '</span>' +
         '<button class="btn" data-action="openScreen" data-arg="codebook" style="height:30px;padding:0 6px;background:transparent;font-weight:700;font-size:11px;text-decoration:underline">' + esc(f.seeAll) + '</button></div>' +
         '<div class="fx hscroll" style="gap:6px;overflow-x:auto;margin:0 -14px;padding:0 14px 2px">' + row.join("") + '</div>'
-        : '<span style="font-size:11.5px;line-height:1.45;color:rgba(16,16,16,.72)">' + esc(f.empty) + '</span>') +
+        : '<span style="font-size:11.5px;line-height:1.45;color:rgba(11,31,58,.72)">' + esc(f.empty) + '</span>') +
       '</div></div>';
   }
   actions.quickService = function (el, arg) { state.quick.service = arg; render(); };
@@ -2369,44 +2369,44 @@
     var f = tf(), F = state.flash, d = t();
     if (!F) return page3(hdr("—"));
     var ride = F.service === "ride", q = flashQuote(F), to = F.to || { code: "", address: "" }, noTo = !F.to, addrTo = !!(F.to && !F.to.code);
-    var labS = function (txt) { return '<span class="mono" style="font-size:9.5px;letter-spacing:.08em;color:rgba(16,16,16,.55)">' + esc(txt) + '</span>'; };
+    var labS = function (txt) { return '<span class="mono" style="font-size:9.5px;letter-spacing:.08em;color:rgba(11,31,58,.55)">' + esc(txt) + '</span>'; };
     var en = state.lang === "en";
     var areas = (window.WGeo ? WGeo.QUARTIERS.map(function (x) { return x.name; }) : QUARTIERS).slice().sort(function (a, b) { return a.localeCompare(b, "fr"); });
     var picker = '<div class="col" style="gap:8px">' + labS(en ? "WHERE ARE YOU GOING?" : "OÙ ALLEZ-VOUS ?") +
       '<input data-bind="rideCode" autocomplete="off" autocapitalize="characters" aria-label="' + esc(en ? "WunaGo code of the place" : "Code WunaGo du lieu") + '" placeholder="' + esc(en ? "WunaGo code (WG-…)" : "Code WunaGo (WG-…)") + '" value="' + esc(F.toText || "") + '" style="' + card + ';height:50px;padding:0 14px;font-weight:700;font-size:15px;font-family:var(--mono);letter-spacing:.06em" />' +
-      '<span style="font-size:11.5px;color:rgba(16,16,16,.6)">' + esc(en ? "or choose the neighbourhood:" : "ou choisissez le quartier :") + '</span>' +
-      '<select data-bind="rideArea" aria-label="' + esc(en ? "Neighbourhood" : "Quartier") + '" style="' + card + ';height:48px;padding:0 12px;font-weight:700;font-size:13.5px;color:#101010"><option value="">' + esc(en ? "Choose…" : "Choisir le quartier…") + '</option>' +
+      '<span style="font-size:11.5px;color:rgba(11,31,58,.6)">' + esc(en ? "or choose the neighbourhood:" : "ou choisissez le quartier :") + '</span>' +
+      '<select data-bind="rideArea" aria-label="' + esc(en ? "Neighbourhood" : "Quartier") + '" style="' + card + ';height:48px;padding:0 12px;font-weight:700;font-size:13.5px;color:#0B1F3A"><option value="">' + esc(en ? "Choose…" : "Choisir le quartier…") + '</option>' +
         areas.map(function (a) { return '<option' + (a === F.area ? " selected" : "") + '>' + esc(a) + '</option>'; }).join("") + '</select>' +
       (false ? '<input data-bind="ridePlace" aria-label="' + esc(en ? "Exact place" : "Lieu précis") + '" placeholder="' + esc(en ? "Exact place (optional): church, hotel, crossroads…" : "Lieu précis (facultatif) : église, hôtel, carrefour…") + '" value="' + esc(F.place || "") + '" style="' + card + ';height:48px;padding:0 13px;font-weight:600;font-size:13.5px" />' : '') + '</div>';
-    var chipS = function (on, action, arg, label) { return '<button class="btn" data-action="' + action + '" data-arg="' + esc(arg) + '" aria-pressed="' + on + '" style="height:auto;min-height:38px;border-radius:99px;padding:7px 12px;font-weight:700;font-size:11.5px;border:1px solid ' + (on ? "#101010" : "rgba(16,16,16,.12)") + ';background:' + (on ? "#101010" : "#fff") + ';color:' + (on ? "#FFD700" : "#101010") + '">' + esc(label) + '</button>'; };
+    var chipS = function (on, action, arg, label) { return '<button class="btn" data-action="' + action + '" data-arg="' + esc(arg) + '" aria-pressed="' + on + '" style="height:auto;min-height:38px;border-radius:99px;padding:7px 12px;font-weight:700;font-size:11.5px;border:1px solid ' + (on ? "#0B1F3A" : "rgba(11,31,58,.12)") + ';background:' + (on ? "#0B1F3A" : "#fff") + ';color:' + (on ? "#1FD1B2" : "#0B1F3A") + '">' + esc(label) + '</button>'; };
     var fromChips = (state.places || []).filter(function (p) { return p.code !== to.code; }).map(function (p) { return chipS(F.from && F.from.code === p.code, "flashFrom", p.code, "🏠 " + p.label + " · " + p.code); }).join("") +
       chipS(F.from && F.from.type === "gps", "flashMyPos", "", F.locating ? f.locating : "📍 " + f.myPos);
     var payOpts = ["cash", "orange_money", "mtn_momo"].concat(state.wallet.balance >= (q ? q.net : 1e9) ? ["wallet"] : []);
     var err = q && q.errors.length ? (q.closed ? t4().errs.closed : q.errors.indexOf("distance") >= 0 ? t4().errs.distance : null) : null;
     return '<div class="scroll"><div class="col" style="padding:calc(18px + var(--sat)) 20px 20px;gap:14px">' +
       '<div class="fx ac" style="gap:11px"><button class="backbtn" aria-label="Retour" data-action="popScreen">←</button><h1 style="margin:0;font-weight:800;font-size:19px;letter-spacing:-.4px;flex:1">' + esc(ride ? f.ride.slice(3) : f.parcel.slice(3)) + '</h1></div>' +
-      (noTo ? picker : addrTo ? '<div class="fx ac" style="gap:12px;background:#101010;color:#fff;border-radius:18px;padding:14px"><span class="fx ac jc" style="width:52px;height:52px;flex:none;border-radius:99px;background:#FFD700;color:#101010;font-size:20px">📍</span>' +
+      (noTo ? picker : addrTo ? '<div class="fx ac" style="gap:12px;background:#0B1F3A;color:#fff;border-radius:18px;padding:14px"><span class="fx ac jc" style="width:52px;height:52px;flex:none;border-radius:99px;background:#1FD1B2;color:#0B1F3A;font-size:20px">📍</span>' +
         '<span class="col" style="gap:2px;flex:1;min-width:0"><span class="mono" style="font-size:9.5px;letter-spacing:.08em;color:rgba(255,255,255,.6)">' + esc(en ? "DESTINATION" : "DESTINATION") + '</span><span style="font-weight:800;font-size:16px">' + esc(to.address.replace(/, Douala$/, "")) + '</span></span>' +
         '<button class="btn" data-action="rideClearTo" aria-label="' + esc(en ? "Change" : "Changer") + '" style="width:44px;height:44px;flex:none;border-radius:12px;background:rgba(255,255,255,.12);color:#fff;padding:0;font-size:16px">✕</button></div>' +
         '<input data-bind="ridePlace" aria-label="' + esc(en ? "Exact place" : "Lieu précis") + '" placeholder="' + esc(ride ? (en ? "Exact place (optional): church, hotel, crossroads…" : "Lieu précis (facultatif) : église, hôtel, carrefour…") : "") + '" value="' + esc(F.place || "") + '" style="' + card + ';height:48px;padding:0 13px;font-weight:600;font-size:13.5px" />' : (
-      '<div class="fx ac" style="gap:12px;background:#101010;color:#fff;border-radius:18px;padding:14px">' +
-        '<span class="fx ac jc" style="width:52px;height:52px;flex:none;border-radius:99px;background:#FFD700;color:#101010;font-weight:800;font-size:16px">' + esc(to.mine ? "🏠" : initials2(F.rename || to.name)) + '</span>' +
+      '<div class="fx ac" style="gap:12px;background:#0B1F3A;color:#fff;border-radius:18px;padding:14px">' +
+        '<span class="fx ac jc" style="width:52px;height:52px;flex:none;border-radius:99px;background:#1FD1B2;color:#0B1F3A;font-weight:800;font-size:16px">' + esc(to.mine ? "🏠" : initials2(F.rename || to.name)) + '</span>' +
         '<span class="col" style="gap:2px;flex:1;min-width:0"><span class="mono" style="font-size:9.5px;letter-spacing:.08em;color:rgba(255,255,255,.6)">' + f.to + ' · ' + esc(to.code) + '</span>' +
         '<span style="font-weight:800;font-size:16px">' + esc(to.mine ? f.me + " · " + to.label : (F.rename || to.name || to.code)) + '</span>' +
         '<span style="font-size:12px;color:rgba(255,255,255,.75)">' + esc(to.address) + (to.hint ? ' · ' + esc(to.hint) : '') + '</span></span>' +
-        (to.phone && !to.mine ? '<a class="btn" href="tel:+237' + esc(to.phone) + '" aria-label="' + esc(f.call) + '" style="width:44px;height:44px;flex:none;border-radius:12px;background:#FFD700;padding:0;text-decoration:none">' + ICON_PHONE.replace(/#FFD700/g, "#101010") + '</a>' : '') + '</div>' +
+        (to.phone && !to.mine ? '<a class="btn" href="tel:+237' + esc(to.phone) + '" aria-label="' + esc(f.call) + '" style="width:44px;height:44px;flex:none;border-radius:12px;background:#1FD1B2;padding:0;text-decoration:none">' + ICON_PHONE.replace(/#1FD1B2/g, "#0B1F3A") + '</a>' : '') + '</div>' +
       (to.mine ? '' : '<input data-bind="flashRename" aria-label="' + esc(f.rename) + '" placeholder="' + esc(f.rename) + '" value="' + esc(F.rename) + '" style="' + card + ';height:44px;padding:0 13px;font-weight:600;font-size:13px" />')
       )) +
-      '<div class="col" style="gap:7px"><span class="mono" style="font-size:9.5px;letter-spacing:.08em;color:rgba(16,16,16,.55)">' + f.from + (F.from ? ' · ' + esc(F.from.text) : '') + '</span><div class="fx wrap" style="gap:6px">' + fromChips + '</div></div>' +
+      '<div class="col" style="gap:7px"><span class="mono" style="font-size:9.5px;letter-spacing:.08em;color:rgba(11,31,58,.55)">' + f.from + (F.from ? ' · ' + esc(F.from.text) : '') + '</span><div class="fx wrap" style="gap:6px">' + fromChips + '</div></div>' +
       (ride ? '<div class="fx" style="gap:6px">' + chipS(F.vehicle === "bike", "flashVehicle", "bike", f.moto) + chipS(F.vehicle === "car", "flashVehicle", "car", f.car) + '</div>' +
           (F.vehicle === "car" ? '<div class="col" style="gap:7px">' + labS(en ? "PASSENGERS" : "PASSAGERS") + '<div class="fx" style="gap:6px">' + [1, 2, 3, 4].map(function (n) { return chipS(F.passengers === n, "flashPassengers", String(n), String(n)); }).join("") + '</div></div>' : '')
         : '<div class="col" style="gap:7px">' + labS(tl().size) + sizeChips(F.size || "small", "flashSize") + '</div>') +
       '<div class="col" style="gap:7px">' + labS(ts().when) + whenChips(F.when, "flashWhen") + '</div>' +
-      (!ride && !to.mine ? '<div class="col" style="gap:7px"><span class="mono" style="font-size:9.5px;letter-spacing:.08em;color:rgba(16,16,16,.55)">' + esc(tl().payer) + '</span><div class="fx wrap" style="gap:6px">' +
+      (!ride && !to.mine ? '<div class="col" style="gap:7px"><span class="mono" style="font-size:9.5px;letter-spacing:.08em;color:rgba(11,31,58,.55)">' + esc(tl().payer) + '</span><div class="fx wrap" style="gap:6px">' +
         chipS(F.payer !== "them", "flashPayer", "me", tl().me) + chipS(F.payer === "them", "flashPayer", "them", state.lang === "en" ? "The recipient, to the courier" : "Le destinataire, au livreur") + '</div></div>' : '') +
-      (F.payer === "them" && !ride ? '' : '<div class="col" style="gap:7px"><span class="mono" style="font-size:9.5px;letter-spacing:.08em;color:rgba(16,16,16,.55)">' + f.pay + '</span><div class="fx wrap" style="gap:6px">' +
+      (F.payer === "them" && !ride ? '' : '<div class="col" style="gap:7px"><span class="mono" style="font-size:9.5px;letter-spacing:.08em;color:rgba(11,31,58,.55)">' + f.pay + '</span><div class="fx wrap" style="gap:6px">' +
         payOpts.map(function (k) { return chipS(F.pay === k, "flashPay", k, ride && k === "cash" ? (en ? "Cash to the driver" : "Espèces au chauffeur") : d.paymentNames[k]); }).join("") + '</div></div>') +
-      (err ? '<div role="alert" style="background:rgba(255,215,0,.25);border-radius:12px;padding:10px 12px;font-size:12px;font-weight:600">' + esc(err) + '</div>' : '') +
+      (err ? '<div role="alert" style="background:rgba(31,209,178,.25);border-radius:12px;padding:10px 12px;font-size:12px;font-weight:600">' + esc(err) + '</div>' : '') +
     '</div></div>' +
     '<div style="padding:12px 20px 20px"><button class="btn btn-yellow" data-action="flashConfirm" style="width:100%;height:56px;font-size:16px"' + (!q || err || F.busy ? " disabled" : "") + '>' +
       esc(F.busy ? "…" : (ride ? f.book2 : f.send)) + (q && !err ? ' · ' + fmtFcfa(q.net) : '') + '</button></div>';
@@ -2443,14 +2443,14 @@
   /* carnet de codes */
   function screenCodebook() {
     var f = tf(), b = state.codebook || [];
-    return page3(hdr(f.bookTitle) + '<p style="margin:0;font-size:12.5px;line-height:1.5;color:rgba(16,16,16,.7)">' + esc(f.bookSub) + '</p>' +
+    return page3(hdr(f.bookTitle) + '<p style="margin:0;font-size:12.5px;line-height:1.5;color:rgba(11,31,58,.7)">' + esc(f.bookSub) + '</p>' +
       (b.length ? '<div style="' + card + ';padding:2px 12px">' + b.map(function (c, i) {
         return '<div class="fx ac" style="gap:10px;padding:10px 0;' + (i ? 'border-top:1px solid var(--hair)' : '') + '">' +
-          '<button class="fx ac" data-action="flashTo" data-arg="' + esc(c.code) + '" style="gap:11px;flex:1;min-width:0;border:0;background:transparent;text-align:left;cursor:pointer;padding:0;color:#101010;min-height:44px">' +
-          '<span class="fx ac jc" style="width:42px;height:42px;flex:none;border-radius:99px;background:#101010;color:#FFD700;font-weight:800;font-size:14px">' + esc(initials2(c.name)) + '</span>' +
-          '<span class="col" style="gap:1px;min-width:0"><span style="font-weight:700;font-size:13.5px">' + esc(c.name) + '</span><span class="mono" style="font-size:10px;color:rgba(16,16,16,.55)">' + esc(c.code) + ' · ' + esc(c.area || "") + '</span></span></button>' +
-          '<button class="btn" data-action="bookRemove" data-arg="' + esc(c.code) + '" style="height:36px;padding:0 10px;background:transparent;font-size:11px;font-weight:700;color:rgba(16,16,16,.55)">' + esc(f.remove) + '</button></div>';
-      }).join("") + '</div>' : '<p style="margin:0;font-size:12.5px;color:rgba(16,16,16,.55)">' + esc(f.empty) + '</p>'));
+          '<button class="fx ac" data-action="flashTo" data-arg="' + esc(c.code) + '" style="gap:11px;flex:1;min-width:0;border:0;background:transparent;text-align:left;cursor:pointer;padding:0;color:#0B1F3A;min-height:44px">' +
+          '<span class="fx ac jc" style="width:42px;height:42px;flex:none;border-radius:99px;background:#0B1F3A;color:#1FD1B2;font-weight:800;font-size:14px">' + esc(initials2(c.name)) + '</span>' +
+          '<span class="col" style="gap:1px;min-width:0"><span style="font-weight:700;font-size:13.5px">' + esc(c.name) + '</span><span class="mono" style="font-size:10px;color:rgba(11,31,58,.55)">' + esc(c.code) + ' · ' + esc(c.area || "") + '</span></span></button>' +
+          '<button class="btn" data-action="bookRemove" data-arg="' + esc(c.code) + '" style="height:36px;padding:0 10px;background:transparent;font-size:11px;font-weight:700;color:rgba(11,31,58,.55)">' + esc(f.remove) + '</button></div>';
+      }).join("") + '</div>' : '<p style="margin:0;font-size:12.5px;color:rgba(11,31,58,.55)">' + esc(f.empty) + '</p>'));
   }
   actions.bookRemove = function (el, arg) { state.codebook = (state.codebook || []).filter(function (x) { return x.code !== arg; }); render(); };
 
@@ -2562,14 +2562,14 @@
     var T = SIZE_TXT[state.lang] || SIZE_TXT.fr;
     return '<div class="fx wrap" style="gap:6px">' + SIZES.map(function (z) {
       var on = cur === z[0];
-      return '<button class="btn" data-action="' + action + '" data-arg="' + z[0] + '" aria-pressed="' + on + '" style="flex:1 1 40%;height:auto;min-height:52px;border-radius:14px;padding:8px 10px;flex-direction:column;align-items:flex-start;gap:1px;border:1px solid ' + (on ? "#101010" : "rgba(16,16,16,.12)") + ';background:' + (on ? "#101010" : "#fff") + ';color:' + (on ? "#FFD700" : "#101010") + '">' +
+      return '<button class="btn" data-action="' + action + '" data-arg="' + z[0] + '" aria-pressed="' + on + '" style="flex:1 1 40%;height:auto;min-height:52px;border-radius:14px;padding:8px 10px;flex-direction:column;align-items:flex-start;gap:1px;border:1px solid ' + (on ? "#0B1F3A" : "rgba(11,31,58,.12)") + ';background:' + (on ? "#0B1F3A" : "#fff") + ';color:' + (on ? "#1FD1B2" : "#0B1F3A") + '">' +
         '<span style="font-weight:800;font-size:13px">' + esc(T[z[0]][0]) + '</span><span class="mono" style="font-size:9.5px;opacity:.75">' + esc(T[z[0]][1]) + '</span></button>';
     }).join("") + '</div>';
   }
   function whenChips(cur, action) {
     var W = state.lang === "en" ? [["now", "Now"], ["1h", "In 1 h"], ["evening", "Tonight 6 pm"], ["tomorrow", "Tomorrow 8 am"]] : [["now", "Maintenant"], ["1h", "Dans 1 h"], ["evening", "Ce soir 18 h"], ["tomorrow", "Demain 8 h"]];
     return '<div class="fx wrap" style="gap:6px">' + W.map(function (w) { var on = (cur || "now") === w[0];
-      return '<button class="btn" data-action="' + action + '" data-arg="' + w[0] + '" aria-pressed="' + on + '" style="height:auto;min-height:40px;border-radius:99px;padding:7px 12px;font-weight:700;font-size:11.5px;border:1px solid ' + (on ? "#101010" : "rgba(16,16,16,.12)") + ';background:' + (on ? "#101010" : "#fff") + ';color:' + (on ? "#FFD700" : "#101010") + '">' + esc(w[1]) + '</button>'; }).join("") + '</div>';
+      return '<button class="btn" data-action="' + action + '" data-arg="' + w[0] + '" aria-pressed="' + on + '" style="height:auto;min-height:40px;border-radius:99px;padding:7px 12px;font-weight:700;font-size:11.5px;border:1px solid ' + (on ? "#0B1F3A" : "rgba(11,31,58,.12)") + ';background:' + (on ? "#0B1F3A" : "#fff") + ';color:' + (on ? "#1FD1B2" : "#0B1F3A") + '">' + esc(w[1]) + '</button>'; }).join("") + '</div>';
   }
   /* prix d'un envoi à une adresse (mode « J'ai l'adresse ») */
   function sendQuote(L) {
@@ -2583,24 +2583,24 @@
     if (!L) return page3(hdr("—"));
     var send = L.direction === "send", phoneMode = L.mode === "phone", addr = L.mode === "addr";
     var nm = String(L.name || "").trim() || (L.phone ? "+237 " + prettyPhone(L.phone) : "");
-    var chipS = function (on, action, arg, label) { return '<button class="btn" data-action="' + action + '" data-arg="' + esc(arg) + '" aria-pressed="' + on + '" style="height:auto;min-height:40px;border-radius:99px;padding:7px 12px;font-weight:700;font-size:11.5px;border:1px solid ' + (on ? "#101010" : "rgba(16,16,16,.12)") + ';background:' + (on ? "#101010" : "#fff") + ';color:' + (on ? "#FFD700" : "#101010") + '">' + esc(label) + '</button>'; };
-    var lab = function (txt) { return '<span class="mono" style="font-size:9.5px;letter-spacing:.08em;color:rgba(16,16,16,.55)">' + esc(txt) + '</span>'; };
+    var chipS = function (on, action, arg, label) { return '<button class="btn" data-action="' + action + '" data-arg="' + esc(arg) + '" aria-pressed="' + on + '" style="height:auto;min-height:40px;border-radius:99px;padding:7px 12px;font-weight:700;font-size:11.5px;border:1px solid ' + (on ? "#0B1F3A" : "rgba(11,31,58,.12)") + ';background:' + (on ? "#0B1F3A" : "#fff") + ';color:' + (on ? "#1FD1B2" : "#0B1F3A") + '">' + esc(label) + '</button>'; };
+    var lab = function (txt) { return '<span class="mono" style="font-size:9.5px;letter-spacing:.08em;color:rgba(11,31,58,.55)">' + esc(txt) + '</span>'; };
     var inp = function (bind, ph, val, extra) { return '<input data-bind="' + bind + '" aria-label="' + esc(ph) + '" placeholder="' + esc(ph) + '" value="' + esc(val || "") + '"' + (extra || "") + ' style="' + card + ';height:48px;padding:0 13px;font-weight:600;font-size:13.5px;width:100%" />'; };
     var mineChips = (state.places || []).map(function (p) { return chipS(L.mine && L.mine.code === p.code, "linkMine", p.code, "🏠 " + p.label + " · " + p.code); }).join("") +
       chipS(L.mine && L.mine.type === "gps", "linkMyPos", "", L.locating ? F.locating : "📍 " + F.myPos);
     var q = sendQuote(L);
     var payOpts = ["cash", "orange_money", "mtn_momo"].concat(state.wallet.balance > (q ? q.net : 0) ? ["wallet"] : []);
-    var seg = function (k, label) { var on = L.direction === k; return '<button class="btn" data-action="linkSet" data-arg="direction|' + k + '" aria-pressed="' + on + '" style="flex:1;height:44px;border-radius:99px;font-weight:800;font-size:12.5px;background:' + (on ? "#101010" : "#fff") + ';color:' + (on ? "#FFD700" : "#101010") + ';border:1px solid ' + (on ? "#101010" : "rgba(16,16,16,.12)") + '">' + esc(label) + '</button>'; };
+    var seg = function (k, label) { var on = L.direction === k; return '<button class="btn" data-action="linkSet" data-arg="direction|' + k + '" aria-pressed="' + on + '" style="flex:1;height:44px;border-radius:99px;font-weight:800;font-size:12.5px;background:' + (on ? "#0B1F3A" : "#fff") + ';color:' + (on ? "#1FD1B2" : "#0B1F3A") + ';border:1px solid ' + (on ? "#0B1F3A" : "rgba(11,31,58,.12)") + '">' + esc(label) + '</button>'; };
     var areas = (window.WGeo ? WGeo.QUARTIERS.map(function (x) { return x.name; }) : QUARTIERS).slice().sort(function (a, b) { return a.localeCompare(b, "fr"); });
     var toBlock;
     if (addr) toBlock = '<div class="col" style="gap:8px">' + lab(S.area) +
-        '<select data-bind="sendArea" aria-label="' + esc(S.area) + '" style="' + card + ';height:48px;padding:0 12px;font-weight:700;font-size:13.5px;width:100%;color:#101010"><option value="">' + esc(S.areaPh) + '</option>' +
+        '<select data-bind="sendArea" aria-label="' + esc(S.area) + '" style="' + card + ';height:48px;padding:0 12px;font-weight:700;font-size:13.5px;width:100%;color:#0B1F3A"><option value="">' + esc(S.areaPh) + '</option>' +
           areas.map(function (a) { return '<option' + (a === L.area ? " selected" : "") + '>' + esc(a) + '</option>'; }).join("") + '</select>' +
         inp("sendPlace", S.place, L.place) + inp("sendHint", S.hint, L.hint) +
         lab(state.lang === "en" ? "WHO RECEIVES IT?" : "QUI REÇOIT LE COLIS ?") + inp("linkName", S.rname, L.name) + inp("sendPhone", S.rphone, L.rphone, ' inputmode="tel"') +
         '<button class="btn" data-action="sendMode" data-arg="phone" style="height:40px;align-self:flex-start;padding:0;background:transparent;font-weight:700;font-size:12px;text-decoration:underline">' + esc(S.byPhone) + '</button></div>';
-    else toBlock = (phoneMode && L.phone ? '<div class="fx ac" style="gap:12px;background:#101010;color:#fff;border-radius:18px;padding:14px">' +
-        '<span class="fx ac jc" style="width:52px;height:52px;flex:none;border-radius:99px;background:#FFD700;color:#101010;font-weight:800;font-size:16px">' + esc(L.name ? initials2(L.name) : "☎") + '</span>' +
+    else toBlock = (phoneMode && L.phone ? '<div class="fx ac" style="gap:12px;background:#0B1F3A;color:#fff;border-radius:18px;padding:14px">' +
+        '<span class="fx ac jc" style="width:52px;height:52px;flex:none;border-radius:99px;background:#1FD1B2;color:#0B1F3A;font-weight:800;font-size:16px">' + esc(L.name ? initials2(L.name) : "☎") + '</span>' +
         '<span class="col" style="gap:2px;flex:1;min-width:0"><span class="mono" style="font-size:9.5px;letter-spacing:.08em;color:rgba(255,255,255,.6)">' + f.to + ' · +237 ' + esc(prettyPhone(L.phone)) + '</span>' +
         '<span style="font-weight:800;font-size:16px">' + esc(nm) + '</span>' +
         '<span style="font-size:12px;color:rgba(255,255,255,.75)">' + esc((send ? f.howSend : f.howRecv).replace("{n}", String(L.name || "").split(" ")[0] || (state.lang === "en" ? "They" : "La personne"))) + '</span></span>' +
@@ -2608,8 +2608,8 @@
       : '<div class="col" style="gap:8px">' + lab(send ? S.who : (state.lang === "en" ? "FROM WHOM?" : "DE QUI ?")) + '<div class="fx" style="gap:8px">' +
           '<input data-bind="sendTo" inputmode="text" autocomplete="off" aria-label="' + esc(S.whoPh) + '" placeholder="' + esc(S.whoPh) + '" value="' + esc(L.toText || "") + '" style="' + card + ';height:52px;padding:0 14px;font-weight:700;font-size:15px;flex:1;min-width:0" />' +
           (canPickContact() ? '<button class="btn" data-action="quickContact" aria-label="' + esc(f.contacts) + '" style="width:52px;height:52px;flex:none;border-radius:14px;background:#fff;border:1px solid var(--hair);padding:0;font-size:19px">👤</button>' : '') + '</div>' +
-          '<span style="font-size:12px;line-height:1.45;color:rgba(16,16,16,.65)">' + esc(S.whoHelp) + '</span>' +
-          (send ? '<button class="btn" data-action="sendMode" data-arg="addr" style="height:44px;align-self:flex-start;padding:0 14px;border-radius:99px;background:rgba(16,16,16,.06);font-weight:700;font-size:12.5px">' + esc(S.knowAddr) + '</button>' : '') + '</div>');
+          '<span style="font-size:12px;line-height:1.45;color:rgba(11,31,58,.65)">' + esc(S.whoHelp) + '</span>' +
+          (send ? '<button class="btn" data-action="sendMode" data-arg="addr" style="height:44px;align-self:flex-start;padding:0 14px;border-radius:99px;background:rgba(11,31,58,.06);font-weight:700;font-size:12.5px">' + esc(S.knowAddr) + '</button>' : '') + '</div>');
     var ready = addr ? !!(L.area && L.mine && phoneFromText(L.rphone || "")) : !!(phoneMode && L.phone && L.mine);
     var label = addr ? (q && !q.errors.length ? S.send + " · " + fmtFcfa(q.net) : S.needAddr) : (L.phone ? "💬 " + f.go : S.needWho);
     var qErr = q && q.errors.length ? (q.closed ? t4().errs.closed : t4().errs.distance) : null;
@@ -2623,8 +2623,8 @@
       (L.payer === "me" ? '<div class="col" style="gap:7px">' + lab(f.pay) + '<div class="fx wrap" style="gap:6px">' + payOpts.map(function (k) { return chipS(L.pay === k, "linkSet", "pay|" + k, d.paymentNames[k]); }).join("") + '</div></div>' : '') +
       (addr ? '<div class="col" style="gap:7px">' + lab(S.when) + whenChips(L.when, "sendWhen") + '</div>' : '') +
       inp("linkNote", f.note, L.note) +
-      (phoneMode && L.phone ? '<div style="background:rgba(255,215,0,.25);border-radius:12px;padding:10px 12px;font-size:12px;line-height:1.45;font-weight:600">' + esc(L.payer === "me" ? f.confMe : f.confThem) + '</div>' : '') +
-      (qErr ? '<div role="alert" style="background:rgba(255,215,0,.25);border-radius:12px;padding:10px 12px;font-size:12px;font-weight:600">' + esc(qErr) + '</div>' : '') +
+      (phoneMode && L.phone ? '<div style="background:rgba(31,209,178,.25);border-radius:12px;padding:10px 12px;font-size:12px;line-height:1.45;font-weight:600">' + esc(L.payer === "me" ? f.confMe : f.confThem) + '</div>' : '') +
+      (qErr ? '<div role="alert" style="background:rgba(31,209,178,.25);border-radius:12px;padding:10px 12px;font-size:12px;font-weight:600">' + esc(qErr) + '</div>' : '') +
     '</div></div>' +
     '<div style="padding:12px 20px 20px"><button class="btn btn-yellow" data-action="' + (addr ? "sendAddr" : "linkCreate") + '" style="width:100%;height:56px;font-size:15px"' + (!ready || L.busy || qErr ? " disabled" : "") + '>' + esc(L.busy ? "…" : label) + '</button></div>';
   }
@@ -2692,17 +2692,17 @@
     if (!srv() || isCourier()) return "";
     var f = tl(), L = (state.links || []).filter(function (l) { return l.status === "waiting_place" || l.status === "waiting_confirm" || l.status === "expired"; });
     if (!L.length) return "";
-    var small = function (action, id, label) { return '<button class="btn" data-action="' + action + '" data-arg="' + id + '" style="height:36px;padding:0 10px;border-radius:99px;background:rgba(16,16,16,.06);font-weight:700;font-size:11px;color:#101010">' + esc(label) + '</button>'; };
+    var small = function (action, id, label) { return '<button class="btn" data-action="' + action + '" data-arg="' + id + '" style="height:36px;padding:0 10px;border-radius:99px;background:rgba(11,31,58,.06);font-weight:700;font-size:11px;color:#0B1F3A">' + esc(label) + '</button>'; };
     return '<div style="padding:14px 20px 0"><div class="col" style="gap:8px">' +
-      '<span class="mono" style="font-size:9.5px;letter-spacing:.08em;color:rgba(16,16,16,.55)">' + esc(f.pending) + '</span>' +
+      '<span class="mono" style="font-size:9.5px;letter-spacing:.08em;color:rgba(11,31,58,.55)">' + esc(f.pending) + '</span>' +
       L.map(function (l) {
         var who = l.contactName || "+237 " + prettyPhone(l.contactPhone), place = l.other ? String(l.other.text).split(" · ")[0] : "";
         var st = l.status === "expired" ? f.expired : l.status === "waiting_place" ? f.wPlace : l.payer === "them" ? f.wThem : "📍 " + place + " · " + fmtFcfa(l.price);
         var mustConfirm = l.status === "waiting_confirm" && l.payer === "me";
-        return '<div class="col" style="gap:9px;' + card + ';padding:12px 14px' + (mustConfirm ? ';border:2px solid #101010' : '') + '">' +
-          '<div class="fx ac" style="gap:11px"><span class="fx ac jc" style="width:40px;height:40px;flex:none;border-radius:99px;background:#101010;color:#FFD700;font-weight:800;font-size:13px">' + esc(l.contactName ? initials2(l.contactName) : (l.direction === "send" ? "→" : "←")) + '</span>' +
+        return '<div class="col" style="gap:9px;' + card + ';padding:12px 14px' + (mustConfirm ? ';border:2px solid #0B1F3A' : '') + '">' +
+          '<div class="fx ac" style="gap:11px"><span class="fx ac jc" style="width:40px;height:40px;flex:none;border-radius:99px;background:#0B1F3A;color:#1FD1B2;font-weight:800;font-size:13px">' + esc(l.contactName ? initials2(l.contactName) : (l.direction === "send" ? "→" : "←")) + '</span>' +
           '<span class="col" style="gap:1px;flex:1;min-width:0"><span style="font-weight:800;font-size:13.5px">' + esc((l.direction === "send" ? "📦 → " : "📦 ← ") + who) + '</span>' +
-          '<span style="font-size:12px;color:rgba(16,16,16,.7)">' + esc(st) + '</span></span></div>' +
+          '<span style="font-size:12px;color:rgba(11,31,58,.7)">' + esc(st) + '</span></span></div>' +
           (mustConfirm ? '<button class="btn btn-yellow" data-action="linkConfirm" data-arg="' + l.id + '" style="height:46px"' + (state.busy ? " disabled" : "") + '>' + esc(f.confirm) + ' · ' + fmtFcfa(l.price) + '</button>' : '') +
           '<div class="fx wrap" style="gap:6px">' + (l.status === "waiting_place" ? small("linkResend", l.id, "💬 " + f.resend) + small("linkShare", l.id, f.other) : '') + small("linkCancel", l.id, f.cancel) + '</div></div>';
       }).join("") + '</div></div>';
@@ -2710,9 +2710,9 @@
   /* commande : qui paie, retour à l'expéditeur (suivi client) */
   function linkInfo(o) {
     var x = o.details || {}, f = tl(), out = "";
-    if (x.returned) out += '<div role="status" style="background:#FFD700;border-radius:14px;padding:11px 13px;font-size:12.5px;line-height:1.45;font-weight:700">' +
+    if (x.returned) out += '<div role="status" style="background:#1FD1B2;border-radius:14px;padding:11px 13px;font-size:12.5px;line-height:1.45;font-weight:700">' +
       esc(o.status === "delivered" ? f.returnBack : f.returned) + '<br><span style="font-weight:600">' + esc(f.returnFee) + ' : ' + fmtFcfa(x.returned.fee) + '</span></div>';
-    if (x.payBy) out += '<div class="mono" style="font-size:10.5px;color:rgba(16,16,16,.65)">' + esc(x.payBy.role === "sender" ? f.payBySender : x.payBy.other ? f.payByRecipient : f.payByRecipientSelf) + '</div>';
+    if (x.payBy) out += '<div class="mono" style="font-size:10.5px;color:rgba(11,31,58,.65)">' + esc(x.payBy.role === "sender" ? f.payBySender : x.payBy.other ? f.payByRecipient : f.payByRecipientSelf) + '</div>';
     return out;
   }
 
@@ -2775,12 +2775,12 @@
 
   function screenName() {
     var s = NAME_STR[state.lang] || NAME_STR.fr;
-    return '<div class="col fill" style="background:#FFD700;padding:calc(30px + var(--sat)) 26px 40px;justify-content:space-between">' +
-      '<div class="col" style="gap:14px"><div class="brand-row"><svg width="26" height="33" viewBox="0 0 60 76" aria-hidden="true"><path d="M30 4C14.5 4 4 15.4 4 29.5C4 47 30 72 30 72C30 72 56 47 56 29.5C56 15.4 45.5 4 30 4Z" fill="#101010"/><rect x="20" y="20" width="20" height="20" rx="3" fill="#FFD700"/></svg><span class="brand-name">WunaGo</span></div>' +
+    return '<div class="col fill" style="background:#0B1F3A;color:#EAF1F7;padding:calc(30px + var(--sat)) 26px 40px;justify-content:space-between">' +
+      '<div class="col" style="gap:14px"><div class="brand-row"><svg width="26" height="33" viewBox="0 0 60 76" aria-hidden="true"><path d="M30 4C14.5 4 4 15.4 4 29.5C4 47 30 72 30 72C30 72 56 47 56 29.5C56 15.4 45.5 4 30 4Z" fill="#1FD1B2"/><rect x="20" y="20" width="20" height="20" rx="3" fill="#0B1F3A"/></svg><span class="brand-name" style="color:#fff">WunaGo</span></div>' +
       '<h1 style="margin:10px 0 0;font-weight:800;font-size:28px;line-height:1.1;letter-spacing:-1px">' + esc(s.title) + '</h1>' +
-      '<p style="margin:0;font-weight:500;font-size:14px;line-height:1.5;color:rgba(16,16,16,.75)">' + esc(s.sub) + '</p></div>' +
-      '<div class="col" style="gap:11px"><input data-bind="nameInput" autocomplete="name" aria-label="' + esc(s.ph) + '" placeholder="' + esc(s.ph) + '" value="' + esc(state.nameInput || "") + '" style="background:#fff;border-radius:16px;padding:0 15px;height:54px;font-weight:600;font-size:15px" />' +
-      '<button class="btn btn-ink" data-action="saveName">' + esc(s.go) + '</button></div></div>';
+      '<p style="margin:0;font-weight:500;font-size:14px;line-height:1.5;color:rgba(234,241,247,.75)">' + esc(s.sub) + '</p></div>' +
+      '<div class="col" style="gap:11px"><input data-bind="nameInput" autocomplete="name" aria-label="' + esc(s.ph) + '" placeholder="' + esc(s.ph) + '" value="' + esc(state.nameInput || "") + '" style="background:#fff;color:#0B1F3A;border-radius:16px;padding:0 15px;height:54px;font-weight:600;font-size:15px" />' +
+      '<button class="btn btn-yellow" data-action="saveName">' + esc(s.go) + '</button></div></div>';
   }
 
   var base = {};
@@ -2955,7 +2955,7 @@
   }
   function avatar(name, dark) {
     var ini = initials(String(name || "W G").replace(/^\+237\s*/, "W "));
-    return '<span class="fx ac jc" aria-hidden="true" style="width:44px;height:44px;flex:none;border-radius:99px;background:' + (dark ? "#101010" : "#FFD700") + ';color:' + (dark ? "#FFD700" : "#101010") + ';font-weight:800;font-size:13px">' + esc(ini) + '</span>';
+    return '<span class="fx ac jc" aria-hidden="true" style="width:44px;height:44px;flex:none;border-radius:99px;background:' + (dark ? "#0B1F3A" : "#1FD1B2") + ';color:' + (dark ? "#1FD1B2" : "#0B1F3A") + ';font-weight:800;font-size:13px">' + esc(ini) + '</span>';
   }
   function readImage(file, cb) {
     var reader = new FileReader();
@@ -3009,25 +3009,25 @@
     var others = convs.filter(function (c) { return c !== support; });
     function row(c, pinned) {
       var last = c && c.last ? (c.last.mine ? m.you + " : " : "") + c.last.body : (pinned ? m.supportSub : "");
-      return '<button class="fx ac" data-action="' + (c ? "openConvId" : "openSupport") + '"' + (c ? ' data-arg="' + c.id + '"' : '') + ' style="gap:12px;width:100%;text-align:left;border:0;background:transparent;padding:12px 14px;min-height:64px;cursor:pointer;color:#101010">' +
+      return '<button class="fx ac" data-action="' + (c ? "openConvId" : "openSupport") + '"' + (c ? ' data-arg="' + c.id + '"' : '') + ' style="gap:12px;width:100%;text-align:left;border:0;background:transparent;padding:12px 14px;min-height:64px;cursor:pointer;color:#0B1F3A">' +
         avatar(pinned ? "W G" : c.title, pinned) +
         '<span class="col" style="gap:2px;flex:1;min-width:0"><span class="fx ac jb" style="gap:8px"><span style="font-weight:700;font-size:14px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">' + esc(pinned ? m.support : c.title) + '</span>' +
-          (c && c.lastAt && c.last ? '<span class="mono" style="font-size:10px;color:rgba(16,16,16,.55);flex:none">' + fmtTime(c.lastAt) + '</span>' : '') + '</span>' +
-        (c && c.subtitle && c.kind !== "support" ? '<span class="mono" style="font-size:10px;color:rgba(16,16,16,.55)">' + esc(c.subtitle) + '</span>' : '') +
-        '<span class="fx ac jb" style="gap:8px"><span style="font-size:12.5px;color:rgba(16,16,16,.68);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">' + esc(last) + '</span>' +
+          (c && c.lastAt && c.last ? '<span class="mono" style="font-size:10px;color:rgba(11,31,58,.55);flex:none">' + fmtTime(c.lastAt) + '</span>' : '') + '</span>' +
+        (c && c.subtitle && c.kind !== "support" ? '<span class="mono" style="font-size:10px;color:rgba(11,31,58,.55)">' + esc(c.subtitle) + '</span>' : '') +
+        '<span class="fx ac jb" style="gap:8px"><span style="font-size:12.5px;color:rgba(11,31,58,.68);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">' + esc(last) + '</span>' +
           (c && c.unread ? '<span class="unread">' + c.unread + '</span>' : '') + '</span></span></button>';
     }
     var list = others.map(function (c, i) { return (i ? '<div style="height:1px;background:var(--hair);margin-left:70px"></div>' : '') + row(c, false); }).join("");
     return page3('<div class="fx ac jb"><h1 style="margin:0;font-weight:800;font-size:23px;letter-spacing:-.7px">' + esc(m.title) + '</h1>' +
         '<button class="btn btn-ink" data-action="openScreen" data-arg="newChat" style="height:38px;border-radius:99px;padding:0 14px;font-size:12px">+ ' + esc(m.newChat) + '</button></div>' +
       '<div style="' + card + '">' + row(support, true) + '</div>' +
-      (list ? '<div style="' + card + '">' + list + '</div>' : '<p style="margin:0;font-size:12.5px;color:rgba(16,16,16,.6);text-align:center">' + esc(m.empty) + '</p>') +
+      (list ? '<div style="' + card + '">' + list + '</div>' : '<p style="margin:0;font-size:12.5px;color:rgba(11,31,58,.6);text-align:center">' + esc(m.empty) + '</p>') +
       (isCourier() ? '' : '<button class="btn" data-action="openScreen" data-arg="help" style="height:44px;background:transparent;font-weight:700;font-size:12.5px;text-decoration:underline">' + esc(m.helpLink) + '</button>'));
   }
   function screenNewChat() {
     var m = tm();
-    return page3(hdr(m.newChatTitle) + '<p style="margin:0;font-size:12.5px;line-height:1.5;color:rgba(16,16,16,.7)">' + esc(m.newChatSub) + '</p>' +
-      '<label class="fx ac" style="gap:10px;' + card + ';padding:0 15px;height:54px"><span class="mono" style="font-weight:600;font-size:14px;color:rgba(16,16,16,.6)">+237</span>' +
+    return page3(hdr(m.newChatTitle) + '<p style="margin:0;font-size:12.5px;line-height:1.5;color:rgba(11,31,58,.7)">' + esc(m.newChatSub) + '</p>' +
+      '<label class="fx ac" style="gap:10px;' + card + ';padding:0 15px;height:54px"><span class="mono" style="font-weight:600;font-size:14px;color:rgba(11,31,58,.6)">+237</span>' +
       '<input data-bind="newChatPhone" inputmode="numeric" autocomplete="tel-national" aria-label="Numéro" placeholder="6 99 12 34 56" value="' + esc(state.newChatPhone || "") + '" style="flex:1;height:100%;font-weight:600;font-size:15px" /></label>' +
       '<button class="btn btn-ink" data-action="startDirect">' + esc(m.start) + '</button>');
   }
@@ -3042,12 +3042,12 @@
         (x.body && x.body !== "📷" ? '<div>' + esc(x.body) + '</div>' : '') +
         '<div class="bubble-time">' + fmtTime(x.at) + '</div></div></div>';
     }).join("");
-    return '<div class="fx ac" style="gap:11px;background:#FFD700;padding:calc(12px + var(--sat)) 16px 12px;flex:none">' +
-        '<button class="backbtn" aria-label="Retour" data-action="popScreen" style="background:rgba(16,16,16,.1)">←</button>' + avatar(conv.title, conv.kind === "support" && !(state.user.role === "admin")) +
-        '<div class="col" style="gap:1px;flex:1;min-width:0"><span style="font-weight:800;font-size:14.5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">' + esc(conv.title) + '</span><span class="mono" style="font-size:10px;color:rgba(16,16,16,.65)">' + esc(conv.subtitle || "") + '</span></div></div>' +
-      '<div class="scroll" id="conv-scroll" style="background:#f3f1ea"><div class="col" style="padding:14px 14px 10px;gap:7px">' + rows + '</div></div>' +
-      '<div class="fx ac" style="gap:8px;padding:9px 12px calc(10px + var(--sab));border-top:1px solid var(--hair);background:#fbfaf7;flex:none">' +
-        '<label class="btn" aria-label="' + esc(m.photo) + '" style="width:44px;height:44px;flex:none;border-radius:12px;background:rgba(16,16,16,.07);padding:0;position:relative;cursor:pointer">' + CAMERA +
+    return '<div class="fx ac" style="gap:11px;background:#DDF8F2;padding:calc(12px + var(--sat)) 16px 12px;flex:none">' +
+        '<button class="backbtn" aria-label="Retour" data-action="popScreen" style="background:rgba(11,31,58,.1)">←</button>' + avatar(conv.title, conv.kind === "support" && !(state.user.role === "admin")) +
+        '<div class="col" style="gap:1px;flex:1;min-width:0"><span style="font-weight:800;font-size:14.5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">' + esc(conv.title) + '</span><span class="mono" style="font-size:10px;color:rgba(11,31,58,.65)">' + esc(conv.subtitle || "") + '</span></div></div>' +
+      '<div class="scroll" id="conv-scroll" style="background:#EAF0F4"><div class="col" style="padding:14px 14px 10px;gap:7px">' + rows + '</div></div>' +
+      '<div class="fx ac" style="gap:8px;padding:9px 12px calc(10px + var(--sab));border-top:1px solid var(--hair);background:#F5F8FA;flex:none">' +
+        '<label class="btn" aria-label="' + esc(m.photo) + '" style="width:44px;height:44px;flex:none;border-radius:12px;background:rgba(11,31,58,.07);padding:0;position:relative;cursor:pointer">' + CAMERA +
           '<input type="file" accept="image/*" data-file="chat" data-arg="' + convId + '" style="position:absolute;width:1px;height:1px;opacity:0"></label>' +
         '<input data-bind="msgDraft" aria-label="' + esc(m.typing) + '" placeholder="' + esc(m.typing) + '" value="' + esc(state.msgDraft || "") + '" enterkeyhint="send" style="flex:1;min-width:0;height:44px;border:1px solid var(--hair);border-radius:12px;background:#fff;padding:0 13px;font-weight:500;font-size:14px" />' +
         '<button class="btn btn-ink" data-action="sendMsg" data-arg="' + convId + '" aria-label="' + esc(m.send) + '" style="width:44px;height:44px;flex:none;border-radius:12px;padding:0;font-weight:700">→</button></div>';
@@ -3066,20 +3066,20 @@
     var m = tm(), d = t(), c = o.courier;
     if (!c) {
       if (!srv()) return '<div class="fx ac" style="gap:11px">' + avatar("Marcel K.") +
-        '<div class="col" style="gap:2px;flex:1"><span style="font-weight:700;font-size:14px">Marcel K.</span><span class="mono" style="font-size:10.5px;color:rgba(16,16,16,.55)">4.9 · CE 812 AB · démo</span></div>' +
-        '<button class="btn" data-action="go" data-arg="chat|' + orderId + '" aria-label="' + esc(m.write) + '" style="width:44px;height:44px;border-radius:11px;background:rgba(16,16,16,.07);font-weight:700;font-size:11px;padding:0">SMS</button></div>';
-      return '<div class="fx ac" style="gap:11px"><span class="spinner" style="width:22px;height:22px;border-color:rgba(16,16,16,.15);border-top-color:#101010"></span>' +
-        '<div class="col" style="gap:2px;flex:1"><span style="font-weight:700;font-size:14px">' + esc(o.service === "ride" ? (state.lang === "en" ? "Finding a driver…" : "Recherche d'un chauffeur…") : m.searching) + '</span><span style="font-size:11.5px;color:rgba(16,16,16,.6)">' + esc(o.service === "ride" ? (state.lang === "en" ? "Nearby WunaGo drivers have been notified." : "Les chauffeurs WunaGo à proximité sont prévenus.") : m.searchingSub) + '</span></div></div>';
+        '<div class="col" style="gap:2px;flex:1"><span style="font-weight:700;font-size:14px">Marcel K.</span><span class="mono" style="font-size:10.5px;color:rgba(11,31,58,.55)">4.9 · CE 812 AB · démo</span></div>' +
+        '<button class="btn" data-action="go" data-arg="chat|' + orderId + '" aria-label="' + esc(m.write) + '" style="width:44px;height:44px;border-radius:11px;background:rgba(11,31,58,.07);font-weight:700;font-size:11px;padding:0">SMS</button></div>';
+      return '<div class="fx ac" style="gap:11px"><span class="spinner" style="width:22px;height:22px;border-color:rgba(11,31,58,.15);border-top-color:#0B1F3A"></span>' +
+        '<div class="col" style="gap:2px;flex:1"><span style="font-weight:700;font-size:14px">' + esc(o.service === "ride" ? (state.lang === "en" ? "Finding a driver…" : "Recherche d'un chauffeur…") : m.searching) + '</span><span style="font-size:11.5px;color:rgba(11,31,58,.6)">' + esc(o.service === "ride" ? (state.lang === "en" ? "Nearby WunaGo drivers have been notified." : "Les chauffeurs WunaGo à proximité sont prévenus.") : m.searchingSub) + '</span></div></div>';
     }
     var veh = (o.service === "ride" ? { bike: "Moto-taxi", car: "Voiture" }[c.vehicle] : d.vehNames[c.vehicle]) || "";
     return '<div class="fx ac" style="gap:11px">' + avatar(c.name) +
-      '<div class="col" style="gap:2px;flex:1;min-width:0"><span class="mono" style="font-size:9.5px;letter-spacing:.06em;color:rgba(16,16,16,.55)">' + esc(m.courier.toUpperCase()) + '</span><span style="font-weight:700;font-size:14px">' + esc(c.name) + '</span>' +
-        '<span class="mono" style="font-size:10.5px;color:rgba(16,16,16,.6)">' + (c.rating ? c.rating + " ★ · " : esc(m.newDriver) + " · ") + esc(veh) + (c.plate ? " · " + esc(c.plate) : "") + '</span></div>' +
-      (srv() ? '<button class="btn" data-action="openOrderChat" data-arg="' + orderId + '" aria-label="' + esc(m.write) + '" style="width:44px;height:44px;border-radius:11px;background:rgba(16,16,16,.07);padding:0">' + ICON_CHAT + '</button>' : '') +
+      '<div class="col" style="gap:2px;flex:1;min-width:0"><span class="mono" style="font-size:9.5px;letter-spacing:.06em;color:rgba(11,31,58,.55)">' + esc(m.courier.toUpperCase()) + '</span><span style="font-weight:700;font-size:14px">' + esc(c.name) + '</span>' +
+        '<span class="mono" style="font-size:10.5px;color:rgba(11,31,58,.6)">' + (c.rating ? c.rating + " ★ · " : esc(m.newDriver) + " · ") + esc(veh) + (c.plate ? " · " + esc(c.plate) : "") + '</span></div>' +
+      (srv() ? '<button class="btn" data-action="openOrderChat" data-arg="' + orderId + '" aria-label="' + esc(m.write) + '" style="width:44px;height:44px;border-radius:11px;background:rgba(11,31,58,.07);padding:0">' + ICON_CHAT + '</button>' : '') +
       (c.phone ? '<a class="btn btn-ink" href="tel:+237' + esc(c.phone) + '" aria-label="' + esc(m.call) + '" style="width:44px;height:44px;border-radius:11px;padding:0;text-decoration:none">' + ICON_PHONE + '</a>' : '') + '</div>';
   }
   var ICON_CHAT = '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linejoin="round" aria-hidden="true"><path d="M4 5h16v11H9l-5 4z"/></svg>';
-  var ICON_PHONE = '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#FFD700" stroke-width="2.2" stroke-linejoin="round" aria-hidden="true"><path d="M5 4h4l2 5-2.5 1.5a11 11 0 0 0 5 5L15 13l5 2v4a2 2 0 0 1-2 2A16 16 0 0 1 3 6a2 2 0 0 1 2-2z"/></svg>';
+  var ICON_PHONE = '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#1FD1B2" stroke-width="2.2" stroke-linejoin="round" aria-hidden="true"><path d="M5 4h4l2 5-2.5 1.5a11 11 0 0 0 5 5L15 13l5 2v4a2 2 0 0 1-2 2A16 16 0 0 1 3 6a2 2 0 0 1 2-2z"/></svg>';
 
   /* ---------- notifications sur le téléphone ---------- */
   function b64ToBytes(s) { var p = "=".repeat((4 - s.length % 4) % 4), b = atob((s + p).replace(/-/g, "+").replace(/_/g, "/")); var a = new Uint8Array(b.length); for (var i = 0; i < b.length; i++) a[i] = b.charCodeAt(i); return a; }
@@ -3139,30 +3139,30 @@
   function offerCard(o, mine) {
     var c = tc(), d = t();
     var payInfo = coursePay(o);
-    return '<button class="col" data-action="openCourse" data-arg="' + o.id + '" style="gap:8px;width:100%;text-align:left;' + card + ';padding:13px 14px;cursor:pointer;color:#101010">' +
-      '<span class="fx ac jb" style="gap:8px"><span class="mono" style="font-size:10px;color:rgba(16,16,16,.6)">' + o.code + ' · ' + esc(svcName(o.service)) + '</span>' +
-        (mine ? '<span class="mono" style="border-radius:99px;padding:4px 9px;background:#FFD700;font-weight:700;font-size:9.5px">' + esc(statusLabel(o.status)) + '</span>' : (o.fromMeKm != null ? '<span class="mono" style="font-size:10px;font-weight:700">' + fmtKm(o.fromMeKm) + ' ' + esc(c.fromMe) + '</span>' : '')) + '</span>' +
+    return '<button class="col" data-action="openCourse" data-arg="' + o.id + '" style="gap:8px;width:100%;text-align:left;' + card + ';padding:13px 14px;cursor:pointer;color:#0B1F3A">' +
+      '<span class="fx ac jb" style="gap:8px"><span class="mono" style="font-size:10px;color:rgba(11,31,58,.6)">' + o.code + ' · ' + esc(svcName(o.service)) + '</span>' +
+        (mine ? '<span class="mono" style="border-radius:99px;padding:4px 9px;background:#1FD1B2;font-weight:700;font-size:9.5px">' + esc(statusLabel(o.status)) + '</span>' : (o.fromMeKm != null ? '<span class="mono" style="font-size:10px;font-weight:700">' + fmtKm(o.fromMeKm) + ' ' + esc(c.fromMe) + '</span>' : '')) + '</span>' +
       '<span style="font-weight:700;font-size:13.5px">' + esc(o.pickup) + (o.dropoff !== o.pickup ? ' → ' + esc(o.dropoff) : '') + '</span>' +
-      '<span style="font-size:12px;color:rgba(16,16,16,.7)">' + esc([o.distanceKm ? (state.lang === "en" ? "trip " : "trajet ") + fmtKm(o.distanceKm) : "", detailsSummary(o)].filter(Boolean).join(" · ")) + '</span>' +
-      '<span class="fx ac jb" style="gap:10px;align-items:flex-end"><span class="mono" style="font-size:10.5px;line-height:1.4;color:rgba(16,16,16,.6);flex:1">' + esc(payInfo) + (o.scheduledAt ? ' · ' + fmtTime(o.scheduledAt) : '') + '</span>' +
-        '<span class="col" style="gap:0;align-items:flex-end;flex:none"><span class="mono" style="font-size:9.5px;color:rgba(16,16,16,.55)">' + esc(c.gain.toUpperCase()) + '</span><span style="font-weight:800;font-size:18px;white-space:nowrap">' + fmtFcfa(courierGain(o)) + '</span></span></span>' +
+      '<span style="font-size:12px;color:rgba(11,31,58,.7)">' + esc([o.distanceKm ? (state.lang === "en" ? "trip " : "trajet ") + fmtKm(o.distanceKm) : "", detailsSummary(o)].filter(Boolean).join(" · ")) + '</span>' +
+      '<span class="fx ac jb" style="gap:10px;align-items:flex-end"><span class="mono" style="font-size:10.5px;line-height:1.4;color:rgba(11,31,58,.6);flex:1">' + esc(payInfo) + (o.scheduledAt ? ' · ' + fmtTime(o.scheduledAt) : '') + '</span>' +
+        '<span class="col" style="gap:0;align-items:flex-end;flex:none"><span class="mono" style="font-size:9.5px;color:rgba(11,31,58,.55)">' + esc(c.gain.toUpperCase()) + '</span><span style="font-weight:800;font-size:18px;white-space:nowrap">' + fmtFcfa(courierGain(o)) + '</span></span></span>' +
       (mine ? '' : '<span class="btn btn-yellow" data-action="acceptCourse" data-arg="' + o.id + '" role="button" style="height:44px">' + esc(c.accept) + '</span>') + '</button>';
   }
   function screenCourierHome() {
     var c = tc(), cd = state.courierData, online = state.user.courier && state.user.courier.online;
     var mine = cd.orders.filter(function (o) { return o.status !== "delivered" && o.status !== "cancelled"; });
-    return page3('<div class="fx ac jb"><div class="col" style="gap:2px"><span style="font-size:12px;color:rgba(16,16,16,.65)">' + esc(t().greeting) + '</span><h1 style="margin:0;font-weight:800;font-size:21px;letter-spacing:-.5px">' + esc(state.user.name) + '</h1></div>' +
-        '<span class="mono" style="border-radius:99px;padding:6px 11px;font-weight:700;font-size:10.5px;background:' + (online ? "#101010" : "rgba(16,16,16,.08)") + ';color:' + (online ? "#FFD700" : "rgba(16,16,16,.7)") + '">● ' + esc(online ? c.online : c.offline) + '</span></div>' +
-      '<button class="btn ' + (online ? "btn-outline" : "btn-yellow") + '" data-action="toggleOnline" style="color:#101010">' + esc(online ? c.goOffline : c.goOnline) + '</button>' +
-      (online ? '' : '<p style="margin:0;font-size:12.5px;line-height:1.5;color:rgba(16,16,16,.65)">' + esc(c.offlineSub) + '</p>') + courierTodayCard() +
+    return page3('<div class="fx ac jb"><div class="col" style="gap:2px"><span style="font-size:12px;color:rgba(11,31,58,.65)">' + esc(t().greeting) + '</span><h1 style="margin:0;font-weight:800;font-size:21px;letter-spacing:-.5px">' + esc(state.user.name) + '</h1></div>' +
+        '<span class="mono" style="border-radius:99px;padding:6px 11px;font-weight:700;font-size:10.5px;background:' + (online ? "#0B1F3A" : "rgba(11,31,58,.08)") + ';color:' + (online ? "#1FD1B2" : "rgba(11,31,58,.7)") + '">● ' + esc(online ? c.online : c.offline) + '</span></div>' +
+      '<button class="btn ' + (online ? "btn-outline" : "btn-yellow") + '" data-action="toggleOnline" style="color:#0B1F3A">' + esc(online ? c.goOffline : c.goOnline) + '</button>' +
+      (online ? '' : '<p style="margin:0;font-size:12.5px;line-height:1.5;color:rgba(11,31,58,.65)">' + esc(c.offlineSub) + '</p>') + courierTodayCard() +
       (mine.length ? sectionTitle(c.mine) + mine.map(function (o) { return offerCard(o, true); }).join("") : '') +
-      (online ? sectionTitle(c.offers) + (cd.offers.length ? cd.offers.map(function (o) { return offerCard(o, false); }).join("") : '<p style="margin:0;font-size:12.5px;line-height:1.5;color:rgba(16,16,16,.6)">' + esc(c.noOffers) + '</p>') : ''));
+      (online ? sectionTitle(c.offers) + (cd.offers.length ? cd.offers.map(function (o) { return offerCard(o, false); }).join("") : '<p style="margin:0;font-size:12.5px;line-height:1.5;color:rgba(11,31,58,.6)">' + esc(c.noOffers) + '</p>') : ''));
   }
   /* bilan du jour en un coup d'œil */
   function courierTodayCard() {
     var T = state.courierToday, en = state.lang === "en"; if (!T) return "";
     var cell = function (label, val) { return '<span class="col" style="gap:2px;flex:1;min-width:0"><span class="mono" style="font-size:9px;letter-spacing:.06em;color:rgba(255,255,255,.6)">' + esc(label) + '</span><span style="font-weight:800;font-size:16px;color:#fff;white-space:nowrap">' + val + '</span></span>'; };
-    return '<div class="col" style="gap:10px;background:#101010;border-radius:18px;padding:14px 15px"><span class="mono" style="font-size:9.5px;letter-spacing:.08em;color:#FFD700">' + esc(en ? "TODAY" : "AUJOURD'HUI") + '</span>' +
+    return '<div class="col" style="gap:10px;background:#0B1F3A;border-radius:18px;padding:14px 15px"><span class="mono" style="font-size:9.5px;letter-spacing:.08em;color:#1FD1B2">' + esc(en ? "TODAY" : "AUJOURD'HUI") + '</span>' +
       '<div class="fx" style="gap:10px">' + cell(en ? "DELIVERED" : "COURSES", String(T.delivered)) + cell(en ? "EARNED" : "GAGNÉ", fmtFcfa(T.earned)) + cell(en ? "CASH IN HAND" : "ESPÈCES REÇUES", fmtFcfa(T.cash)) + '</div></div>';
   }
   /* ce que le livreur encaisse, et auprès de qui */
@@ -3175,14 +3175,14 @@
   }
   function courseExtras(o) {
     var x = o.details || {}, h = x.hints || {}, r = x.recipient, u = tu(), out = "";
-    if (h.pickup) out += '<div style="font-size:12px;line-height:1.45"><span class="mono" style="font-size:9.5px;color:rgba(16,16,16,.55)">' + esc(u.landmark.toUpperCase()) + ' ① </span>' + esc(h.pickup) + '</div>';
+    if (h.pickup) out += '<div style="font-size:12px;line-height:1.45"><span class="mono" style="font-size:9.5px;color:rgba(11,31,58,.55)">' + esc(u.landmark.toUpperCase()) + ' ① </span>' + esc(h.pickup) + '</div>';
     var pc = x.pickupContact, live = o.courier && o.courier.id === state.user.id && o.status !== "delivered" && o.status !== "cancelled";
-    if (pc && (pc.name || pc.phone)) out += '<div class="fx ac" style="gap:8px;background:rgba(16,16,16,.05);border-radius:12px;padding:8px 10px"><span class="col" style="flex:1;gap:1px"><span class="mono" style="font-size:9.5px;color:rgba(16,16,16,.6)">' + esc(state.lang === "en" ? "HANDS OVER THE PARCEL ①" : "REMET LE COLIS ①") + '</span><span style="font-weight:700;font-size:13px">' + esc(pc.name || ("+237 " + prettyPhone(pc.phone))) + '</span></span>' +
+    if (pc && (pc.name || pc.phone)) out += '<div class="fx ac" style="gap:8px;background:rgba(11,31,58,.05);border-radius:12px;padding:8px 10px"><span class="col" style="flex:1;gap:1px"><span class="mono" style="font-size:9.5px;color:rgba(11,31,58,.6)">' + esc(state.lang === "en" ? "HANDS OVER THE PARCEL ①" : "REMET LE COLIS ①") + '</span><span style="font-weight:700;font-size:13px">' + esc(pc.name || ("+237 " + prettyPhone(pc.phone))) + '</span></span>' +
       (pc.phone && live ? '<a class="btn btn-ink" href="tel:+237' + esc(pc.phone) + '" aria-label="' + esc(tm().call) + '" style="width:44px;height:44px;border-radius:11px;padding:0;text-decoration:none">' + ICON_PHONE + '</a>' : '') + '</div>';
-    if (x.returned) out += '<div role="status" style="background:#FFD700;border-radius:12px;padding:9px 11px;font-weight:800;font-size:12.5px;line-height:1.4">↩ ' + esc(state.lang === "en" ? "RETURN TO SENDER — bring the parcel back to the pickup point" : "RETOUR À L'EXPÉDITEUR — rapportez le colis au point de départ") + '</div>';
-    if (x.dropoffShared) out += '<div class="mono" style="font-size:10.5px;font-weight:600;color:#101010;background:#FFD700;border-radius:8px;padding:5px 8px;align-self:flex-start">📍 ' + esc(te().posShared) + '</div>';
-    if (h.dropoff) out += '<div style="font-size:12px;line-height:1.45"><span class="mono" style="font-size:9.5px;color:rgba(16,16,16,.55)">' + esc(u.landmark.toUpperCase()) + ' ② </span>' + esc(h.dropoff) + '</div>';
-    if (r && (r.name || r.phone)) out += '<div class="fx ac" style="gap:8px;background:rgba(255,215,0,.25);border-radius:12px;padding:8px 10px"><span class="col" style="flex:1;gap:1px"><span class="mono" style="font-size:9.5px;color:rgba(16,16,16,.6)">' + esc(u.recipient.toUpperCase()) + '</span><span style="font-weight:700;font-size:13px">' + esc(r.name || "") + '</span></span>' +
+    if (x.returned) out += '<div role="status" style="background:#1FD1B2;border-radius:12px;padding:9px 11px;font-weight:800;font-size:12.5px;line-height:1.4">↩ ' + esc(state.lang === "en" ? "RETURN TO SENDER — bring the parcel back to the pickup point" : "RETOUR À L'EXPÉDITEUR — rapportez le colis au point de départ") + '</div>';
+    if (x.dropoffShared) out += '<div class="mono" style="font-size:10.5px;font-weight:600;color:#0B1F3A;background:#1FD1B2;border-radius:8px;padding:5px 8px;align-self:flex-start">📍 ' + esc(te().posShared) + '</div>';
+    if (h.dropoff) out += '<div style="font-size:12px;line-height:1.45"><span class="mono" style="font-size:9.5px;color:rgba(11,31,58,.55)">' + esc(u.landmark.toUpperCase()) + ' ② </span>' + esc(h.dropoff) + '</div>';
+    if (r && (r.name || r.phone)) out += '<div class="fx ac" style="gap:8px;background:rgba(31,209,178,.25);border-radius:12px;padding:8px 10px"><span class="col" style="flex:1;gap:1px"><span class="mono" style="font-size:9.5px;color:rgba(11,31,58,.6)">' + esc(u.recipient.toUpperCase()) + '</span><span style="font-weight:700;font-size:13px">' + esc(r.name || "") + '</span></span>' +
       (r.phone && o.courier && o.courier.id === state.user.id && o.status !== "delivered" && o.status !== "cancelled" ? '<a class="btn btn-ink" href="tel:+237' + esc(r.phone) + '" aria-label="' + esc(tm().call) + '" style="width:44px;height:44px;border-radius:11px;padding:0;text-decoration:none">' + ICON_PHONE + '</a>' : '') + '</div>';
     return out;
   }
@@ -3193,14 +3193,14 @@
     var mine = o.courier && o.courier.id === state.user.id, steps = o.service === "ride" ? c.stepsRide : c.steps;
     var next = o.status === "cancelled" || o.status === "delivered" ? null : o.stage === 0 ? "picked_up" : o.stage === 1 ? "en_route" : "delivered";
     var g = orderGeo(o), pf = state.proofForm && state.proofForm.orderId === id ? state.proofForm : null, ret = !!(o.details || {}).returned, en = state.lang === "en";
-    var nav = function (to, label) { return '<a class="btn btn-outline gmaps-link" target="_blank" rel="noopener" href="https://www.google.com/maps/dir/?api=1&destination=' + to.lat.toFixed(6) + ',' + to.lng.toFixed(6) + '&travelmode=driving" style="width:100%;gap:7px;color:#101010;text-decoration:none">' + ICON.pin + esc(label) + '</a>'; };
+    var nav = function (to, label) { return '<a class="btn btn-outline gmaps-link" target="_blank" rel="noopener" href="https://www.google.com/maps/dir/?api=1&destination=' + to.lat.toFixed(6) + ',' + to.lng.toFixed(6) + '&travelmode=driving" style="width:100%;gap:7px;color:#0B1F3A;text-decoration:none">' + ICON.pin + esc(label) + '</a>'; };
     var action = "";
     if (!mine && o.status === "received") action = '<button class="btn btn-yellow" data-action="acceptCourse" data-arg="' + o.id + '">' + esc(c.accept) + ' · ' + fmtFcfa(courierGain(o)) + '</button>';
     else if (mine && next === "delivered") action = pf ? '<div class="col" style="gap:10px;' + card + ';padding:14px">' + sectionTitle(c.proofTitle) +
-        (pf.noCode ? '' : '<input data-bind="proofCode" inputmode="numeric" maxlength="4" autocomplete="one-time-code" aria-label="' + esc(tu().cCode) + '" placeholder="• • • •" value="' + esc(pf.code || "") + '" style="background:rgba(16,16,16,.04);border-radius:12px;height:58px;padding:0 13px;font-family:var(--mono);font-weight:600;font-size:26px;letter-spacing:.4em;text-align:center" />' +
-          '<span style="font-size:11.5px;line-height:1.45;color:rgba(16,16,16,.65)">' + esc(tu().cCodeHelp) + '</span>') +
-        (pf.noCode ? '<input data-bind="proofName" aria-label="' + esc(tu().cNameReq) + '" placeholder="' + esc(tu().cNameReq) + '" value="' + esc(pf.name || "") + '" style="background:rgba(16,16,16,.04);border-radius:12px;height:48px;padding:0 13px;font-weight:600;font-size:14px" />' : '') +
-        '<label class="fx ac" style="gap:10px;background:rgba(16,16,16,.04);border-radius:12px;padding:8px 12px;min-height:52px;cursor:pointer;position:relative">' + (pf.photo ? '<img src="' + pf.photo + '" alt="" width="40" height="40" style="border-radius:8px;object-fit:cover">' : CAMERA) +
+        (pf.noCode ? '' : '<input data-bind="proofCode" inputmode="numeric" maxlength="4" autocomplete="one-time-code" aria-label="' + esc(tu().cCode) + '" placeholder="• • • •" value="' + esc(pf.code || "") + '" style="background:rgba(11,31,58,.04);border-radius:12px;height:58px;padding:0 13px;font-family:var(--mono);font-weight:600;font-size:26px;letter-spacing:.4em;text-align:center" />' +
+          '<span style="font-size:11.5px;line-height:1.45;color:rgba(11,31,58,.65)">' + esc(tu().cCodeHelp) + '</span>') +
+        (pf.noCode ? '<input data-bind="proofName" aria-label="' + esc(tu().cNameReq) + '" placeholder="' + esc(tu().cNameReq) + '" value="' + esc(pf.name || "") + '" style="background:rgba(11,31,58,.04);border-radius:12px;height:48px;padding:0 13px;font-weight:600;font-size:14px" />' : '') +
+        '<label class="fx ac" style="gap:10px;background:rgba(11,31,58,.04);border-radius:12px;padding:8px 12px;min-height:52px;cursor:pointer;position:relative">' + (pf.photo ? '<img src="' + pf.photo + '" alt="" width="40" height="40" style="border-radius:8px;object-fit:cover">' : CAMERA) +
           '<span style="font-weight:700;font-size:13px">' + esc(pf.noCode ? tu().cPhotoReq : c.proofPhoto) + '</span><input type="file" accept="image/*" capture="environment" data-file="proof" style="position:absolute;width:1px;height:1px;opacity:0"></label>' +
         '<button class="btn btn-ink" data-action="confirmDelivery" data-arg="' + o.id + '">' + esc(c.confirmDelivery) + '</button>' +
         (ret ? '</div>' : '<button class="btn" data-action="toggleNoCode" style="height:44px;background:transparent;font-weight:700;font-size:12.5px;text-decoration:underline">' + esc(pf.noCode ? tu().cWithCode : tu().cNoCode) + '</button></div>')
@@ -3209,39 +3209,39 @@
     /* remise contrôlée : le livreur montre ce code, le destinataire le tape sur son téléphone */
     var rx = o.details || {}, rName = (rx.recipient && rx.recipient.name) || (o.client && o.client.name) || (en ? "the recipient" : "le destinataire");
     if (mine && next === "delivered" && !pf && o.handoverCode && !ret) action =
-      '<div class="col" style="gap:8px;background:#101010;color:#fff;border-radius:18px;padding:16px;text-align:center">' +
+      '<div class="col" style="gap:8px;background:#0B1F3A;color:#fff;border-radius:18px;padding:16px;text-align:center">' +
         '<span class="mono" style="font-size:9.5px;letter-spacing:.08em;color:rgba(255,255,255,.65)">' + esc(en ? "SHOW THIS CODE TO " + rName.toUpperCase() : "MONTREZ CE CODE À " + rName.toUpperCase()) + '</span>' +
-        '<span class="mono" style="font-weight:600;font-size:44px;letter-spacing:.3em;color:#FFD700">' + esc(o.handoverCode) + '</span>' +
+        '<span class="mono" style="font-weight:600;font-size:44px;letter-spacing:.3em;color:#1FD1B2">' + esc(o.handoverCode) + '</span>' +
         '<span style="font-size:12.5px;line-height:1.45;color:rgba(255,255,255,.8)">' + esc(en ? "They type it on their phone to confirm receipt. This screen updates by itself." : "Il le tape sur son téléphone pour confirmer la réception. Cet écran se met à jour tout seul.") + '</span></div>' +
-      '<button class="btn btn-outline" data-action="startProof" data-arg="' + o.id + '" style="color:#101010">' + esc(en ? "No phone? Enter their backup code" : "Pas de téléphone ? Saisir son code de secours") + '</button>';
+      '<button class="btn btn-outline" data-action="startProof" data-arg="' + o.id + '" style="color:#0B1F3A">' + esc(en ? "No phone? Enter their backup code" : "Pas de téléphone ? Saisir son code de secours") + '</button>';
     /* destinataire absent, refus : retour à l'expéditeur */
     if (mine && o.service === "parcel" && o.stage === 2 && o.arrivedAt && !ret && !pf && o.status !== "cancelled") {
       var R = [["absent", en ? "Nobody there" : "Personne sur place"], ["refused", en ? "Parcel refused" : "Colis refusé"], ["unreachable", en ? "Can't reach them" : "Injoignable"]];
       action += state.returnFor === o.id
         ? '<div class="col" style="gap:8px;' + card + ';padding:12px">' + sectionTitle(en ? "Why can't you deliver?" : "Pourquoi le colis n'est pas remis ?") +
-            R.map(function (r) { return '<button class="btn btn-outline" data-action="courseReturn" data-arg="' + o.id + '|' + r[0] + '" style="color:#101010">' + esc(r[1]) + '</button>'; }).join("") +
-            '<span style="font-size:11.5px;line-height:1.45;color:rgba(16,16,16,.65)">' + esc(en ? "The parcel goes back to the sender, who pays the return fee." : "Le colis retourne à l'expéditeur, qui règle les frais de retour.") + '</span>' +
+            R.map(function (r) { return '<button class="btn btn-outline" data-action="courseReturn" data-arg="' + o.id + '|' + r[0] + '" style="color:#0B1F3A">' + esc(r[1]) + '</button>'; }).join("") +
+            '<span style="font-size:11.5px;line-height:1.45;color:rgba(11,31,58,.65)">' + esc(en ? "The parcel goes back to the sender, who pays the return fee." : "Le colis retourne à l'expéditeur, qui règle les frais de retour.") + '</span>' +
             '<button class="btn" data-action="courseReturnAsk" data-arg="" style="height:40px;background:transparent;font-weight:700;font-size:12px;text-decoration:underline">' + esc(en ? "Back" : "Retour") + '</button></div>'
-        : '<button class="btn" data-action="courseReturnAsk" data-arg="' + o.id + '" style="height:44px;background:transparent;font-weight:700;font-size:12.5px;text-decoration:underline;color:#101010">' + esc(en ? "Nobody there or refused? Return to sender" : "Personne ou refus ? Retour à l'expéditeur") + '</button>';
+        : '<button class="btn" data-action="courseReturnAsk" data-arg="' + o.id + '" style="height:44px;background:transparent;font-weight:700;font-size:12.5px;text-decoration:underline;color:#0B1F3A">' + esc(en ? "Nobody there or refused? Return to sender" : "Personne ou refus ? Retour à l'expéditeur") + '</button>';
     }
     var canArrive = mine && !o.arrivedAt && (o.stage === 2 || (o.service === "ride" && o.stage === 0)) && o.status !== "cancelled";
     if (canArrive) action = '<button class="btn btn-yellow" data-action="courseStep" data-arg="' + o.id + '|arrived">📍 ' + (state.lang === "en" ? "I've arrived" : "Je suis arrivé") + '</button>' + action;
-    else if (mine && o.arrivedAt && o.status !== "delivered") action = '<div class="mono" style="font-size:11px;text-align:center;color:rgba(16,16,16,.6)">' + (state.lang === "en" ? "Customer notified of your arrival" : "Client prévenu de votre arrivée") + ' ✓</div>' + action;
+    else if (mine && o.arrivedAt && o.status !== "delivered") action = '<div class="mono" style="font-size:11px;text-align:center;color:rgba(11,31,58,.6)">' + (state.lang === "en" ? "Customer notified of your arrival" : "Client prévenu de votre arrivée") + ' ✓</div>' + action;
     var client = o.client || {}, who0 = (rx.pickupContact && rx.pickupContact.name) || client.name || "";
     var tip = !mine || o.service === "ride" ? "" : o.status === "delivered" ? (o.deliveredWith === "recipient" ? (en ? "Receipt confirmed by the recipient ✓" : "Réception confirmée par le destinataire ✓") : "")
       : ret ? "" : o.stage === 0 ? (en ? "Pick up the parcel from " : "Récupérez le colis auprès de ") + who0 : o.stage === 1 ? (en ? "Head to " : "Direction ") + rName
       : o.arrivedAt ? "" : (en ? "Deliver to " : "Livrez à ") + rName + (en ? ", then tap « I've arrived »." : ", puis touchez « Je suis arrivé ».");
     return page3(hdr(o.code + " · " + svcName(o.service)) +
-      (tip ? '<div role="status" style="background:#FFD700;border-radius:14px;padding:11px 13px;font-weight:800;font-size:13px;line-height:1.4">' + esc(tip) + '</div>' : '') +
+      (tip ? '<div role="status" style="background:#1FD1B2;border-radius:14px;padding:11px 13px;font-weight:800;font-size:13px;line-height:1.4">' + esc(tip) + '</div>' : '') +
       '<div style="' + card + ';padding:14px;display:flex;flex-direction:column;gap:10px">' +
-        '<div class="fx" style="gap:10px"><span style="width:9px;height:9px;margin-top:5px;flex:none;border-radius:99px;background:#FFD700;border:2.5px solid #101010"></span><span style="font-weight:700;font-size:13.5px">' + esc(o.pickup) + '</span></div>' +
-        (o.dropoff !== o.pickup ? '<div class="fx" style="gap:10px"><span style="width:9px;height:9px;margin-top:5px;flex:none;background:#101010"></span><span style="font-weight:700;font-size:13.5px">' + esc(o.dropoff) + '</span></div>' : '') +
+        '<div class="fx" style="gap:10px"><span style="width:9px;height:9px;margin-top:5px;flex:none;border-radius:99px;background:#1FD1B2;border:2.5px solid #0B1F3A"></span><span style="font-weight:700;font-size:13.5px">' + esc(o.pickup) + '</span></div>' +
+        (o.dropoff !== o.pickup ? '<div class="fx" style="gap:10px"><span style="width:9px;height:9px;margin-top:5px;flex:none;background:#0B1F3A"></span><span style="font-weight:700;font-size:13.5px">' + esc(o.dropoff) + '</span></div>' : '') +
         courseExtras(o) +
-        '<div style="font-size:12.5px;line-height:1.5;color:rgba(16,16,16,.75)">' + esc(detailsSummary(o)) + (o.note ? '<br>« ' + esc(o.note) + ' »' : '') + '</div>' +
-        '<div class="fx ac jb" style="gap:10px;align-items:flex-end"><span class="mono" style="font-size:10.5px;line-height:1.4;color:rgba(16,16,16,.6);flex:1">' + esc(coursePay(o)) + '</span>' +
-          '<span class="col" style="gap:0;align-items:flex-end;flex:none"><span class="mono" style="font-size:9.5px;color:rgba(16,16,16,.55)">' + esc(c.gain.toUpperCase()) + '</span><span style="font-weight:800;font-size:18px;white-space:nowrap">' + fmtFcfa(courierGain(o)) + '</span></span></div></div>' +
-      (mine && client.phone ? '<div class="fx ac" style="gap:11px;' + card + ';padding:12px 14px">' + avatar(client.name) + '<div class="col" style="gap:2px;flex:1"><span class="mono" style="font-size:9.5px;color:rgba(16,16,16,.55)">' + esc(c.client.toUpperCase()) + '</span><span style="font-weight:700">' + esc(client.name) + '</span></div>' +
-        '<button class="btn" data-action="openOrderChat" data-arg="' + o.id + '" aria-label="' + esc(tm().write) + '" style="width:44px;height:44px;border-radius:11px;background:rgba(16,16,16,.07);padding:0">' + ICON_CHAT + '</button>' +
+        '<div style="font-size:12.5px;line-height:1.5;color:rgba(11,31,58,.75)">' + esc(detailsSummary(o)) + (o.note ? '<br>« ' + esc(o.note) + ' »' : '') + '</div>' +
+        '<div class="fx ac jb" style="gap:10px;align-items:flex-end"><span class="mono" style="font-size:10.5px;line-height:1.4;color:rgba(11,31,58,.6);flex:1">' + esc(coursePay(o)) + '</span>' +
+          '<span class="col" style="gap:0;align-items:flex-end;flex:none"><span class="mono" style="font-size:9.5px;color:rgba(11,31,58,.55)">' + esc(c.gain.toUpperCase()) + '</span><span style="font-weight:800;font-size:18px;white-space:nowrap">' + fmtFcfa(courierGain(o)) + '</span></span></div></div>' +
+      (mine && client.phone ? '<div class="fx ac" style="gap:11px;' + card + ';padding:12px 14px">' + avatar(client.name) + '<div class="col" style="gap:2px;flex:1"><span class="mono" style="font-size:9.5px;color:rgba(11,31,58,.55)">' + esc(c.client.toUpperCase()) + '</span><span style="font-weight:700">' + esc(client.name) + '</span></div>' +
+        '<button class="btn" data-action="openOrderChat" data-arg="' + o.id + '" aria-label="' + esc(tm().write) + '" style="width:44px;height:44px;border-radius:11px;background:rgba(11,31,58,.07);padding:0">' + ICON_CHAT + '</button>' +
         '<a class="btn btn-ink" href="tel:+237' + esc(client.phone) + '" aria-label="' + esc(tm().call) + '" style="width:44px;height:44px;border-radius:11px;padding:0;text-decoration:none">' + ICON_PHONE + '</a></div>' : '') +
       (mine && o.stage === 0 ? nav(g.pickup, c.route1) : '') + (mine && o.stage >= 1 && next ? (ret ? nav(g.pickup, en ? "Route back to the sender" : "Itinéraire retour") : nav(g.dropoff, c.route2)) : '') + action);
   }
@@ -3278,47 +3278,47 @@
     if (!d && !E.busy && !E.err) setTimeout(loadEarn, 0);
     var modes = '<div class="fx" style="gap:6px">' + L.modes.map(function (m) {
       var on = E.mode === m[0];
-      return '<button class="btn" data-action="earnMode" data-arg="' + m[0] + '" style="flex:1;height:38px;border-radius:99px;font-size:12px;font-weight:700;background:' + (on ? "#101010" : "#fff") + ';color:' + (on ? "#FFD700" : "#101010") + ';border:1px solid ' + (on ? "#101010" : "var(--hair)") + '">' + m[1] + '</button>';
+      return '<button class="btn" data-action="earnMode" data-arg="' + m[0] + '" style="flex:1;height:38px;border-radius:99px;font-size:12px;font-weight:700;background:' + (on ? "#0B1F3A" : "#fff") + ';color:' + (on ? "#1FD1B2" : "#0B1F3A") + ';border:1px solid ' + (on ? "#0B1F3A" : "var(--hair)") + '">' + m[1] + '</button>';
     }).join("") + '</div>';
-    var nav = '<div class="fx ac jb"><button class="btn" data-action="earnShift" data-arg="-1" aria-label="Période précédente" style="width:44px;height:44px;border-radius:12px;background:rgba(16,16,16,.06);padding:0">‹</button>' +
+    var nav = '<div class="fx ac jb"><button class="btn" data-action="earnShift" data-arg="-1" aria-label="Période précédente" style="width:44px;height:44px;border-radius:12px;background:rgba(11,31,58,.06);padding:0">‹</button>' +
       '<span style="font-weight:800;font-size:15px;text-transform:capitalize">' + esc(earnLabel(E)) + '</span>' +
-      '<button class="btn" data-action="earnShift" data-arg="1" aria-label="Période suivante" style="width:44px;height:44px;border-radius:12px;background:rgba(16,16,16,.06);padding:0">›</button></div>';
-    var big = '<div class="col" style="background:#101010;border-radius:19px;padding:17px;gap:6px"><span class="mono" style="font-size:10px;letter-spacing:.08em;color:rgba(255,255,255,.6)">' + L.gains + '</span>' +
-      '<span style="font-weight:800;font-size:28px;color:#FFD700">' + (sm ? fmtFcfa(sm.earned) : "…") + '</span><span class="mono" style="font-size:11px;color:rgba(255,255,255,.7)">' + (sm ? sm.delivered + " " + L.courses + " · " + String(sm.km).replace(".", ",") + " " + L.km : "") + '</span></div>';
+      '<button class="btn" data-action="earnShift" data-arg="1" aria-label="Période suivante" style="width:44px;height:44px;border-radius:12px;background:rgba(11,31,58,.06);padding:0">›</button></div>';
+    var big = '<div class="col" style="background:#0B1F3A;border-radius:19px;padding:17px;gap:6px"><span class="mono" style="font-size:10px;letter-spacing:.08em;color:rgba(255,255,255,.6)">' + L.gains + '</span>' +
+      '<span style="font-weight:800;font-size:28px;color:#1FD1B2">' + (sm ? fmtFcfa(sm.earned) : "…") + '</span><span class="mono" style="font-size:11px;color:rgba(255,255,255,.7)">' + (sm ? sm.delivered + " " + L.courses + " · " + String(sm.km).replace(".", ",") + " " + L.km : "") + '</span></div>';
     var cash = sm ? '<div style="' + card + ';padding:4px 14px">' +
       '<div class="fx jb" style="padding:10px 0;border-bottom:1px solid var(--hair)"><span style="font-weight:700;font-size:13px">' + L.cash + '</span><span class="mono" style="font-size:12px">' + fmtFcfa(sm.cash) + '</span></div>' +
       '<div class="fx jb" style="padding:10px 0;border-bottom:1px solid var(--hair)"><span style="font-weight:700;font-size:13px">' + (sm.due >= 0 ? L.due : L.owed) + '</span><span class="mono" style="font-size:12px;font-weight:700">' + fmtFcfa(Math.abs(sm.due)) + '</span></div>' +
       '<div class="fx jb" style="padding:10px 0"><span style="font-weight:700;font-size:13px">' + L.rating + '</span><span class="mono" style="font-size:12px">' + (sm.rating ? String(sm.rating).replace(".", ",") + " / 5" : "—") + '</span></div></div>' : '';
     var list = d ? (d.orders.length ? '<div style="' + card + ';padding:2px 14px">' + d.orders.map(function (o, i) {
       return '<div class="fx ac" style="gap:10px;padding:11px 0;' + (i ? 'border-top:1px solid var(--hair)' : '') + '"><div class="col" style="gap:2px;flex:1;min-width:0">' +
-        '<span class="mono" style="font-size:10px;color:rgba(16,16,16,.55)">' + esc(o.code) + ' · ' + fmtTime(o.createdAt) + '</span>' +
+        '<span class="mono" style="font-size:10px;color:rgba(11,31,58,.55)">' + esc(o.code) + ' · ' + fmtTime(o.createdAt) + '</span>' +
         '<span style="font-weight:700;font-size:13px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">' + esc(o.pickup) + (o.dropoff !== o.pickup ? ' → ' + esc(o.dropoff) : '') + '</span></div>' +
-        '<span class="mono" style="font-size:12px;font-weight:700;text-align:right">' + (o.status === "delivered" ? fmtFcfa(o.gain) : o.status === "cancelled" ? L.cancelled : fmtFcfa(o.estimate) + '<br><span style="font-weight:500;font-size:10px;color:rgba(16,16,16,.5)">' + L.planned + '</span>') + '</span></div>';
-    }).join("") + '</div>' : '<p style="margin:0;font-size:12.5px;color:rgba(16,16,16,.6);text-align:center">' + L.none + '</p>') : '';
-    return page3('<div class="fx ac" style="gap:12px">' + avatar(state.user.name) + '<div class="col" style="gap:2px"><span style="font-weight:800;font-size:17px">' + esc(state.user.name) + '</span><span class="mono" style="font-size:11px;color:rgba(16,16,16,.6)">+237 ' + esc(state.phone) + ' · ' + esc(t().vehNames[cv.vehicle] || { car: "Voiture" }[cv.vehicle] || "") + (cv.plate ? " · " + esc(cv.plate) : "") + '</span></div></div>' +
-      (cv.pin ? '<div class="fx ac jb" style="gap:10px;background:#101010;color:#fff;border-radius:16px;padding:13px 15px"><span class="col" style="gap:2px"><span class="mono" style="font-size:9.5px;letter-spacing:.08em;color:#FFD700">' + esc(state.lang === "en" ? "MY COURIER CODE (BADGE)" : "MON CODE LIVREUR (BADGE)") + '</span><span style="font-size:11.5px;color:rgba(255,255,255,.75)">' +
-        esc(state.lang === "en" ? "Without data, show it: the recipient types it to confirm." : "Sans données, montrez-le : le destinataire le tape pour confirmer.") + '</span></span><span class="mono" style="font-weight:600;font-size:26px;letter-spacing:.2em;color:#FFD700">' + esc(cv.pin) + '</span></div>' +
-        '<a href="/l" style="font-size:12px;font-weight:700;color:#101010">' + esc(state.lang === "en" ? "Light version (little data): /l" : "Version légère (peu de données) : /l") + '</a>' : '') +
+        '<span class="mono" style="font-size:12px;font-weight:700;text-align:right">' + (o.status === "delivered" ? fmtFcfa(o.gain) : o.status === "cancelled" ? L.cancelled : fmtFcfa(o.estimate) + '<br><span style="font-weight:500;font-size:10px;color:rgba(11,31,58,.5)">' + L.planned + '</span>') + '</span></div>';
+    }).join("") + '</div>' : '<p style="margin:0;font-size:12.5px;color:rgba(11,31,58,.6);text-align:center">' + L.none + '</p>') : '';
+    return page3('<div class="fx ac" style="gap:12px">' + avatar(state.user.name) + '<div class="col" style="gap:2px"><span style="font-weight:800;font-size:17px">' + esc(state.user.name) + '</span><span class="mono" style="font-size:11px;color:rgba(11,31,58,.6)">+237 ' + esc(state.phone) + ' · ' + esc(t().vehNames[cv.vehicle] || { car: "Voiture" }[cv.vehicle] || "") + (cv.plate ? " · " + esc(cv.plate) : "") + '</span></div></div>' +
+      (cv.pin ? '<div class="fx ac jb" style="gap:10px;background:#0B1F3A;color:#fff;border-radius:16px;padding:13px 15px"><span class="col" style="gap:2px"><span class="mono" style="font-size:9.5px;letter-spacing:.08em;color:#1FD1B2">' + esc(state.lang === "en" ? "MY COURIER CODE (BADGE)" : "MON CODE LIVREUR (BADGE)") + '</span><span style="font-size:11.5px;color:rgba(255,255,255,.75)">' +
+        esc(state.lang === "en" ? "Without data, show it: the recipient types it to confirm." : "Sans données, montrez-le : le destinataire le tape pour confirmer.") + '</span></span><span class="mono" style="font-weight:600;font-size:26px;letter-spacing:.2em;color:#1FD1B2">' + esc(cv.pin) + '</span></div>' +
+        '<a href="/l" style="font-size:12px;font-weight:700;color:#0B1F3A">' + esc(state.lang === "en" ? "Light version (little data): /l" : "Version légère (peu de données) : /l") + '</a>' : '') +
       balanceCard(d) +
       sectionTitle(L.title) + modes + nav + big + cash + list + paymentsList(d) +
-      '<button class="btn btn-outline" data-action="openScreen" data-arg="notifs" style="color:#101010">' + esc(t().notifs) + '</button>' +
-      '<button class="btn btn-outline" data-action="logOut" style="color:#101010">' + esc(t().logOut) + '</button>');
+      '<button class="btn btn-outline" data-action="openScreen" data-arg="notifs" style="color:#0B1F3A">' + esc(t().notifs) + '</button>' +
+      '<button class="btn btn-outline" data-action="logOut" style="color:#0B1F3A">' + esc(t().logOut) + '</button>');
   }
   function balanceCard(d) {
     if (!d || !d.balance) return "";
     var b = d.balance, u = tu(), owe = b.due >= 0;
-    return '<div class="col" style="gap:4px;background:' + (owe ? "#FFD700" : "#fff") + ';border:1px solid ' + (owe ? "#FFD700" : "var(--hair)") + ';border-radius:16px;padding:13px 14px">' +
-      '<span class="mono" style="font-size:9.5px;letter-spacing:.08em;color:rgba(16,16,16,.7)">' + (owe ? u.balance : u.balanceOwed) + '</span>' +
+    return '<div class="col" style="gap:4px;background:' + (owe ? "#1FD1B2" : "#fff") + ';border:1px solid ' + (owe ? "#1FD1B2" : "var(--hair)") + ';border-radius:16px;padding:13px 14px">' +
+      '<span class="mono" style="font-size:9.5px;letter-spacing:.08em;color:rgba(11,31,58,.7)">' + (owe ? u.balance : u.balanceOwed) + '</span>' +
       '<span style="font-weight:800;font-size:22px">' + fmtFcfa(Math.abs(b.due)) + '</span>' +
-      '<span style="font-size:11px;line-height:1.4;color:rgba(16,16,16,.7)">' + esc(u.balanceSub.replace("{cash}", fmtFcfa(b.cash)).replace("{earned}", fmtFcfa(b.earned)).replace("{paid}", fmtFcfa(b.paid))) + '</span></div>';
+      '<span style="font-size:11px;line-height:1.4;color:rgba(11,31,58,.7)">' + esc(u.balanceSub.replace("{cash}", fmtFcfa(b.cash)).replace("{earned}", fmtFcfa(b.earned)).replace("{paid}", fmtFcfa(b.paid))) + '</span></div>';
   }
   function paymentsList(d) {
     if (!d || !d.payments) return "";
     var u = tu();
     return sectionTitle(u.payments) + (d.payments.length ? '<div style="' + card + ';padding:2px 14px">' + d.payments.slice(0, 20).map(function (p, i) {
       return '<div class="fx ac jb" style="gap:10px;padding:10px 0;' + (i ? 'border-top:1px solid var(--hair)' : '') + '"><span class="col" style="gap:1px"><span style="font-weight:700;font-size:12.5px">' + esc(p.amount > 0 ? u.paidIn : u.paidOut) + '</span>' +
-        '<span class="mono" style="font-size:10px;color:rgba(16,16,16,.55)">' + fmtTime(p.at) + (p.note ? ' · ' + esc(p.note) : '') + '</span></span><span class="mono" style="font-weight:700;font-size:12px">' + fmtFcfa(Math.abs(p.amount)) + '</span></div>';
-    }).join("") + '</div>' : '<p style="margin:0;font-size:12px;color:rgba(16,16,16,.55)">' + esc(u.noPayments) + '</p>');
+        '<span class="mono" style="font-size:10px;color:rgba(11,31,58,.55)">' + fmtTime(p.at) + (p.note ? ' · ' + esc(p.note) : '') + '</span></span><span class="mono" style="font-weight:700;font-size:12px">' + fmtFcfa(Math.abs(p.amount)) + '</span></div>';
+    }).join("") + '</div>' : '<p style="margin:0;font-size:12px;color:rgba(11,31,58,.55)">' + esc(u.noPayments) + '</p>');
   }
   actions.earnMode = function (el, arg) { state.cEarn.mode = arg; state.cEarn.data = null; state.cEarn.err = false; render(); };
   actions.earnShift = function (el, arg) {

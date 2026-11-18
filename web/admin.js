@@ -35,8 +35,8 @@
   function viewLogin() {
     var L = S.login;
     return '<div class="login"><div class="card">' +
-      '<div class="brand" style="padding:0;color:var(--ink)">WunaGo <small style="color:rgba(16,16,16,.6)">BACKOFFICE</small></div>' +
-      '<p style="margin:0;color:rgba(16,16,16,.7);line-height:1.5">Espace réservé à l\'équipe WunaGo : service client, suivi des commandes, livreurs et réclamations.</p>' +
+      '<div class="brand" style="padding:0;color:var(--ink)">WunaGo <small style="color:rgba(11,31,58,.6)">BACKOFFICE</small></div>' +
+      '<p style="margin:0;color:rgba(11,31,58,.7);line-height:1.5">Espace réservé à l\'équipe WunaGo : service client, suivi des commandes, livreurs et réclamations.</p>' +
       (L.step === "phone"
         ? '<label class="lbl" for="lp">Numéro de téléphone</label><input class="f mono" id="lp" data-k="login.phone" inputmode="numeric" placeholder="6 99 12 34 56" value="' + esc(L.phone) + '">' +
           '<button class="btn btn-ink" data-a="sendCode">Recevoir le code</button>'
@@ -68,9 +68,9 @@
   function shell(inner) {
     var c = counts();
     return '<div class="shell"><nav class="side" aria-label="Sections">' +
-      '<div class="brand"><svg width="22" height="28" viewBox="0 0 60 76" aria-hidden="true"><path d="M30 4C14.5 4 4 15.4 4 29.5C4 47 30 72 30 72C30 72 56 47 56 29.5C56 15.4 45.5 4 30 4Z" fill="#FFD700"/><rect x="20" y="20" width="20" height="20" rx="3" fill="#101010"/></svg><span>WunaGo<br><small>BACKOFFICE</small></span></div>' +
+      '<div class="brand"><svg width="22" height="28" viewBox="0 0 60 76" aria-hidden="true"><path d="M30 4C14.5 4 4 15.4 4 29.5C4 47 30 72 30 72C30 72 56 47 56 29.5C56 15.4 45.5 4 30 4Z" fill="#1FD1B2"/><rect x="20" y="20" width="20" height="20" rx="3" fill="#0B1F3A"/></svg><span>WunaGo<br><small>BACKOFFICE</small></span></div>' +
       NAV.map(function (n) { var k = c[n[0]]; return '<button class="' + (S.view === n[0] || (S.view === "courier" && n[0] === "couriers") ? "on" : "") + '" data-a="nav" data-v="' + n[0] + '">' + n[1] + (k ? '<span class="count">' + k + '</span>' : '') + '</button>'; }).join("") +
-      '<div class="foot"><span class="mono" style="font-size:10px;opacity:.6">Version 22 · 18/11/2026</span><span>' + esc(S.me.name || "Administrateur") + '<br><span class="mono">' + esc(phone(S.me.phone)) + '</span></span><button class="btn btn-sm btn-ghost" style="background:rgba(255,255,255,.1);color:#fff" data-a="logout">Se déconnecter</button></div>' +
+      '<div class="foot"><span class="mono" style="font-size:10px;opacity:.6">Version 23 · 18/11/2026</span><span>' + esc(S.me.name || "Administrateur") + '<br><span class="mono">' + esc(phone(S.me.phone)) + '</span></span><button class="btn btn-sm btn-ghost" style="background:rgba(255,255,255,.1);color:#fff" data-a="logout">Se déconnecter</button></div>' +
       '</nav><main>' + lateBanner() + inner + '</main></div>';
   }
   function kpi(label, value, dark) { return '<div class="card kpi' + (dark ? " dark" : "") + '"><span class="lbl">' + label + '</span><b>' + value + '</b></div>'; }
@@ -86,7 +86,7 @@
         var k = dayKey(o.createdAt), sep = "";
         if (grouped && k !== last) { last = k; sep = '<tr class="dayrow"><td colspan="' + cols + '"><b>' + esc(dayTitle(k)) + '</b><span class="mono">' + totals[k].n + ' cmd · ' + F(totals[k].v) + '</span></td></tr>'; }
         return sep + '<tr class="click" data-a="openOrder" data-v="' + o.id + '"><td class="mono">' + esc(o.code) + '</td><td>' + esc(SVC[o.service]) + '</td><td>' + esc(o.client ? o.client.name || phone(o.client.phone) : "") + '</td>' +
-          '<td>' + esc(o.pickup) + (o.dropoff !== o.pickup ? ' → ' + esc(o.dropoff) : '') + '</td>' + (compact ? '' : '<td class="mono">' + F(o.price.net) + '<br><span style="font-size:10px;color:rgba(16,16,16,.55)">' + esc(PAY[o.paymentMethod] || "") + '</span></td>') +
+          '<td>' + esc(o.pickup) + (o.dropoff !== o.pickup ? ' → ' + esc(o.dropoff) : '') + '</td>' + (compact ? '' : '<td class="mono">' + F(o.price.net) + '<br><span style="font-size:10px;color:rgba(11,31,58,.55)">' + esc(PAY[o.paymentMethod] || "") + '</span></td>') +
           '<td>' + (o.courier ? esc(o.courier.name) : (o.status === "received" ? '<button class="btn btn-sm btn-yellow" data-a="quickAssign" data-v="' + o.id + '">Assigner</button>' : '—')) + '</td><td>' + statusPill(o.status) + '</td><td class="mono">' + (grouped ? new Date(o.createdAt + 3600000).toISOString().slice(11, 16) : when(o.createdAt)) + '</td></tr>';
       }).join("") + '</tbody></table></div>' + (grouped && Object.keys(totals).length ? '<p class="note" style="margin-top:6px">Totaux par jour calculés sur les commandes affichées.</p>' : '');
   }
@@ -134,7 +134,7 @@
       var v = value(r);
       return '<div class="col-w" tabindex="0"><div class="col-tip">' + tip(r) + '</div><div class="col-b" style="height:' + (v ? Math.max(2, v / max * 100) : 0).toFixed(1) + '%"></div>' +
         '<span class="col-x mono">' + (i % every === 0 ? esc(label(r)) : "") + '</span></div>';
-    }).join("") + '</div><div class="mono" style="font-size:10px;color:rgba(16,16,16,.55);margin-top:6px">Maximum : ' + fmt(max) + '</div>';
+    }).join("") + '</div><div class="mono" style="font-size:10px;color:rgba(11,31,58,.55);margin-top:6px">Maximum : ' + fmt(max) + '</div>';
   }
   function table(head, rows) {
     if (!rows.length) return '<div class="empty">Aucune donnée sur la période.</div>';
@@ -200,7 +200,7 @@
         return [esc(c.name || phone(c.phone)) + (c.online ? ' <span class="pill k">EN LIGNE</span>' : ''), c.orders, c.delivered, F(c.revenue), F(c.earned), F(c.cash),
           '<b>' + (due >= 0 ? F(due) : "− " + F(-due) + " à payer") + '</b>', mins(c.minutes), c.rating ? String(c.rating).replace(".", ",") + " ★" : "—"];
       })) + '<p class="note">Solde à reverser = espèces encaissées par le livreur − ses gains. Négatif : WunaGo doit payer le livreur.</p>');
-    var cli = card("Meilleurs clients", table(["Client", "Commandes", "CA"], r.clients.map(function (c) { return [esc(c.name || phone(c.phone)) + '<br><span class="mono" style="font-size:11px;color:rgba(16,16,16,.6)">' + esc(phone(c.phone)) + '</span>', c.orders, F(c.revenue)]; })));
+    var cli = card("Meilleurs clients", table(["Client", "Commandes", "CA"], r.clients.map(function (c) { return [esc(c.name || phone(c.phone)) + '<br><span class="mono" style="font-size:11px;color:rgba(11,31,58,.6)">' + esc(phone(c.phone)) + '</span>', c.orders, F(c.revenue)]; })));
     var disp = card("Réclamations par motif", table(["Motif", "Reçues", "Ouvertes", "Délai de résolution"], r.disputes.map(function (d) {
       return [esc(REASONS[d.key] || d.key), d.total, d.open, d.hours == null ? "—" : String(d.hours).replace(".", ",") + " h"];
     })));
@@ -339,7 +339,7 @@
       d.orders.map(function (o) {
         return '<tr class="click" data-a="openOrderFromCourier" data-v="' + o.id + '"><td class="mono">' + esc(o.code) + '</td><td class="mono">' + when(o.createdAt) + '</td><td>' + esc(SVC[o.service]) + '</td><td>' + esc(o.client) + '</td>' +
           '<td>' + esc(o.pickup) + (o.dropoff !== o.pickup ? ' → ' + esc(o.dropoff) : '') + '</td><td>' + esc(PAY[o.paymentMethod] || "") + '</td><td class="mono" style="text-align:right">' + F(o.price) + '</td>' +
-          '<td class="mono" style="text-align:right"><b>' + (o.status === "delivered" ? F(o.gain) : o.status === "cancelled" ? "—" : '<span style="color:rgba(16,16,16,.5)">' + F(o.estimate) + ' prévu</span>') + '</b></td><td>' + statusPill(o.status) + '</td></tr>';
+          '<td class="mono" style="text-align:right"><b>' + (o.status === "delivered" ? F(o.gain) : o.status === "cancelled" ? "—" : '<span style="color:rgba(11,31,58,.5)">' + F(o.estimate) + ' prévu</span>') + '</b></td><td>' + statusPill(o.status) + '</td></tr>';
       }).join("") + '</tbody></table></div>' : '<div class="card empty">Aucune course sur cette période.</div>';
     var b = d.balance || { cash: 0, earned: 0, paid: 0, due: 0 };
     var bal = '<div class="card balance' + (b.due > 0 ? " owe" : "") + '"><div><span class="lbl">Caisse du livreur · depuis le début</span><b>' + (b.due >= 0 ? F(b.due) + " à reverser à WunaGo" : F(-b.due) + " à payer au livreur") + '</b>' +
@@ -425,7 +425,7 @@
     markers.forEach(function (m) { m.remove(); }); markers = [];
     S.couriers.forEach(function (c) {
       if (!c.pos) return;
-      var icon = L.divIcon({ className: "", iconSize: [30, 30], html: '<div style="width:30px;height:30px;border-radius:99px;background:' + (c.online ? "#FFD700" : "#ccc") + ';border:3px solid #101010;font:800 10px Manrope,sans-serif;display:flex;align-items:center;justify-content:center">' + esc((c.name || "?").split(" ").map(function (x) { return x[0]; }).join("").slice(0, 2)) + '</div>' });
+      var icon = L.divIcon({ className: "", iconSize: [30, 30], html: '<div style="width:30px;height:30px;border-radius:99px;background:' + (c.online ? "#1FD1B2" : "#ccc") + ';border:3px solid #0B1F3A;font:800 10px Manrope,sans-serif;display:flex;align-items:center;justify-content:center">' + esc((c.name || "?").split(" ").map(function (x) { return x[0]; }).join("").slice(0, 2)) + '</div>' });
       markers.push(L.marker([c.pos.lat, c.pos.lng], { icon: icon }).addTo(map).bindPopup("<b>" + esc(c.name) + "</b><br>" + (c.online ? "En ligne" : "Hors ligne") + " · " + ago(c.pos.at)));
     });
   }
@@ -452,7 +452,7 @@
     var has = function (k) { return (a.docs || []).some(function (z) { return z.kind === k; }); };
     return '<h1 style="margin:0">' + esc([x.firstNames, x.lastName].filter(Boolean).join(" ") || phone(a.phone)) + ' ' + appPill(a.status) + '</h1>' +
       '<div style="display:flex;gap:8px;flex-wrap:wrap">' + DOCL.map(function (k) { return '<figure style="margin:0;width:31%;min-width:120px"><div class="lbl">' + k[1] + '</div>' +
-        (has(k[0]) ? (imgs[k[0]] ? '<a href="' + imgs[k[0]] + '" target="_blank" rel="noopener"><img alt="' + k[1] + '" src="' + imgs[k[0]] + '" style="width:100%;height:110px;object-fit:cover;border-radius:10px;border:1px solid rgba(16,16,16,.1)"></a>' : '<div class="card empty" style="height:110px">…</div>')
+        (has(k[0]) ? (imgs[k[0]] ? '<a href="' + imgs[k[0]] + '" target="_blank" rel="noopener"><img alt="' + k[1] + '" src="' + imgs[k[0]] + '" style="width:100%;height:110px;object-fit:cover;border-radius:10px;border:1px solid rgba(11,31,58,.1)"></a>' : '<div class="card empty" style="height:110px">…</div>')
           : '<div class="card empty" style="height:110px;font-size:11px">Non fournie</div>') + '</figure>'; }).join("") + '</div>' +
       '<div class="card" style="padding:6px 14px"><table style="width:100%">' +
         row("Nom", pre("lastName", x.lastName)) + row("Prénoms", pre("firstNames", x.firstNames)) + row("Né(e) le", dt(x.birthDate) + (x.birthPlace ? " à " + esc(x.birthPlace) : "")) + row("Sexe", x.sex === "M" ? "Masculin" : x.sex === "F" ? "Féminin" : "") +
@@ -482,12 +482,12 @@
   function viewMessages() {
     var list = S.convs.length ? S.convs.map(function (c) {
       return '<button class="row ' + (S.convId === c.id ? "on" : "") + '" data-a="openConv" data-v="' + c.id + '"><span style="display:flex;justify-content:space-between;gap:8px"><b>' + esc(c.title) + '</b><span class="mono" style="font-size:10px">' + (c.last ? when(c.lastAt) : "") + '</span></span>' +
-        '<span class="mono" style="font-size:10px;color:rgba(16,16,16,.55)">' + esc(c.kind === "support" ? "SERVICE CLIENT · " + (c.subtitle || "") : c.subtitle) + '</span>' +
-        '<span style="display:flex;justify-content:space-between;gap:8px;font-size:12.5px;color:rgba(16,16,16,.7)"><span style="white-space:nowrap;overflow:hidden;text-overflow:ellipsis">' + esc(c.last ? (c.last.mine ? "Vous : " : "") + c.last.body : "") + '</span>' + (c.unread ? '<span class="pill y">' + c.unread + '</span>' : '') + '</span></button>';
+        '<span class="mono" style="font-size:10px;color:rgba(11,31,58,.55)">' + esc(c.kind === "support" ? "SERVICE CLIENT · " + (c.subtitle || "") : c.subtitle) + '</span>' +
+        '<span style="display:flex;justify-content:space-between;gap:8px;font-size:12.5px;color:rgba(11,31,58,.7)"><span style="white-space:nowrap;overflow:hidden;text-overflow:ellipsis">' + esc(c.last ? (c.last.mine ? "Vous : " : "") + c.last.body : "") + '</span>' + (c.unread ? '<span class="pill y">' + c.unread + '</span>' : '') + '</span></button>';
     }).join("") : '<div class="empty">Aucun message de client pour l\'instant.</div>';
     var conv = S.convs.filter(function (c) { return c.id === S.convId; })[0], thread;
     if (!conv) thread = '<div class="card thread"><div class="empty" style="margin:auto">Choisissez une discussion.</div></div>';
-    else thread = '<div class="card thread"><div style="padding:12px 16px;border-bottom:1px solid var(--hair)"><b>' + esc(conv.title) + '</b> <span class="mono" style="font-size:11px;color:rgba(16,16,16,.6)">' + esc(conv.subtitle || "") + '</span></div>' +
+    else thread = '<div class="card thread"><div style="padding:12px 16px;border-bottom:1px solid var(--hair)"><b>' + esc(conv.title) + '</b> <span class="mono" style="font-size:11px;color:rgba(11,31,58,.6)">' + esc(conv.subtitle || "") + '</span></div>' +
       '<div class="msgs" id="msgs">' + (S.msgs[conv.id] || []).map(function (m) {
         return '<div class="bubble' + (m.mine ? " me" : "") + '">' + (!m.mine ? '<div class="lbl" style="margin-bottom:2px">' + esc(m.author) + '</div>' : '') +
           (m.photo ? '<img src="' + m.photo + '" alt="Photo">' : '') + (m.body && m.body !== "📷" ? esc(m.body) : '') + '<div class="mono" style="font-size:9px;opacity:.6;text-align:right">' + when(m.at) + '</div></div>';
@@ -534,7 +534,7 @@
         (o.status !== "delivered" && o.status !== "cancelled" ? '<div class="card" style="padding:14px;display:flex;flex-direction:column;gap:10px"><span class="lbl">Assigner un livreur</span>' +
           (online.length ? '<select class="f" id="assign-sel">' + online.map(function (c) { return '<option value="' + c.id + '"' + (o.courier && o.courier.id === c.id ? " selected" : "") + '>' + esc(c.name) + ' · ' + esc(VEH[c.vehicle]) + (c.basic ? " · ☎ tél. simple : appelez-le " + phone(c.phone) : c.online ? " · en ligne" : " · hors ligne") + (far(c) < 999 ? " · à " + far(c).toFixed(1).replace(".", ",") + " km" : "") + (c.active ? " · " + c.active + " course(s) en cours" : "") + '</option>'; }).join("") + '</select>' +
             '<button class="btn btn-yellow" data-a="assign" data-v="' + o.id + '">' + (o.courier ? "Changer de livreur" : "Assigner ce livreur") + '</button><span class="note" style="margin:0">Le livreur est prévenu sur son téléphone et la course apparaît dans son espace « Courses ». Un livreur hors ligne la verra à sa prochaine connexion.</span>'
-            : '<span style="color:rgba(16,16,16,.6)">Aucun livreur. Ajoutez-en un dans la section « Livreurs ».</span>') + '</div>' +
+            : '<span style="color:rgba(11,31,58,.6)">Aucun livreur. Ajoutez-en un dans la section « Livreurs ».</span>') + '</div>' +
           '<div class="card" style="padding:14px;display:flex;flex-direction:column;gap:10px"><span class="lbl">Changer le statut</span><div style="display:flex;gap:8px;flex-wrap:wrap">' +
           ["picked_up", "en_route", "delivered"].map(function (s) { return '<button class="btn btn-sm btn-ghost" data-a="setStatus" data-v="' + o.id + '|' + s + '">' + STATUS[s] + '</button>'; }).join("") +
           '<button class="btn btn-sm btn-ghost" style="color:#8a1c0c" data-a="setStatus" data-v="' + o.id + '|cancelled">Annuler la commande</button></div></div>' : '') +
@@ -545,7 +545,7 @@
         '<div class="card" style="padding:6px 14px">' + [["Commande", x.orderCode], ["Client", (x.client.name || "") + " · " + phone(x.client.phone)], ["Motif", REASONS[x.reason] || x.reason], ["Reçue", when(x.createdAt)]]
           .map(function (r) { return '<div class="row2"><span class="lbl">' + r[0] + '</span><span>' + esc(r[1]) + '</span></div>'; }).join("") + '</div>' +
         '<div class="card" style="padding:12px 14px;line-height:1.5">' + esc(x.desc) + '</div>' +
-        (x.adminReply ? '<div class="card" style="padding:12px 14px;background:#fffbe0"><span class="lbl">Dernière réponse</span><br>' + esc(x.adminReply) + '</div>' : '') +
+        (x.adminReply ? '<div class="card" style="padding:12px 14px;background:#EAFBF7"><span class="lbl">Dernière réponse</span><br>' + esc(x.adminReply) + '</div>' : '') +
         '<label class="lbl" for="reply">Réponse au client (envoyée dans sa messagerie)</label><textarea class="f" id="reply" data-k="drawer.reply">' + esc(d.reply || "") + '</textarea>' +
         '<label class="lbl" for="dst">Statut</label><select class="f" id="dst">' + ["open", "review", "closed"].map(function (s) { return '<option value="' + s + '"' + (x.status === s ? " selected" : "") + '>' + DSTATUS[s] + '</option>'; }).join("") + '</select>' +
         '<button class="btn btn-ink" data-a="saveDispute" data-v="' + x.id + '">Enregistrer et répondre</button>';
@@ -558,7 +558,7 @@
         '<label class="lbl" for="pn">Note (facultatif)</label><input class="f" id="pn" data-k="drawer.note" placeholder="Ex. dépôt Orange Money, espèces au bureau" value="' + esc(d.note || "") + '">' +
         '<button class="btn btn-ink" data-a="savePayment">Enregistrer</button>';
     } else if (d.kind === "courier") {
-      body = '<h1 style="margin:0">Nouveau livreur</h1><p style="margin:0;color:rgba(16,16,16,.7);line-height:1.5">Il se connectera à l\'app WunaGo avec ce numéro et verra directement l\'espace livreur.</p>' +
+      body = '<h1 style="margin:0">Nouveau livreur</h1><p style="margin:0;color:rgba(11,31,58,.7);line-height:1.5">Il se connectera à l\'app WunaGo avec ce numéro et verra directement l\'espace livreur.</p>' +
         '<label class="lbl" for="cn">Nom complet</label><input class="f" id="cn" data-k="drawer.name" value="' + esc(d.name || "") + '">' +
         '<label class="lbl" for="cp">Téléphone</label><input class="f mono" id="cp" data-k="drawer.phone" inputmode="numeric" placeholder="6 77 12 34 56" value="' + esc(d.phone || "") + '">' +
         '<label class="lbl" for="cv">Véhicule</label><select class="f" id="cv" data-k="drawer.vehicle">' + Object.keys(VEH).map(function (k) { return '<option value="' + k + '"' + ((d.vehicle || "bike") === k ? " selected" : "") + '>' + VEH[k] + '</option>'; }).join("") + '</select>' +

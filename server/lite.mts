@@ -14,10 +14,10 @@ const ST: Record<string, string> = { received: "à récupérer", picked_up: "col
 function page(title: string, inner: string, refresh = 0) {
   const html = '<!DOCTYPE html><html lang="fr"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">' +
     (refresh ? '<meta http-equiv="refresh" content="' + refresh + '">' : '') + '<title>' + esc(title) + '</title><style>' +
-    'body{margin:0;font:15px/1.4 sans-serif;background:#fff;color:#101010}h1{font-size:18px;margin:0;padding:10px;background:#FFD700}' +
+    'body{margin:0;font:15px/1.4 sans-serif;background:#fff;color:#0B1F3A}h1{font-size:18px;margin:0;padding:10px;background:#1FD1B2}' +
     'h2{font-size:15px;margin:14px 10px 6px}.c{border:1px solid #ccc;margin:8px 10px;padding:8px}.c p{margin:4px 0}' +
-    'input,button{font-size:16px;padding:9px;width:100%;box-sizing:border-box;margin:4px 0}button{background:#101010;color:#FFD700;border:0;font-weight:bold}' +
-    '.y{background:#FFD700;color:#101010}.code{font:bold 30px monospace;letter-spacing:6px}.m{color:#555;font-size:13px}a{color:#101010;font-weight:bold}form{margin:0}' +
+    'input,button{font-size:16px;padding:9px;width:100%;box-sizing:border-box;margin:4px 0}button{background:#0B1F3A;color:#1FD1B2;border:0;font-weight:bold}' +
+    '.y{background:#1FD1B2;color:#0B1F3A}.code{font:bold 30px monospace;letter-spacing:6px}.m{color:#555;font-size:13px}a{color:#0B1F3A;font-weight:bold}form{margin:0}' +
     '</style></head><body><h1>WunaGo livreur</h1>' + inner + '</body></html>';
   return new Response(html, { headers: { "content-type": "text/html; charset=utf-8", "cache-control": "no-store" } });
 }

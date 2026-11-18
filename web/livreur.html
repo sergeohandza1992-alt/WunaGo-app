@@ -3,57 +3,58 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
-  <meta name="theme-color" content="#FFD700" />
+  <meta name="theme-color" content="#0B1F3A" />
   <title>Devenir livreur — WunaGo</title>
   <link rel="icon" href="icons/icon-192.png" />
   <style>
     @font-face { font-family: "Manrope"; src: url("fonts/Manrope-200-800.woff2") format("woff2"); font-weight: 200 800; font-display: swap; }
     @font-face { font-family: "IBM Plex Mono"; src: url("fonts/IBMPlexMono-500.woff2") format("woff2"); font-weight: 400 600; font-display: swap; }
-    :root { --y: #FFD700; --k: #101010; --bg: #FBFAF7; --hair: rgba(16,16,16,.08); --mono: "IBM Plex Mono", ui-monospace, monospace; }
+    :root { --y: #1FD1B2; --k: #0B1F3A; --bg: #F5F8FA; --hair: rgba(11,31,58,.08); --mono: "IBM Plex Mono", ui-monospace, monospace; }
     * { box-sizing: border-box; }
     body { margin: 0; background: var(--bg); color: var(--k); font-family: "Manrope", system-ui, sans-serif; -webkit-font-smoothing: antialiased; }
     .wrap { max-width: 520px; margin: 0 auto; min-height: 100vh; }
     header { background: var(--y); padding: calc(16px + env(safe-area-inset-top, 0px)) 20px 20px; display: flex; flex-direction: column; gap: 10px; }
     .brand { display: flex; align-items: center; gap: 9px; } .brand b { font-weight: 800; font-size: 19px; }
     h1 { margin: 0; font-weight: 800; font-size: 25px; line-height: 1.15; letter-spacing: -.6px; }
-    header p { margin: 0; font-size: 13px; line-height: 1.5; color: rgba(16,16,16,.75); }
+    header p { margin: 0; font-size: 13px; line-height: 1.5; color: rgba(11,31,58,.75); }
     main { padding: 16px 20px 40px; display: flex; flex-direction: column; gap: 14px; }
     h2 { margin: 6px 0 0; font-weight: 800; font-size: 17px; letter-spacing: -.3px; display: flex; align-items: center; gap: 8px; }
     h2 .n { width: 26px; height: 26px; border-radius: 99px; background: var(--k); color: var(--y); font-size: 12px; display: inline-flex; align-items: center; justify-content: center; flex: none; }
-    .lbl { font-family: var(--mono); font-size: 10px; letter-spacing: .07em; text-transform: uppercase; color: rgba(16,16,16,.55); }
+    .lbl { font-family: var(--mono); font-size: 10px; letter-spacing: .07em; text-transform: uppercase; color: rgba(11,31,58,.55); }
     .card { background: #fff; border: 1px solid var(--hair); border-radius: 16px; padding: 14px; display: flex; flex-direction: column; gap: 10px; }
     .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
     .f { display: flex; flex-direction: column; gap: 5px; }
     .f.full { grid-column: 1 / -1; }
-    input, select, textarea { width: 100%; min-height: 46px; border-radius: 12px; border: 1.5px solid rgba(16,16,16,.12); background: #fff; padding: 0 12px; font: inherit; font-size: 14.5px; font-weight: 600; color: var(--k); }
+    input, select, textarea { width: 100%; min-height: 46px; border-radius: 12px; border: 1.5px solid rgba(11,31,58,.12); background: #fff; padding: 0 12px; font: inherit; font-size: 14.5px; font-weight: 600; color: var(--k); }
     textarea { padding: 10px 12px; min-height: 70px; resize: vertical; }
     input:focus, select:focus, textarea:focus { outline: 2px solid var(--k); outline-offset: 1px; }
-    input.pre, select.pre { background: rgba(255,215,0,.22); border-color: #c9a800; }
+    input.pre, select.pre { background: rgba(31,209,178,.22); border-color: #139C85; }
     .btn { min-height: 52px; border-radius: 17px; border: 0; display: inline-flex; align-items: center; justify-content: center; gap: 8px; font: inherit; font-weight: 800; font-size: 15px; padding: 0 18px; cursor: pointer; width: 100%; text-decoration: none; }
     .btn[disabled] { opacity: .45; cursor: default; }
-    .ink { background: var(--k); color: var(--y); } .yel { background: var(--y); color: var(--k); } .out { background: #fff; color: var(--k); border: 1.5px solid rgba(16,16,16,.14); }
+    .ink { background: var(--k); color: var(--y); } .yel { background: var(--y); color: var(--k); } .out { background: #fff; color: var(--k); border: 1.5px solid rgba(11,31,58,.14); }
     .docs { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
-    .doc { position: relative; border: 1.5px dashed rgba(16,16,16,.25); border-radius: 14px; min-height: 120px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 6px; text-align: center; padding: 8px; cursor: pointer; background: #fff; overflow: hidden; }
+    .doc { position: relative; border: 1.5px dashed rgba(11,31,58,.25); border-radius: 14px; min-height: 120px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 6px; text-align: center; padding: 8px; cursor: pointer; background: #fff; overflow: hidden; }
     .doc.ok { border-style: solid; border-color: var(--k); }
     .doc img { width: 100%; height: 86px; object-fit: cover; border-radius: 9px; }
-    .doc b { font-size: 12.5px; } .doc small { font-size: 11px; color: rgba(16,16,16,.6); }
+    .doc b { font-size: 12.5px; } .doc small { font-size: 11px; color: rgba(11,31,58,.6); }
     .doc input { position: absolute; inset: 0; opacity: 0; cursor: pointer; min-height: 0; }
-    .muted { font-size: 12.5px; line-height: 1.5; color: rgba(16,16,16,.7); margin: 0; }
-    .note { background: rgba(255,215,0,.25); border-radius: 12px; padding: 10px 12px; font-size: 12.5px; font-weight: 600; line-height: 1.45; }
+    .muted { font-size: 12.5px; line-height: 1.5; color: rgba(11,31,58,.7); margin: 0; }
+    .note { background: rgba(31,209,178,.25); border-radius: 12px; padding: 10px 12px; font-size: 12.5px; font-weight: 600; line-height: 1.45; }
     .dark { background: var(--k); color: #fff; border: 0; } .dark .muted { color: rgba(255,255,255,.75); } .dark .lbl { color: var(--y); }
-    .contract { max-height: 280px; overflow: auto; font-size: 12.5px; line-height: 1.55; border: 1px solid var(--hair); border-radius: 12px; padding: 12px; background: #fdfcf8; }
+    .contract { max-height: 280px; overflow: auto; font-size: 12.5px; line-height: 1.55; border: 1px solid var(--hair); border-radius: 12px; padding: 12px; background: #F9FBFC; }
     .contract p { margin: 0 0 8px; } .contract b { display: block; margin-top: 4px; }
     .check { display: flex; gap: 10px; align-items: flex-start; font-weight: 700; font-size: 13.5px; line-height: 1.4; cursor: pointer; }
-    .check input { width: 26px; height: 26px; min-height: 26px; flex: none; accent-color: #101010; margin: 0; }
+    .check input { width: 26px; height: 26px; min-height: 26px; flex: none; accent-color: #0B1F3A; margin: 0; }
     .row { display: flex; gap: 8px; align-items: center; }
-    .bar { height: 6px; border-radius: 9px; background: rgba(16,16,16,.1); overflow: hidden; } .bar i { display: block; height: 100%; background: var(--k); width: 0; transition: width .3s; }
+    .bar { height: 6px; border-radius: 9px; background: rgba(11,31,58,.1); overflow: hidden; } .bar i { display: block; height: 100%; background: var(--k); width: 0; transition: width .3s; }
     .hidden { display: none !important; }
+    header { background: var(--k) !important; color: #EAF1F7; } header p, header .muted, header small { color: rgba(234,241,247,.72) !important; } header svg path { fill: var(--y); } header svg rect { fill: var(--k); } header .backbtn, header button { color: inherit; }
   </style>
 </head>
 <body>
 <div class="wrap">
   <header>
-    <div class="brand"><svg width="20" height="26" viewBox="0 0 60 76" aria-hidden="true"><path d="M30 4C14.5 4 4 15.4 4 29.5C4 47 30 72 30 72C30 72 56 47 56 29.5C56 15.4 45.5 4 30 4Z" fill="#101010"/><rect x="20" y="20" width="20" height="20" rx="3" fill="#FFD700"/></svg><b>WunaGo</b></div>
+    <div class="brand"><svg width="20" height="26" viewBox="0 0 60 76" aria-hidden="true"><path d="M30 4C14.5 4 4 15.4 4 29.5C4 47 30 72 30 72C30 72 56 47 56 29.5C56 15.4 45.5 4 30 4Z" fill="#0B1F3A"/><rect x="20" y="20" width="20" height="20" rx="3" fill="#1FD1B2"/></svg><b>WunaGo</b></div>
     <h1 id="title">Devenir livreur WunaGo</h1>
     <p id="sub">Vous choisissez vos horaires, vous gardez 80 % des frais de transport. Inscription en 10 minutes : prenez vos pièces en photo, nous remplissons le reste.</p>
   </header>

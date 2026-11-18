@@ -64,10 +64,10 @@ ok('Portefeuille débité côté serveur',(await api(A,'/me')).user.wallet.balan
 ok('Adresse enregistrée dans le compte',(await api(A,'/me')).user.prefs.addresses?.[0]?.text==='Akwa, Douala');
 // le suivi se met à jour tout seul quand le statut change sur le serveur (simulation du livreur)
 await api(A,'/orders/'+orders[0].code+'/advance','POST');
-await A.waitForFunction(()=>document.querySelectorAll('#app .col span[style*="#101010"]').length>0);
+await A.waitForFunction(()=>document.querySelectorAll('#app .col span[style*="#0B1F3A"]').length>0);
 await A.waitForTimeout(16000);
 const tl=await A.locator('text=Colis récupéré').getAttribute('style');
-ok('Suivi rafraîchi automatiquement (statut venu du serveur)',/color:#101010/.test(tl||''));
+ok('Suivi rafraîchi automatiquement (statut venu du serveur)',/color:#0B1F3A/.test(tl||''));
 ok('Annulation impossible une fois le colis récupéré',!(await A.isVisible('[data-action="askCancel"]')));
 for(let i=0;i<3;i++){ await A.click('[data-action="advanceOrder"]'); await A.waitForTimeout(500); }
 await A.waitForSelector('text=Colis livré');

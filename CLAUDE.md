@@ -69,11 +69,15 @@ Porteur du projet : Serge-Venant OHANDZA. Langue de travail et de l'interface : 
   la PR permanente `live` peut être fermée.
   GitHub Actions est bloqué tant que le compte GitHub a un problème de facturation (ticket ouvert).
 
-## Identité visuelle (à respecter strictement)
-Jaune `#FFD700`, encre `#101010`, fond `#FBFAF7`, cartes blanches filet `rgba(16,16,16,.08)`.
+## Identité visuelle « Wouri » (à respecter strictement, depuis la v23)
+Promesse : **We make it possible** — « Livrer au bon endroit, au bon moment, à la bonne personne ».
+Bleu nuit `#0B1F3A` (encre, écrans d'entrée, en-têtes, cartes fortes), turquoise `#1FD1B2` (actions, logo, repères),
+menthe pâle `#DDF8F2` (bandeaux doux), fond `#F5F8FA`, cartes blanches filet `rgba(11,31,58,.08)`.
+Équilibre 60/30/10 : fond clair majoritaire, bleu nuit pour les zones fortes, turquoise réservé aux actions — **jamais de grand aplat turquoise**.
+Logo : épingle + carré (épingle bleu nuit / carré turquoise sur fond clair ; inversé sur fond bleu nuit). Icônes : `web/icons/` (fond bleu nuit, vague du Wouri).
 Polices : Manrope (texte), IBM Plex Mono (données, codes, libellés en capitales).
 Rayons : boutons 17 px, cartes 16–18 px, pilules 99 px. Zones tactiles ≥ 44 px.
-Design de référence : projet Claude Design « WunaGo — App Client ».
+(Les variables CSS gardent les noms historiques `--yellow` / `--ink` / `btn-yellow` : `--yellow` = turquoise.)
 
 ## Règles métier
 - **Grille tarifaire unique : `web/pricing.mjs` (objet `TARIFS`)**, utilisée par l'app ET le serveur (le serveur recalcule et fait foi).
