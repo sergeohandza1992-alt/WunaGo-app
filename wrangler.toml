@@ -1,0 +1,24 @@
+# WunaGo sur Cloudflare Workers (offre gratuite) : l'app (web/) + l'API (/api/*) + alertes toutes les 2 minutes.
+# Secrets à créer dans Cloudflare (Settings › Variables and Secrets, type « Secret ») : DATABASE_URL (adresse Neon), ADMIN_PHONES.
+# Facultatif : SMS_MODE, DEMO_ACTIONS. Les clés des notifications sont générées automatiquement au premier démarrage.
+keep_vars = true
+name = "wunago"
+main = "worker/index.mts"
+compatibility_date = "2026-11-01"
+compatibility_flags = ["nodejs_compat"]
+
+[assets]
+directory = "./web"
+binding = "ASSETS"
+run_worker_first = ["/api/*"]
+
+[triggers]
+crons = ["*/2 * * * *"]
+
+[[rules]]
+type = "Text"
+globs = ["**/*.sql"]
+fallthrough = true
+
+[observability]
+enabled = true

@@ -1,6 +1,6 @@
-// Fonction planifiée (gratuite sur Netlify) : relance des courses non prises et alertes au backoffice.
+// Fonction planifiée Netlify (si l'hébergement Netlify reprend) : relance des courses et alertes au backoffice.
 import { getDatabase } from "@netlify/database";
-import { runAlerts } from "../lib/alerts.mts";
+import { runAlerts } from "../../server/alerts.mts";
 
 export default async () => {
   const r = await runAlerts(getDatabase());
