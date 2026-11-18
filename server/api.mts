@@ -399,7 +399,9 @@ async function enrich(rows: Row[], viewer: Row) {
   if (ids.length) {
     const cs = await db().sql`
       SELECT u.id, u.name, u.phone, u.courier, u.pos_lat, u.pos_lng, u.pos_at,
-        (SELECT ROUND(AVG(rating)::numeric, 1) FROM orders WHERE courier_id = u.id AND rating IS NOT NULL) AS rating
+        (SELECT ROUND(AVG(rating)::numeric, 1) FROM orders WHERE courier_id = u.id AND rating IS NOT NULL) AS rating,
+        (SELECT COUNT(*) FROM orders WHERE courier_id = u.id AND status = 'delivered') AS done,
+        EXISTS (SELECT 1 FROM courier_documents d JOIN courier_applications a ON a.id = d.application_id WHERE a.user_id = u.id AND a.status = 'approved' AND d.kind = 'photo') AS has_photo
       FROM users u WHERE u.id = ANY(${ids}::uuid[])`;
     cs.forEach((c) => (map[c.id] = c));
   }
@@ -410,6 +412,7 @@ async function enrich(rows: Row[], viewer: Row) {
       const live = o.status !== "delivered" && o.status !== "cancelled";
       out.courier = { id: c.id, name: c.name || "Livreur WunaGo", phone: live || viewer.role === "admin" ? c.phone : null,
         vehicle: (c.courier || {}).vehicle || o.vehicle, plate: (c.courier || {}).plate || null, rating: c.rating == null ? null : Number(c.rating),
+        deliveries: Number(c.done || 0), hasPhoto: live && !!c.has_photo,
         pos: live && c.pos_lat != null ? { lat: c.pos_lat, lng: c.pos_lng, at: new Date(c.pos_at).getTime() } : null };
     }
     out.proofName = o.proof_name || null;
@@ -778,8 +781,8 @@ async function confirmLink(l: Row) {
   await db().sql`UPDATE delivery_links SET order_id = ${j.order.id}, price_net = ${j.order.price.net} WHERE id = ${l.id}`;
   return { res, order: j.order, creator };
 }
-async function linkCreate(req: Request, user: Row) {
-  const b = await body(req);
+async function linkCreate(req: Request, user: Row) { return linkCreateFrom(await body(req), user, null); }
+async function linkCreateFrom(b: Row, user: Row, batchId: string | null) {
   if (!DIR_OK(b.direction)) return fail(400, "Choisissez : envoyer ou recevoir.");
   const phone = normalizePhone(b.phone);
   if (!phone) return fail(400, "Numéro invalide : 9 chiffres commençant par 6.");
@@ -798,10 +801,10 @@ async function linkCreate(req: Request, user: Row) {
   const pm = payer === "me" && (PAY_METHODS as readonly string[]).includes(b.paymentMethod) ? b.paymentMethod : "cash";
   const size = LINK_SIZES[b.size] ? b.size : "small";
   const active = (await db().sql`SELECT COUNT(*) AS n FROM delivery_links WHERE user_id = ${user.id} AND status IN ('waiting_place','waiting_confirm') AND expires_at > NOW()`)[0].n;
-  if (Number(active) >= 30) return fail(429, "Trop de liens en attente : annulez-en quelques-uns.");
-  const rows = await db().sql`INSERT INTO delivery_links (token, user_id, direction, contact_phone, contact_name, mine, payer, payment_method, size, note, expires_at)
+  if (Number(active) >= (batchId ? 60 : 30)) return fail(429, "Trop de liens en attente : annulez-en quelques-uns.");
+  const rows = await db().sql`INSERT INTO delivery_links (token, user_id, direction, contact_phone, contact_name, mine, payer, payment_method, size, note, expires_at, batch_id)
     VALUES (${randomBytes(9).toString("base64url")}, ${user.id}, ${b.direction}, ${phone}, ${String(b.name || "").trim().slice(0, 60)}, ${JSON.stringify(mine)}::jsonb,
-      ${payer}, ${pm}, ${size}, ${String(b.note || "").trim().slice(0, 300)}, NOW() + ${String(TARIFS.lienValiditeH) + " hours"}::interval) RETURNING *`;
+      ${payer}, ${pm}, ${size}, ${String(b.note || "").trim().slice(0, 300)}, NOW() + ${String(TARIFS.lienValiditeH) + " hours"}::interval, ${batchId}) RETURNING *`;
   return json({ link: linkOut(rows[0]) }, 201);
 }
 async function linkRoutes(req: Request, user: Row, path: string, m: string): Promise<Response | null> {
@@ -831,7 +834,7 @@ async function linkRoutes(req: Request, user: Row, path: string, m: string): Pro
 async function publicLink(token: string) {
   const l = (await db().sql`SELECT * FROM delivery_links WHERE token = ${token}`)[0];
   if (!l) return null;
-  const c = (await db().sql`SELECT name FROM users WHERE id = ${l.user_id}`)[0] || {};
+  const c = (await db().sql`SELECT u.name, mm.name AS shop FROM users u LEFT JOIN merchants mm ON mm.user_id = u.id WHERE u.id = ${l.user_id}`)[0] || {};
   let order = null;
   if (l.order_id) {
     const o = (await db().sql`SELECT code, status, track_token, delivery_code, price_net FROM orders WHERE id = ${l.order_id}`)[0];
@@ -841,7 +844,7 @@ async function publicLink(token: string) {
   const out = linkOut(l), mine = l.mine || {};
   let closed = false;
   if (l.other && l.status === "waiting_confirm") { const q = linkQuote(l, l.other); closed = !!q.closed; out.price = q.net; }
-  return { l, view: { direction: l.direction, from: String(c.name || "Un client WunaGo"), contactName: l.contact_name, payer: l.payer, size: l.size, note: l.note,
+  return { l, view: { direction: l.direction, from: String(c.shop || c.name || "Un client WunaGo"), merchant: !!c.shop, contactName: l.contact_name, payer: l.payer, size: l.size, note: l.note,
     mineArea: mine.code ? String(mine.text || "").split(" · ")[0] : mine.text, status: out.status, other: out.other, price: out.price, closed, order } };
 }
 async function linkPlace(token: string, b: Row) {
@@ -899,8 +902,12 @@ async function publicTrack(token: string) {
   const live = o.status !== "delivered" && o.status !== "cancelled";
   let courier = null;
   if (o.courier_id) {
-    const c = (await db().sql`SELECT name, phone, courier, pos_lat, pos_lng, pos_at FROM users WHERE id = ${o.courier_id}`)[0];
+    const c = (await db().sql`SELECT name, phone, courier, pos_lat, pos_lng, pos_at,
+      (SELECT ROUND(AVG(rating)::numeric, 1) FROM orders WHERE courier_id = users.id AND rating IS NOT NULL) AS rating,
+      EXISTS (SELECT 1 FROM courier_documents d JOIN courier_applications a ON a.id = d.application_id WHERE a.user_id = users.id AND a.status = 'approved' AND d.kind = 'photo') AS has_photo
+      FROM users WHERE id = ${o.courier_id}`)[0];
     if (c) courier = { name: String(c.name || "Livreur").split(" ")[0], vehicle: (c.courier || {}).vehicle || o.vehicle, plate: (c.courier || {}).plate || null,
+      rating: c.rating == null ? null : Number(c.rating), hasPhoto: live && !!c.has_photo,
       phone: live ? c.phone : null, pos: live && c.pos_lat != null ? { lat: c.pos_lat, lng: c.pos_lng, at: new Date(c.pos_at).getTime() } : null };
   }
   const d = o.details || {};
@@ -908,9 +915,11 @@ async function publicTrack(token: string) {
   const crw = o.courier_id ? (await db().sql`SELECT courier FROM users WHERE id = ${o.courier_id}`)[0] : null;
   const courierBasic = !!(crw && crw.courier && crw.courier.basic);
   /* qui remet le colis au départ : la personne indiquée (« Recevoir de… »), sinon le client qui a commandé */
-  const sender = (d.pickupContact && d.pickupContact.name) || owner.name || "";
+  const mer = (await db().sql`SELECT name FROM merchants WHERE user_id = ${o.user_id}`)[0];
+  const sender = (d.pickupContact && d.pickupContact.name) || (mer && mer.name) || owner.name || "";
   return json({ code: o.code, service: o.service, status: o.status, stage: o.stage, pickup: o.pickup, dropoff: o.dropoff, hints: d.hints || null,
-    sender, returned: !!d.returned, deliveredWith: o.delivered_with || null,
+    sender, merchant: !!mer && !d.pickupContact, returned: !!d.returned, deliveredWith: o.delivered_with || null,
+    recipientReady: d.recipientReady || null, canSayReady: live && o.service !== "ride" && o.stage < 2 && !d.returned,
     canConfirm: live && o.service !== "ride" && (o.stage === 2 || (!!o.courier_id && courierBasic)) && !d.returned && !!o.handover_code && (o.handover_tries || 0) < 5,
     canHandOver: live && o.service !== "ride" && o.stage === 0 && !!o.courier_id && !!d.pickupContact,
     triesLeft: Math.max(0, 5 - (o.handover_tries || 0)),
@@ -1560,6 +1569,18 @@ async function adminRoutes(req: Request, user: Row, path: string, m: string, url
       previous: num(prev[0]), byPayment: byPay.map(num), byService: byService.map(num), byDay: byDay.map(num), byHour: byHour.map(num), byZone: byZone.map(num),
       couriers: couriers.map(num), clients: clients.map(num), quartiers: quartiers.map(num), disputes: disputes.map(num), wallet: num(wallet[0]), timing: num(timing[0]), cancels: cancels.map(num) });
   }
+  if (path === "/admin/merchants" && m === "GET") {
+    const rows = await db().sql`
+      SELECT mm.*, u.phone, u.name AS owner,
+        (SELECT COUNT(*) FROM orders o WHERE o.user_id = mm.user_id AND o.service <> 'ride' AND o.status <> 'cancelled' AND o.created_at > NOW() - INTERVAL '30 days') AS sent30,
+        (SELECT COUNT(*) FROM orders o WHERE o.user_id = mm.user_id AND o.status = 'delivered' AND COALESCE(o.delivered_with, '') <> 'returned') AS delivered,
+        (SELECT COUNT(*) FROM orders o WHERE o.user_id = mm.user_id AND o.details ? 'returned') AS returned,
+        (SELECT MAX(created_at) FROM orders o WHERE o.user_id = mm.user_id) AS last
+      FROM merchants mm JOIN users u ON u.id = mm.user_id WHERE u.deleted_at IS NULL ORDER BY sent30 DESC, mm.created_at DESC LIMIT 300`;
+    return json({ merchants: rows.map((x) => { const d = Number(x.delivered), r = Number(x.returned);
+      return { userId: x.user_id, name: x.name, kind: x.kind, area: x.area, placeCode: x.place_code, phone: x.phone, owner: x.owner, sent30: Number(x.sent30),
+        delivered: d, returned: r, successRate: d + r ? Math.round((d / (d + r)) * 100) : null, last: x.last ? new Date(x.last).getTime() : null, createdAt: new Date(x.created_at).getTime() }; }) });
+  }
   if (path === "/admin/clients" && m === "GET") {
     const q = (url.searchParams.get("q") || "").trim();
     const rows = await db().sql`
@@ -1570,6 +1591,124 @@ async function adminRoutes(req: Request, user: Row, path: string, m: string, url
     return json({ clients: rows.map((c) => ({ id: c.id, name: c.name, phone: c.phone, wallet: c.wallet_balance, orders: Number(c.orders), createdAt: new Date(c.created_at).getTime() })) });
   }
   return fail(404, "Route inconnue.");
+}
+
+
+/* ---------- espace commerçants (livraison seulement : jamais de vente ni d'argent des marchandises) ---------- */
+const MERCHANT_KINDS = ["shop", "restaurant", "ecommerce", "pharmacy", "other"];
+function merchantOut(x: Row | null) {
+  return x ? { name: x.name, kind: x.kind, area: x.area || "", placeCode: x.place_code || null, createdAt: new Date(x.created_at).getTime() } : null;
+}
+async function merchantOf(userId: string) { return (await db().sql`SELECT * FROM merchants WHERE user_id = ${userId}`)[0] || null; }
+async function merchantStats(userId: string) {
+  const month = (await db().sql`
+    SELECT COUNT(*) FILTER (WHERE status <> 'cancelled') AS sent,
+      COUNT(*) FILTER (WHERE status = 'delivered' AND COALESCE(delivered_with, '') <> 'returned') AS delivered,
+      COUNT(*) FILTER (WHERE details ? 'returned') AS returned,
+      COUNT(*) FILTER (WHERE status NOT IN ('delivered', 'cancelled')) AS active,
+      COALESCE(SUM(price_net) FILTER (WHERE status = 'delivered'), 0) AS spent
+    FROM orders WHERE user_id = ${userId} AND service <> 'ride'
+      AND created_at >= (date_trunc('month', NOW() AT TIME ZONE 'Africa/Douala') AT TIME ZONE 'Africa/Douala')`)[0];
+  const all = (await db().sql`
+    SELECT COUNT(*) FILTER (WHERE status = 'delivered' AND COALESCE(delivered_with, '') <> 'returned') AS delivered,
+      COUNT(*) FILTER (WHERE details ? 'returned') AS returned
+    FROM orders WHERE user_id = ${userId} AND service <> 'ride'`)[0];
+  const top = await db().sql`
+    SELECT details->'recipient'->>'phone' AS phone, MAX(details->'recipient'->>'name') AS name, COUNT(*) AS n, MAX(created_at) AS last
+    FROM orders WHERE user_id = ${userId} AND service <> 'ride' AND status <> 'cancelled'
+      AND COALESCE(details->'recipient'->>'phone', '') <> '' AND details->'recipient'->>'phone' <> ${""}
+    GROUP BY 1 ORDER BY n DESC, last DESC LIMIT 8`;
+  const waiting = (await db().sql`SELECT COUNT(*) AS n FROM delivery_links WHERE user_id = ${userId} AND status IN ('waiting_place','waiting_confirm') AND expires_at > NOW()`)[0].n;
+  const d = Number(all.delivered), r = Number(all.returned);
+  return {
+    month: { sent: Number(month.sent), delivered: Number(month.delivered), returned: Number(month.returned), active: Number(month.active), spent: Number(month.spent) },
+    successRate: d + r ? Math.round((d / (d + r)) * 100) : null, deliveredAll: d, returnedAll: r, waitingLinks: Number(waiting),
+    frequent: top.map((t) => ({ phone: t.phone, name: t.name || "", count: Number(t.n) })),
+  };
+}
+async function merchantRoutes(req: Request, user: Row, path: string, m: string): Promise<Response | null> {
+  if (!path.startsWith("/merchant")) return null;
+  if (path === "/merchant" && m === "GET") {
+    const x = await merchantOf(user.id);
+    return json({ merchant: merchantOut(x), stats: x ? await merchantStats(user.id) : null });
+  }
+  if (path === "/merchant" && m === "PUT") {
+    const b = await body(req);
+    const name = String(b.name || "").trim().slice(0, 60);
+    if (name.length < 2) return fail(400, "Indiquez le nom de votre commerce.");
+    const kind = MERCHANT_KINDS.includes(b.kind) ? b.kind : "shop";
+    let code: string | null = null;
+    if (b.placeCode) {
+      const p = await findPlace(b.placeCode);
+      if (!p || p.user_id !== user.id) return fail(400, "Choisissez un de vos Codes WunaGo.");
+      code = p.code;
+    }
+    const area = String(b.area || "").trim().slice(0, 60);
+    const rows = await db().sql`INSERT INTO merchants (user_id, name, kind, area, place_code) VALUES (${user.id}, ${name}, ${kind}, ${area}, ${code})
+      ON CONFLICT (user_id) DO UPDATE SET name = EXCLUDED.name, kind = EXCLUDED.kind, area = EXCLUDED.area, place_code = EXCLUDED.place_code, updated_at = NOW() RETURNING *`;
+    return json({ merchant: merchantOut(rows[0]), stats: await merchantStats(user.id) });
+  }
+  if (path === "/merchant" && m === "DELETE") {
+    await db().sql`DELETE FROM merchants WHERE user_id = ${user.id}`;
+    return json({ ok: true });
+  }
+  if (path === "/merchant/batch" && m === "POST") {
+    const x = await merchantOf(user.id);
+    if (!x) return fail(403, "Créez d'abord votre espace commerçant.");
+    const b = await body(req);
+    const items = Array.isArray(b.items) ? b.items.filter((i: Row) => i && String(i.phone || "").trim()) : [];
+    if (!items.length) return fail(400, "Ajoutez au moins un destinataire.");
+    if (items.length > 20) return fail(400, "20 envois au maximum à la fois.");
+    const batchId = (await db().sql`SELECT gen_random_uuid() AS id`)[0].id;
+    const base = { direction: "send", mineCode: b.mineCode || x.place_code || null, mineGeo: b.mineGeo, mineHint: b.mineHint, payer: b.payer, paymentMethod: b.paymentMethod };
+    const results: Row[] = [];
+    for (const it of items) {
+      const res = await linkCreateFrom({ ...base, phone: it.phone, name: it.name, note: it.note || b.note || "", size: it.size || b.size }, user, batchId);
+      const j: Row = await res.json();
+      results.push(res.status === 201 ? { ok: true, link: j.link } : { ok: false, phone: String(it.phone), name: String(it.name || ""), error: j.error });
+    }
+    return json({ batchId, results, created: results.filter((r) => r.ok).length }, 201);
+  }
+  return null;
+}
+/* reçu de livraison public (après livraison seulement) */
+async function publicReceipt(token: string) {
+  const o = (await db().sql`SELECT * FROM orders WHERE track_token = ${token}`)[0];
+  if (!o || o.service === "ride") return fail(404, "Reçu introuvable.");
+  if (o.status !== "delivered") return fail(409, "Le reçu sera disponible une fois le colis livré.");
+  const d = o.details || {};
+  const mer = await merchantOf(o.user_id);
+  const owner = (await db().sql`SELECT name FROM users WHERE id = ${o.user_id}`)[0] || {};
+  const c = o.courier_id ? (await db().sql`SELECT name, courier FROM users WHERE id = ${o.courier_id}`)[0] : null;
+  const first = (s: any) => String(s || "").trim().split(" ")[0];
+  return json({ code: o.code, sender: mer ? mer.name : first(owner.name) || "Client WunaGo", merchant: !!mer,
+    pickup: String(o.pickup || "").split(" · ")[0], dropoff: String(o.dropoff || "").split(" · ")[0],
+    recipient: first((d.recipient || {}).name) || null, createdAt: new Date(o.created_at).getTime(), deliveredAt: o.delivered_at ? new Date(o.delivered_at).getTime() : null,
+    deliveredWith: o.delivered_with || null, returned: !!d.returned, proofName: o.proof_name || null,
+    courier: c ? { name: first(c.name) || "Livreur", vehicle: (c.courier || {}).vehicle || o.vehicle } : null });
+}
+/* photo du livreur (photo 4×4 de son dossier), visible pendant la course seulement */
+async function courierPhoto(o: Row) {
+  if (!o || !o.courier_id || o.status === "delivered" || o.status === "cancelled") return fail(404, "Photo indisponible.");
+  const doc = (await db().sql`SELECT d.mime, d.data FROM courier_documents d JOIN courier_applications a ON a.id = d.application_id
+    WHERE a.user_id = ${o.courier_id} AND a.status = 'approved' AND d.kind = 'photo'`)[0];
+  if (!doc) return fail(404, "Photo indisponible.");
+  const bin = Uint8Array.from(atob(doc.data), (ch) => ch.charCodeAt(0));
+  return new Response(bin, { headers: { "content-type": doc.mime, "cache-control": "private, max-age=600" } });
+}
+/* le destinataire indique s'il est disponible avant que le livreur ne parte vers lui */
+async function recipientReady(token: string, b: Row) {
+  const o = (await db().sql`SELECT * FROM orders WHERE track_token = ${token}`)[0];
+  if (!o) return fail(404, "Lien de suivi introuvable.");
+  if (o.status === "delivered" || o.status === "cancelled" || o.service === "ride") return fail(409, "Cette livraison est terminée.");
+  const state = b.state === "later" ? "later" : "now";
+  const ready = { state, at: Date.now(), note: String(b.note || "").trim().slice(0, 120) };
+  await db().sql`UPDATE orders SET details = COALESCE(details, '{}'::jsonb) || ${JSON.stringify({ recipientReady: ready })}::jsonb, updated_at = NOW() WHERE id = ${o.id}`;
+  const who = String(((o.details || {}).recipient || {}).name || "Le destinataire").split(" ")[0];
+  const msg = state === "now" ? who + " est disponible pour recevoir le colis." : who + " sera disponible plus tard" + (ready.note ? " : " + ready.note : ".");
+  const ids = [o.user_id, o.courier_id].filter(Boolean);
+  push(ids, { title: o.code + " · Destinataire", body: msg, url: "/#commandes", tag: "ready-" + o.id }, "order");
+  return json({ ok: true, recipientReady: ready });
 }
 
 /* ---------- routeur ---------- */
@@ -1600,7 +1739,9 @@ const apiHandler = async (req: Request, context: any): Promise<Response> => {
     if (pc && m === "GET") {
       const p = await findPlace(pc[1]);
       if (!p) return fail(404, "Ce Code WunaGo n'existe pas.");
-      return json({ code: p.code, name: String(p.owner_name || "").split(" ")[0] || "", label: p.label, placeName: p.place_name, area: p.area });
+      const mer = (await db().sql`SELECT name, kind FROM merchants WHERE user_id = ${p.user_id} AND place_code = ${p.code}`)[0];
+      return json({ code: p.code, name: String(p.owner_name || "").split(" ")[0] || "", label: p.label, placeName: p.place_name, area: p.area,
+        merchant: mer ? { name: mer.name, kind: mer.kind } : null });
     }
     const ln = path.match(/^\/lien\/([A-Za-z0-9_-]{8,40})(?:\/(place|confirm))?$/);
     if (ln) {
@@ -1617,6 +1758,11 @@ const apiHandler = async (req: Request, context: any): Promise<Response> => {
       if (!(o.details || {}).pickupContact) return fail(403, "C'est l'expéditeur qui confirme la remise.");
       return await handOver(o, (o.details.pickupContact.name || "L'expéditeur"));
     }
+    const rd = path.match(/^\/suivi\/([A-Za-z0-9_-]{10,40})\/(ready|photo)$/);
+    if (rd && rd[2] === "ready" && m === "POST") return await recipientReady(rd[1], await body(req));
+    if (rd && rd[2] === "photo" && m === "GET") return await courierPhoto((await db().sql`SELECT * FROM orders WHERE track_token = ${rd[1]}`)[0]);
+    const rq = path.match(/^\/recu\/([A-Za-z0-9_-]{10,40})$/);
+    if (rq && m === "GET") return await publicReceipt(rq[1]);
     const rc = path.match(/^\/suivi\/([A-Za-z0-9_-]{10,40})\/receive$/);
     if (rc && m === "POST") return await confirmReceipt(rc[1], await body(req));
     if (path === "/auth/verify" && m === "POST") return await authVerify(req);
@@ -1628,6 +1774,13 @@ const apiHandler = async (req: Request, context: any): Promise<Response> => {
     if (path === "/me" && m === "GET") return json({ user: userOut(user) });
     const pr = await placesRoutes(req, user, path, m); if (pr) return pr;
     const lr = await linkRoutes(req, user, path, m); if (lr) return lr;
+    const mr = await merchantRoutes(req, user, path, m); if (mr) return mr;
+    const ph = path.match(/^\/orders\/([0-9a-f-]{36})\/courier-photo$/);
+    if (ph && m === "GET") {
+      const o = (await db().sql`SELECT * FROM orders WHERE id = ${ph[1]}`)[0];
+      if (!o || (o.user_id !== user.id && user.role !== "admin")) return fail(404, "Photo indisponible.");
+      return await courierPhoto(o);
+    }
     const apr = await applicationRoutes(req, user, path, m, url); if (apr) return apr;
     const cr = await courierRoutes(req, user, path, m); if (cr) return cr;
     const ad = await adminRoutes(req, user, path, m, url); if (ad) return ad;

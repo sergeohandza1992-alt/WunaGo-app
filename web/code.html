@@ -51,6 +51,20 @@
     fetch("/api/code/" + code).then(function (r) { return r.json().then(function (j) { if (!r.ok) throw new Error(j.error || "Code introuvable."); return j; }); })
       .then(function (d) {
         var place = (d.placeName ? d.placeName + " · " : "") + d.area;
+        var M = d.merchant, KIND = { shop: "Boutique", restaurant: "Restaurant", ecommerce: "E-commerce", pharmacy: "Pharmacie", other: "Commerce" };
+        if (M) {
+          document.title = M.name + " — livré par WunaGo";
+          card.innerHTML = '<div class="brand">' + logo + 'WunaGo</div><span class="lbl">' + esc(KIND[M.kind] || "Commerce") + ' · livré par WunaGo</span>' +
+            '<div class="who" style="font-size:24px;letter-spacing:-.5px">' + esc(M.name) + '</div>' +
+            '<div class="qr">' + q.createSvgTag({ cellSize: 6, margin: 1, scalable: true }) + '</div><div class="code" style="font-size:30px">' + code + '</div>' +
+            '<p class="muted">' + esc(place) + ', Douala</p>' +
+            '<div class="band">Commandez chez nous · livré par WunaGo</div>' +
+            '<a class="btn ink noprint" href="/#code=' + code + '">Venir ou faire livrer ici avec WunaGo</a>' +
+            '<ol class="steps noprint"><li>Commandez auprès de ' + esc(M.name) + ' (téléphone, WhatsApp, sur place).</li><li>Vous recevez un lien WunaGo : choisissez où et quand recevoir.</li><li>Le livreur vous remet le colis contre le code affiché sur son téléphone.</li></ol>' +
+            '<button class="btn out noprint" onclick="window.print()">Imprimer l\'autocollant</button>';
+          if (params.get("print") === "1") setTimeout(function () { window.print(); }, 400);
+          return;
+        }
         document.title = code + " — Code WunaGo";
         card.innerHTML = '<div class="brand">' + logo + 'WunaGo</div><span class="lbl">Adresse WunaGo' + (d.label ? " · " + esc(d.label) : "") + '</span>' +
           '<div class="code">' + code + '</div><div class="qr">' + q.createSvgTag({ cellSize: 6, margin: 1, scalable: true }) + '</div>' +

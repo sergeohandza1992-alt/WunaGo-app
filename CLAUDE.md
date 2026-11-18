@@ -61,8 +61,14 @@ Porteur du projet : Serge-Venant OHANDZA. Langue de travail et de l'interface : 
   **Livreurs sans smartphone / sans données** : profil `courier.basic` + code badge fixe `courier.pin` (devient `handover_code` à l'attribution) ;
   l'équipe attribue et appelle ; l'expéditeur confirme « J'ai remis le colis » (`POST /api/orders/:id/handed`, ou `/api/suivi/:token/handed` pour la
   personne au départ) ; le destinataire tape le code du badge. Page ultra-légère sans JavaScript : `/l` → `/api/lite` (`server/lite.mts`, cookie `wgl`).
+  **Espace commerçants** (table `merchants`, `GET/PUT/DELETE /api/merchant`) : boutique, restaurant, e-commerce, pharmacie ; Code WunaGo du commerce
+  = départ par défaut ; envoi groupé (`POST /api/merchant/batch`, 20 liens max, `delivery_links.batch_id`, liste collée, « Repas chaud »), statistiques du mois,
+  taux de réussite (livrés / livrés + retours), clients fréquents ; autocollant `code.html?c=…&shop=1` ; nom du commerce sur le lien et le suivi ;
+  backoffice › Commerçants (`GET /api/admin/merchants`). Reçu de livraison public `web/recu.html?t=<track_token>` (`GET /api/recu/:token`, après livraison,
+  sans prix ni vente). Photo 4×4 du livreur validé visible pendant la course (`GET /api/suivi/:token/photo`, `courier.hasPhoto`, nombre de livraisons).
+  « Je suis disponible » / « Plus tard » du destinataire sur le suivi (`POST /api/suivi/:token/ready`, `details.recipientReady`, notifié au client et au livreur).
   Version affichée : `APP_VERSION` (app.js) et pied du menu (admin.js), à changer avec `CACHE` (sw.js).
-- Tests : `inscription-livreur` (dossier, lecture des pièces, contrat, validation, agence), `sans-donnees` (badge, remise, page légère), `parcours-simple` (colis et trajet en un écran, bilan livreur), `envoi-lien` (envoi par lien, remise contrôlée, accueil recentré), `livraison2` (multi-acteurs : backoffice, livreur, clients, messagerie, notifications), `tarifs` (grille, sans navigateur), `services` (parcours dédiés, profil), `parcours` (mode local), `google-maps` (API Google simulée), `ecrans-compte` (étape 3), `serveur` (API + Postgres local
+- Tests : `espace-commercants` (profil, envoi groupé, stats, reçu, photo livreur, disponibilité), `inscription-livreur` (dossier, lecture des pièces, contrat, validation, agence), `sans-donnees` (badge, remise, page légère), `parcours-simple` (colis et trajet en un écran, bilan livreur), `envoi-lien` (envoi par lien, remise contrôlée, accueil recentré), `livraison2` (multi-acteurs : backoffice, livreur, clients, messagerie, notifications), `tarifs` (grille, sans navigateur), `services` (parcours dédiés, profil), `parcours` (mode local), `google-maps` (API Google simulée), `ecrans-compte` (étape 3), `serveur` (API + Postgres local
   via `tests/dev-server.mjs`). Les tests décalent l'heure à midi la nuit (`tests/horloge.mjs`). Lancer : `npm install && npx playwright install chromium && npm test`. Serveur local : `npm run dev`.
 - Mise en ligne : **Cloudflare Workers** (offre gratuite, `wrangler.toml`) relié au dépôt GitHub : chaque fusion dans `main` publie
   automatiquement. Base : **Neon** (Postgres gratuit). Secrets Cloudflare : `DATABASE_URL`, `ADMIN_PHONES`. Netlify (crédits épuisés en nov. 2026) abandonné ;
@@ -72,12 +78,13 @@ Porteur du projet : Serge-Venant OHANDZA. Langue de travail et de l'interface : 
 ## Identité visuelle « Wouri » (à respecter strictement, depuis la v23)
 Promesse : **We make it possible** — « Livrer au bon endroit, au bon moment, à la bonne personne ».
 Bleu nuit `#0B1F3A` (encre, écrans d'entrée, en-têtes, cartes fortes), turquoise `#1FD1B2` (actions, logo, repères),
-menthe pâle `#DDF8F2` (bandeaux doux), fond `#F5F8FA`, cartes blanches filet `rgba(11,31,58,.08)`.
-Équilibre 60/30/10 : fond clair majoritaire, bleu nuit pour les zones fortes, turquoise réservé aux actions — **jamais de grand aplat turquoise**.
+menthe pâle `#DDF8F2` (bandeaux doux), gris très clair `#F3F6F9` (blocs secondaires), fond `#F7F9FB`, cartes blanches filet `rgba(11,31,58,.08)`.
+Équilibre : **bleu nuit = 70–80 % de la couleur** (boutons principaux, en-têtes, écrans d'entrée, cartes fortes), beaucoup de blanc et de gris très clair
+pour aérer, turquoise en touches (logo, accents, boutons posés sur fond bleu nuit = `btn-accent`) — **jamais de grand aplat turquoise**.
 Logo : épingle + carré (épingle bleu nuit / carré turquoise sur fond clair ; inversé sur fond bleu nuit). Icônes : `web/icons/` (fond bleu nuit, vague du Wouri).
 Polices : Manrope (texte), IBM Plex Mono (données, codes, libellés en capitales).
 Rayons : boutons 17 px, cartes 16–18 px, pilules 99 px. Zones tactiles ≥ 44 px.
-(Les variables CSS gardent les noms historiques `--yellow` / `--ink` / `btn-yellow` : `--yellow` = turquoise.)
+(Noms historiques : `--yellow` = turquoise ; `btn-yellow` et `btn-ink` = bleu nuit texte blanc ; `btn-accent` = turquoise, pour fond bleu nuit.)
 
 ## Règles métier
 - **Grille tarifaire unique : `web/pricing.mjs` (objet `TARIFS`)**, utilisée par l'app ET le serveur (le serveur recalcule et fait foi).

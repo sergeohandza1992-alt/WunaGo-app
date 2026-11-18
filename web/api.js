@@ -35,6 +35,7 @@
     get: function (p) { return call("GET", p); },
     post: function (p, b) { return call("POST", p, b || {}); },
     patch: function (p, b) { return call("PATCH", p, b || {}); },
+    put: function (p, b) { return call("PUT", p, b || {}); },
     del: function (p) { return call("DELETE", p); }
   };
 })();

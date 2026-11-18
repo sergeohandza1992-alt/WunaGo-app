@@ -1,0 +1,68 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <meta name="robots" content="noindex" />
+  <meta name="theme-color" content="#0B1F3A" />
+  <title>Reçu de livraison · WunaGo</title>
+  <link rel="icon" href="icons/icon-192.png" />
+  <style>
+    @font-face { font-family: "Manrope"; src: url("fonts/Manrope-200-800.woff2") format("woff2"); font-weight: 200 800; font-display: swap; }
+    @font-face { font-family: "IBM Plex Mono"; src: url("fonts/IBMPlexMono-500.woff2") format("woff2"); font-weight: 400 600; font-display: swap; }
+    :root { --y: #1FD1B2; --k: #0B1F3A; --bg: #F7F9FB; --hair: rgba(11,31,58,.08); --mono: "IBM Plex Mono", ui-monospace, monospace; }
+    * { box-sizing: border-box; }
+    body { margin: 0; background: var(--bg); color: var(--k); font-family: "Manrope", system-ui, sans-serif; -webkit-font-smoothing: antialiased; }
+    .wrap { max-width: 480px; margin: 0 auto; min-height: 100vh; display: flex; flex-direction: column; }
+    header { background: var(--k); color: #fff; padding: calc(16px + env(safe-area-inset-top, 0px)) 20px 16px; display: flex; align-items: center; gap: 10px; }
+    header b { font-weight: 800; font-size: 20px; letter-spacing: -.5px; }
+    header span { margin-left: auto; font-family: var(--mono); font-size: 11px; color: var(--y); }
+    main { padding: 20px; display: flex; flex-direction: column; gap: 14px; }
+    h1 { margin: 0; font-weight: 800; font-size: 22px; letter-spacing: -.6px; }
+    .lbl { font-family: var(--mono); font-size: 10px; letter-spacing: .07em; text-transform: uppercase; color: rgba(11,31,58,.55); }
+    .card { background: #fff; border: 1px solid var(--hair); border-radius: 16px; padding: 16px; display: flex; flex-direction: column; gap: 12px; }
+    .line { display: flex; justify-content: space-between; gap: 12px; align-items: baseline; }
+    .line b { font-weight: 700; font-size: 14px; text-align: right; }
+    .ok { display: flex; align-items: center; gap: 10px; background: #DDF8F2; border-radius: 14px; padding: 12px 14px; font-weight: 800; font-size: 14px; }
+    .ok i { width: 28px; height: 28px; border-radius: 99px; background: var(--k); color: var(--y); display: inline-flex; align-items: center; justify-content: center; font-style: normal; flex: none; }
+    .muted { font-size: 12.5px; line-height: 1.5; color: rgba(11,31,58,.7); margin: 0; }
+    .btn { min-height: 48px; border-radius: 17px; border: 0; display: flex; align-items: center; justify-content: center; font: inherit; font-weight: 700; font-size: 14px; text-decoration: none; cursor: pointer; }
+    .ink { background: var(--k); color: #fff; } .out { background: #fff; color: var(--k); border: 1.5px solid rgba(11,31,58,.12); }
+    .err { text-align: center; padding: 60px 20px; }
+    @media print { .noprint { display: none !important; } body { background: #fff; } .card { border-color: rgba(11,31,58,.3); } }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <header><svg width="22" height="28" viewBox="0 0 60 76" aria-hidden="true"><path d="M30 4C14.5 4 4 15.4 4 29.5C4 47 30 72 30 72C30 72 56 47 56 29.5C56 15.4 45.5 4 30 4Z" fill="#1FD1B2"/><rect x="20" y="20" width="20" height="20" rx="3" fill="#0B1F3A"/></svg><b>WunaGo</b><span id="code"></span></header>
+    <main id="main"><p class="muted">Chargement du reçu…</p></main>
+  </div>
+  <footer><p style="margin:10px auto 26px;max-width:420px;padding:0 20px;text-align:center;font:600 11.5px/1.5 Manrope,system-ui,sans-serif;color:rgba(11,31,58,.6)"><span style="display:block;font:600 10px 'IBM Plex Mono',monospace;letter-spacing:.12em;color:#0B1F3A">WE MAKE IT POSSIBLE</span>Livrer au bon endroit, au bon moment, à la bonne personne.</p></footer>
+  <script>
+  (function () {
+    var token = new URLSearchParams(location.search).get("t") || "";
+    var main = document.getElementById("main");
+    var HOW = { recipient: "Code tapé par le destinataire", code: "Code de remise donné au livreur", photo: "Nom et photo de remise" };
+    var VEH = { bike: "Moto", tricycle: "Tricycle", van: "Camionnette", car: "Voiture" };
+    function esc(s) { return String(s == null ? "" : s).replace(/[&<>"']/g, function (c) { return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]; }); }
+    function when(ms) { return ms ? new Date(ms).toLocaleString("fr-FR", { timeZone: "Africa/Douala", day: "2-digit", month: "long", year: "numeric", hour: "2-digit", minute: "2-digit" }) : "—"; }
+    fetch("/api/recu/" + encodeURIComponent(token), { cache: "no-store" }).then(function (r) { return r.json().then(function (j) { if (!r.ok) throw new Error(j.error || "Reçu introuvable."); return j; }); })
+      .then(function (d) {
+        document.getElementById("code").textContent = d.code;
+        var row = function (k, v) { return '<div class="line"><span class="lbl">' + esc(k) + '</span><b>' + esc(v) + '</b></div>'; };
+        main.innerHTML = '<div><div class="lbl">Reçu de livraison</div><h1>' + (d.returned ? "Colis rendu à l'expéditeur" : "Colis livré") + '</h1></div>' +
+          (d.returned ? '' : '<div class="ok"><i>✓</i>' + esc(d.recipient ? "Remis à " + d.recipient : "Remis au destinataire") + '</div>') +
+          '<div class="card">' + row("Commande", d.code) + row("Expéditeur", d.sender) + row("Départ", d.pickup) + row("Arrivée", d.dropoff) +
+            row("Demandée le", when(d.createdAt)) + row(d.returned ? "Rendue le" : "Livrée le", when(d.deliveredAt)) +
+            (d.returned ? '' : row("Preuve de remise", HOW[d.deliveredWith] || "Confirmée par le livreur")) +
+            (d.courier ? row("Livreur", d.courier.name + (VEH[d.courier.vehicle] ? " · " + VEH[d.courier.vehicle] : "")) : '') + '</div>' +
+          '<p class="muted">Ce reçu atteste la livraison uniquement. WunaGo ne vend pas les articles et ne perçoit pas leur paiement : la vente reste entre l\'expéditeur et le destinataire.</p>' +
+          '<button class="btn out noprint" onclick="window.print()">Imprimer ou enregistrer en PDF</button>' +
+          '<a class="btn ink noprint" href="/">Envoyer un colis avec WunaGo</a>';
+      }).catch(function (e) {
+        main.innerHTML = '<div class="err"><h1>Reçu indisponible</h1><p class="muted">' + esc(e.message) + '</p></div>';
+      });
+  })();
+  </script>
+</body>
+</html>
