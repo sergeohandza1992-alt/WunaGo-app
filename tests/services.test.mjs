@@ -99,7 +99,7 @@ ok('Historique : filtre Pressing',await page.locator('[data-action="openOrder"]'
 
 // ---- Mon profil
 await page.click('[data-action="switchTab"][data-arg="wallet"]');
-await page.click('[data-action="openProfile"]');
+await page.click('[data-action="openMenu"]'); await page.waitForSelector('.drawer'); await page.click('.drawer [data-action="openProfile"]');
 await page.fill('[data-bind="profileName"]','Serge O.');
 await page.click('[data-action="saveProfile"]');
 await page.waitForTimeout(200);
