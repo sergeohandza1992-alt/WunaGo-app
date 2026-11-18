@@ -6,4 +6,8 @@ const shift = (off) => `(() => { const off = ${off}; if (!off) return; const R =
   class D extends R { constructor(...a) { if (a.length) super(...a); else super(R.now() + off); } static now() { return R.now() + off; } }
   globalThis.Date = D; })();`;
 export function fixNode() { if (OFFSET) (0, eval)(shift(OFFSET)); }
-export async function fixClock(ctx) { if (OFFSET) await ctx.addInitScript(shift(OFFSET)); }
+export async function fixClock(ctx) {
+  if (OFFSET) await ctx.addInitScript(shift(OFFSET));
+  /* les anciens tests couvrent aussi le pressing et les courses, masqués sur l'accueil : on les réaffiche */
+  await ctx.addInitScript(() => { if (window.WG_ALL_SERVICES === undefined) window.WG_ALL_SERVICES = true; });
+}

@@ -44,8 +44,12 @@ Porteur du projet : Serge-Venant OHANDZA. Langue de travail et de l'interface : 
   `POST /api/lien/:token/confirm`, paiement au livreur). `details.payBy`, `details.pickupContact`, `details.via = "link"`. WunaGo ne gère que la livraison,
   jamais la vente ni l'argent des marchandises. Retour à l'expéditeur (absent / refus) : étape livreur `return`, frais `TARIFS.retour` (50 % du transport),
   réglés par l'expéditeur (`details.returned`).
+  **Remise contrôlée** : code du livreur (`orders.handover_code`, visible par lui seul une fois en route) que le destinataire tape sur sa page de suivi
+  ou dans l'app (`POST /api/suivi/:token/receive`, 5 essais, `delivered_with = "recipient"`) ; secours : code de remise dicté (`delivery_code`) ou nom + photo.
+  « Ce qui va se passer » (suivi, lien), consignes livreur à chaque étape. **Accueil recentré** : colis + trajets (`SERVICES_ON` dans app.js) ;
+  pressing et courses masqués mais conservés (tests : `window.WG_ALL_SERVICES`, posé par `tests/horloge.mjs`).
   Version affichée : `APP_VERSION` (app.js) et pied du menu (admin.js), à changer avec `CACHE` (sw.js).
-- Tests : `livraison2` (multi-acteurs : backoffice, livreur, clients, messagerie, notifications), `tarifs` (grille, sans navigateur), `services` (parcours dédiés, profil), `parcours` (mode local), `google-maps` (API Google simulée), `ecrans-compte` (étape 3), `serveur` (API + Postgres local
+- Tests : `envoi-lien` (envoi par lien, remise contrôlée, accueil recentré), `livraison2` (multi-acteurs : backoffice, livreur, clients, messagerie, notifications), `tarifs` (grille, sans navigateur), `services` (parcours dédiés, profil), `parcours` (mode local), `google-maps` (API Google simulée), `ecrans-compte` (étape 3), `serveur` (API + Postgres local
   via `tests/dev-server.mjs`). Les tests décalent l'heure à midi la nuit (`tests/horloge.mjs`). Lancer : `npm install && npx playwright install chromium && npm test`. Serveur local : `npm run dev`.
 - Mise en ligne : **Cloudflare Workers** (offre gratuite, `wrangler.toml`) relié au dépôt GitHub : chaque fusion dans `main` publie
   automatiquement. Base : **Neon** (Postgres gratuit). Secrets Cloudflare : `DATABASE_URL`, `ADMIN_PHONES`. Netlify (crédits épuisés en nov. 2026) abandonné ;

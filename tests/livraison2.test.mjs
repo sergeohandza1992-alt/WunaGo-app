@@ -384,7 +384,7 @@ ok('Commande : le code remplit adresse, repère et destinataire',(await CLI.inpu
 for(let i=0;i<3;i++) await CLI.click('[data-action="orderNext"]');
 await CLI.click('[data-action="pickPay"][data-arg="cash"]');
 await CLI.click('[data-action="confirmPay"]');
-await CLI.waitForSelector("text=CODE DE REMISE");
+await CLI.waitForSelector("text=CODE DE SECOURS");
 const coded=(await CLI.evaluate(async()=>(await (await fetch('/api/orders',{headers:{authorization:'Bearer '+WAPI.token()}})).json()).orders))[0];
 ok('Commande enregistrée au point exact du code',coded.dropoff.includes(myCode)&&Math.abs(coded.dropoffGeo.lat-4.0921)<1e-6&&coded.details.recipient.phone==='699000004');
 await CLI.evaluate(async(id)=>fetch('/api/orders/'+id+'/cancel',{method:'POST',headers:{'content-type':'application/json',authorization:'Bearer '+WAPI.token()},body:JSON.stringify({reason:'Test'})}),coded.id);
@@ -412,7 +412,7 @@ await CLI.waitForSelector('[data-action="flashConfirm"]:not([disabled])',{timeou
 ok('Commande éclair : un seul écran, départ = ma position, prix affiché',/Envoyer · [\d\s\u202f]+ FCFA/.test(await CLI.locator('[data-action="flashConfirm"]').textContent())&&await CLI.isVisible('text=Ma position actuelle'));
 await shot(CLI,'22-commande-eclair');
 await CLI.click('[data-action="flashConfirm"]');
-await CLI.waitForSelector('text=CODE DE REMISE',{timeout:T});
+await CLI.waitForSelector('text=CODE DE SECOURS',{timeout:T});
 let fo=(await CLI.evaluate(async()=>(await (await fetch('/api/orders',{headers:{authorization:'Bearer '+WAPI.token()}})).json()).orders))[0];
 ok('Colis envoyé en 3 gestes (destinataire, repère, position exacte remplis)',fo.service==='parcel'&&fo.details.recipient.name==='Paul Ebode'&&fo.details.hints.dropoff==='Portail vert, 2e étage');
 await CLI.evaluate(async(id)=>fetch('/api/orders/'+id+'/cancel',{method:'POST',headers:{'content-type':'application/json',authorization:'Bearer '+WAPI.token()},body:JSON.stringify({reason:'Test'})}),fo.id);
