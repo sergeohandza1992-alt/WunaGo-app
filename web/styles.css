@@ -34,7 +34,7 @@
     --ink-soft: rgba(11,31,58,.55);
     --ink-faint: rgba(11,31,58,.35);
     --hair: rgba(11,31,58,.08);
-    --bg: #F5F8FA;
+    --bg: #F7F9FB;
     --card: #ffffff;
     --canvas: #06121F;
     --canvas-card: #10263F;
@@ -79,8 +79,9 @@
   }
   .btn:active { filter: brightness(.94); }
   .btn:disabled { opacity: .45; cursor: default; }
-  .btn-yellow { background: var(--yellow); color: var(--ink); }
-  .btn-ink { background: var(--ink); color: var(--yellow); }
+  .btn-yellow { background: var(--ink); color: #fff; }
+  .btn-accent { background: var(--yellow); color: var(--ink); }
+  .btn-ink { background: var(--ink); color: #fff; }
   .btn-outline { background: transparent; border: 1.5px solid var(--hair); color: var(--ink); }
 
   .backbtn {
@@ -121,7 +122,7 @@
   .tab-badge { position: absolute; top: 2px; left: 50%; margin-left: 5px; min-width: 17px; height: 17px; padding: 0 4px; border-radius: 99px; background: var(--ink); color: var(--yellow); font-family: var(--mono); font-weight: 600; font-size: 9.5px; display: flex; align-items: center; justify-content: center; }
   .unread { flex: none; min-width: 20px; height: 20px; padding: 0 6px; border-radius: 99px; background: var(--yellow); border: 1.5px solid var(--ink); font-family: var(--mono); font-weight: 600; font-size: 10px; display: flex; align-items: center; justify-content: center; }
   .bubble { max-width: 80%; background: #fff; border: 1px solid var(--hair); border-radius: 16px 16px 16px 5px; padding: 8px 11px 6px; font-size: 13.5px; line-height: 1.4; word-wrap: break-word; }
-  .bubble.me { background: var(--yellow); border-color: transparent; border-radius: 16px 16px 5px 16px; }
+  .bubble.me { background: #DDF8F2; border-color: transparent; border-radius: 16px 16px 5px 16px; }
   .bubble-author { font-family: var(--mono); font-weight: 600; font-size: 9.5px; letter-spacing: .03em; color: rgba(11,31,58,.6); margin-bottom: 2px; }
   .bubble-time { font-family: var(--mono); font-size: 9px; color: rgba(11,31,58,.5); text-align: right; margin-top: 2px; }
   .tab-icon { width: 17px; height: 17px; border: 1.8px solid rgba(11,31,58,.3); }

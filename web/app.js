@@ -411,7 +411,7 @@
             '<div style="width:1px;height:20px;background:rgba(11,31,58,.12)"></div>' +
             '<input data-bind="phone" aria-label="Numéro de téléphone" autocomplete="tel-national" value="' + esc(state.phone) + '" placeholder="' + d.phonePh + '" inputmode="numeric" style="flex:1;font-weight:600;font-size:15px;height:100%" />' +
           '</div>' +
-          '<button class="btn btn-yellow" data-action="requestOtp" ' + (canGo ? "" : "disabled") + '>' + esc(d.continue) + '</button>' +
+          '<button class="btn btn-accent" data-action="requestOtp" ' + (canGo ? "" : "disabled") + '>' + esc(d.continue) + '</button>' +
           '<div style="font-size:11px;line-height:1.5;color:rgba(234,241,247,.6);text-align:center">' + esc(d.terms) + '</div>' +
           '<button class="btn" data-action="openPrice" style="height:44px;background:transparent;color:#1FD1B2;font-weight:800;font-size:13.5px;text-decoration:underline">' + esc(te().seePrice) + '</button>' +
           '<a href="livreur.html" style="display:flex;align-items:center;justify-content:center;min-height:44px;color:#EAF1F7;font-weight:700;font-size:12.5px">' + esc(state.lang === "en" ? "Courier? Join WunaGo →" : "Vous êtes livreur ? Rejoignez WunaGo →") + '</a>' +
@@ -481,9 +481,9 @@
           '<div class="col" style="gap:1px"><span style="font-weight:500;font-size:12px;color:rgba(11,31,58,.6)">' + esc(d.greeting) + '</span><span style="font-weight:800;font-size:20px;letter-spacing:-.5px">' + esc(state.user.name) + '</span></div>' +
           '<button data-action="toggleLang" style="border:0;background:rgba(11,31,58,.1);border-radius:99px;padding:7px 11px;font-family:var(--mono);font-weight:700;font-size:10.5px;cursor:pointer">' + (state.lang === "en" ? "EN" : "FR") + '</button>' +
         '</div>' +
-        '<button data-action="go" data-arg="wallet" style="margin-top:16px;background:#0B1F3A;border:0;border-radius:16px;padding:14px 15px;display:flex;align-items:center;justify-content:space-between;cursor:pointer;text-align:left">' +
-          '<span class="col" style="gap:2px"><span class="mono" style="font-size:10px;letter-spacing:.08em;color:rgba(255,255,255,.5)">' + esc(d.wallet) + '</span><span style="font-weight:800;font-size:19px;color:#1FD1B2">' + fmtFcfa(state.wallet.balance) + '</span></span>' +
-          '<span style="background:#1FD1B2;color:#0B1F3A;border-radius:99px;padding:9px 13px;font-weight:700;font-size:11.5px">' + esc(d.topUp) + '</span>' +
+        '<button data-action="go" data-arg="wallet" style="margin-top:16px;background:#fff;border:1px solid rgba(11,31,58,.08);border-radius:16px;padding:14px 15px;display:flex;align-items:center;justify-content:space-between;cursor:pointer;text-align:left;color:#0B1F3A">' +
+          '<span class="col" style="gap:2px"><span class="mono" style="font-size:10px;letter-spacing:.08em;color:rgba(11,31,58,.5)">' + esc(d.wallet) + '</span><span style="font-weight:800;font-size:19px;color:#0B1F3A">' + fmtFcfa(state.wallet.balance) + '</span></span>' +
+          '<span style="background:#0B1F3A;color:#fff;border-radius:99px;padding:9px 13px;font-weight:700;font-size:11.5px">' + esc(d.topUp) + '</span>' +
         '</button>' +
       '</div>' +
       '<div class="scroll">' + installBanner() + quickHero() + linksCard() + '<div style="padding:18px 20px 6px;font-weight:700;font-size:12.5px;color:rgba(11,31,58,.5)">' + esc(d.services) + '</div>' +
@@ -1944,7 +1944,7 @@
   function pickupBanner(o) {
     if (o.stage !== 0 || !o.courier || o.service === "ride" || o.status === "cancelled" || iAmRecipient(o) && (o.details || {}).pickupContact) return "";
     var en = state.lang === "en", cn = String(o.courier.name).split(" ")[0];
-    return '<div role="status" class="col" style="gap:9px;background:#1FD1B2;border-radius:14px;padding:11px 13px;font-size:12.5px;line-height:1.45;font-weight:700">🛵 ' +
+    return '<div role="status" class="col" style="gap:9px;background:#DDF8F2;border-radius:14px;padding:11px 13px;font-size:12.5px;line-height:1.45;font-weight:700">🛵 ' +
       esc(en ? cn + " is coming to pick up the parcel: hand it over to them." : cn + " vient récupérer le colis : remettez-le-lui.") +
       '<button class="btn btn-ink" data-action="handedOver" data-arg="' + o.id + '" style="height:46px"' + (state.busy ? " disabled" : "") + '>' + esc(en ? "I've handed the parcel over" : "J'ai remis le colis au livreur") + '</button></div>';
   }
@@ -1957,7 +1957,7 @@
   function codeCard(o) {
     if (!o.deliveryCode || o.status === "delivered" || o.status === "cancelled" || iAmRecipient(o)) return "";
     var u = tu();
-    return '<div class="fx ac" style="gap:12px;background:#1FD1B2;border-radius:16px;padding:13px 14px">' +
+    return '<div class="fx ac" style="gap:12px;background:#DDF8F2;border-radius:16px;padding:13px 14px">' +
       '<div class="col" style="gap:3px;flex:1"><span class="mono" style="font-size:9.5px;letter-spacing:.08em;color:rgba(11,31,58,.7)">' + u.codeTitle + '</span>' +
       '<span class="mono" style="font-weight:600;font-size:26px;letter-spacing:.3em">' + esc(o.deliveryCode) + '</span><span style="font-size:11px;line-height:1.4;color:rgba(11,31,58,.75)">' + esc(u.codeSub) + '</span></div>' +
       '<button class="btn btn-ink" data-action="shareTracking" data-arg="' + o.id + '" style="flex:none;height:44px;border-radius:12px;padding:0 13px;font-size:12px;gap:6px">' + ICON_SHARE + esc(u.share) + '</button></div>';
@@ -2065,7 +2065,7 @@
       '<div class="col" style="gap:6px"><h1 style="margin:0;font-weight:800;font-size:26px;letter-spacing:-.8px">' + esc(e.priceTitle) + '</h1><p style="margin:0;font-size:13.5px;line-height:1.5;color:rgba(234,241,247,.75)">' + esc(e.priceSub) + '</p></div>' +
       '<div class="fx" style="gap:8px">' + svcBtn("parcel", e.parcel) + svcBtn("ride", e.ride) + '</div>' +
       sel("from", e.from) + sel("to", e.to) + price +
-      '<button class="btn btn-yellow" data-action="simBack" style="margin-top:auto">' + esc(e.order) + '</button></div>';
+      '<button class="btn btn-accent" data-action="simBack" style="margin-top:auto">' + esc(e.order) + '</button></div>';
   }
   actions.openPrice = function () { state.authScreen = "price"; render(); };
   actions.simBack = function () { state.authScreen = "login"; render(); };
@@ -2268,21 +2268,21 @@
   function quickHero() {
     if (!srv() || isCourier()) return "";
     var f = tf(), Q = state.quick, ride = Q.service === "ride";
-    var seg = function (k, label) { var on = Q.service === k; return '<button class="btn" data-action="quickService" data-arg="' + k + '" aria-pressed="' + on + '" style="flex:1;height:40px;border-radius:99px;font-weight:800;font-size:12px;background:' + (on ? "#0B1F3A" : "rgba(255,255,255,.55)") + ';color:' + (on ? "#1FD1B2" : "#0B1F3A") + '">' + f[k] + '</button>'; };
+    var seg = function (k, label) { var on = Q.service === k; return '<button class="btn" data-action="quickService" data-arg="' + k + '" aria-pressed="' + on + '" style="flex:1;height:40px;border-radius:99px;font-weight:800;font-size:12px;background:' + (on ? "#1FD1B2" : "rgba(255,255,255,.1)") + ';color:' + (on ? "#0B1F3A" : "#EAF1F7") + '">' + f[k] + '</button>'; };
     var scan = "BarcodeDetector" in window ? '<label class="btn" aria-label="' + esc(tw().scan) + '" style="width:48px;height:48px;flex:none;border-radius:14px;background:#fff;padding:0;position:relative;cursor:pointer">' + CAMERA +
       '<input type="file" accept="image/*" capture="environment" data-file="qrquick" style="position:absolute;width:1px;height:1px;opacity:0"></label>' : '';
     if (!ride && canPickContact()) scan = '<button class="btn" data-action="quickContact" aria-label="' + esc(tl().contacts) + '" style="width:48px;height:48px;flex:none;border-radius:14px;background:#fff;padding:0;font-size:19px">👤</button>' + scan;
     var people = (state.codebook || []).slice(0, 8).map(function (c) { return contactBubble(c.code, c.name, c.code, false); });
     var mine = (state.places || []).map(function (p) { return contactBubble(p.code, f.me + " · " + p.label, p.code, true); });
     var row = people.concat(ride ? [] : mine.slice(1)).concat(ride ? mine : []);
-    return '<div style="padding:14px 20px 0"><div class="col" style="gap:11px;background:#1FD1B2;border-radius:20px;padding:14px">' +
+    return '<div style="padding:14px 20px 0"><div class="col" style="gap:11px;background:#0B1F3A;color:#EAF1F7;border-radius:20px;padding:14px">' +
       '<div class="fx" style="gap:6px">' + seg("parcel", f.parcel) + seg("ride", f.ride) + '</div>' +
       '<div class="fx ac" style="gap:7px"><input data-bind="quickCode" autocapitalize="characters" autocomplete="off" enterkeyhint="go" aria-label="' + esc(ride ? f.toRide : f.toParcel) + '" placeholder="' + esc((ride ? f.toRide : f.toParcel) + "  " + (ride ? f.ph : tl().phoneOrCode)) + '" value="' + esc(Q.value) + '" style="flex:1;min-width:0;height:48px;border-radius:14px;background:#fff;padding:0 14px;font-weight:700;font-size:14px" />' +
-        scan + '<button class="btn btn-ink" data-action="quickGo" aria-label="OK" style="width:48px;height:48px;border-radius:14px;padding:0;font-size:18px">→</button></div>' +
-      (row.length ? '<div class="fx ac jb"><span class="mono" style="font-size:9.5px;letter-spacing:.08em;color:rgba(11,31,58,.65)">' + esc(f.book.toUpperCase()) + '</span>' +
-        '<button class="btn" data-action="openScreen" data-arg="codebook" style="height:30px;padding:0 6px;background:transparent;font-weight:700;font-size:11px;text-decoration:underline">' + esc(f.seeAll) + '</button></div>' +
-        '<div class="fx hscroll" style="gap:6px;overflow-x:auto;margin:0 -14px;padding:0 14px 2px">' + row.join("") + '</div>'
-        : '<span style="font-size:11.5px;line-height:1.45;color:rgba(11,31,58,.72)">' + esc(f.empty) + '</span>') +
+        scan + '<button class="btn btn-accent" data-action="quickGo" aria-label="OK" style="width:48px;height:48px;border-radius:14px;padding:0;font-size:18px">→</button></div>' +
+      (row.length ? '<div class="fx ac jb"><span class="mono" style="font-size:9.5px;letter-spacing:.08em;color:rgba(234,241,247,.65)">' + esc(f.book.toUpperCase()) + '</span>' +
+        '<button class="btn" data-action="openScreen" data-arg="codebook" style="height:30px;padding:0 6px;background:transparent;color:#1FD1B2;font-weight:700;font-size:11px;text-decoration:underline">' + esc(f.seeAll) + '</button></div>' +
+        '<div class="fx hscroll" style="gap:6px;overflow-x:auto;margin:0 -14px;padding:0 14px 2px">' + row.join("").replace(/color:#0B1F3A;padding:0/g, "color:#EAF1F7;padding:0").replace(/color:rgba\(11,31,58,\.55\)/g, "color:rgba(234,241,247,.55)").replace(/border:2px solid #0B1F3A/g, "border:2px solid #1FD1B2") + '</div>'
+        : '<span style="font-size:11.5px;line-height:1.45;color:rgba(234,241,247,.72)">' + esc(f.empty) + '</span>') +
       '</div></div>';
   }
   actions.quickService = function (el, arg) { state.quick.service = arg; render(); };
@@ -2710,7 +2710,7 @@
   /* commande : qui paie, retour à l'expéditeur (suivi client) */
   function linkInfo(o) {
     var x = o.details || {}, f = tl(), out = "";
-    if (x.returned) out += '<div role="status" style="background:#1FD1B2;border-radius:14px;padding:11px 13px;font-size:12.5px;line-height:1.45;font-weight:700">' +
+    if (x.returned) out += '<div role="status" style="background:#DDF8F2;border-radius:14px;padding:11px 13px;font-size:12.5px;line-height:1.45;font-weight:700">' +
       esc(o.status === "delivered" ? f.returnBack : f.returned) + '<br><span style="font-weight:600">' + esc(f.returnFee) + ' : ' + fmtFcfa(x.returned.fee) + '</span></div>';
     if (x.payBy) out += '<div class="mono" style="font-size:10.5px;color:rgba(11,31,58,.65)">' + esc(x.payBy.role === "sender" ? f.payBySender : x.payBy.other ? f.payByRecipient : f.payByRecipientSelf) + '</div>';
     return out;
@@ -2780,7 +2780,7 @@
       '<h1 style="margin:10px 0 0;font-weight:800;font-size:28px;line-height:1.1;letter-spacing:-1px">' + esc(s.title) + '</h1>' +
       '<p style="margin:0;font-weight:500;font-size:14px;line-height:1.5;color:rgba(234,241,247,.75)">' + esc(s.sub) + '</p></div>' +
       '<div class="col" style="gap:11px"><input data-bind="nameInput" autocomplete="name" aria-label="' + esc(s.ph) + '" placeholder="' + esc(s.ph) + '" value="' + esc(state.nameInput || "") + '" style="background:#fff;color:#0B1F3A;border-radius:16px;padding:0 15px;height:54px;font-weight:600;font-size:15px" />' +
-      '<button class="btn btn-yellow" data-action="saveName">' + esc(s.go) + '</button></div></div>';
+      '<button class="btn btn-accent" data-action="saveName">' + esc(s.go) + '</button></div></div>';
   }
 
   var base = {};
@@ -3179,7 +3179,7 @@
     var pc = x.pickupContact, live = o.courier && o.courier.id === state.user.id && o.status !== "delivered" && o.status !== "cancelled";
     if (pc && (pc.name || pc.phone)) out += '<div class="fx ac" style="gap:8px;background:rgba(11,31,58,.05);border-radius:12px;padding:8px 10px"><span class="col" style="flex:1;gap:1px"><span class="mono" style="font-size:9.5px;color:rgba(11,31,58,.6)">' + esc(state.lang === "en" ? "HANDS OVER THE PARCEL ①" : "REMET LE COLIS ①") + '</span><span style="font-weight:700;font-size:13px">' + esc(pc.name || ("+237 " + prettyPhone(pc.phone))) + '</span></span>' +
       (pc.phone && live ? '<a class="btn btn-ink" href="tel:+237' + esc(pc.phone) + '" aria-label="' + esc(tm().call) + '" style="width:44px;height:44px;border-radius:11px;padding:0;text-decoration:none">' + ICON_PHONE + '</a>' : '') + '</div>';
-    if (x.returned) out += '<div role="status" style="background:#1FD1B2;border-radius:12px;padding:9px 11px;font-weight:800;font-size:12.5px;line-height:1.4">↩ ' + esc(state.lang === "en" ? "RETURN TO SENDER — bring the parcel back to the pickup point" : "RETOUR À L'EXPÉDITEUR — rapportez le colis au point de départ") + '</div>';
+    if (x.returned) out += '<div role="status" style="background:#DDF8F2;border-radius:12px;padding:9px 11px;font-weight:800;font-size:12.5px;line-height:1.4">↩ ' + esc(state.lang === "en" ? "RETURN TO SENDER — bring the parcel back to the pickup point" : "RETOUR À L'EXPÉDITEUR — rapportez le colis au point de départ") + '</div>';
     if (x.dropoffShared) out += '<div class="mono" style="font-size:10.5px;font-weight:600;color:#0B1F3A;background:#1FD1B2;border-radius:8px;padding:5px 8px;align-self:flex-start">📍 ' + esc(te().posShared) + '</div>';
     if (h.dropoff) out += '<div style="font-size:12px;line-height:1.45"><span class="mono" style="font-size:9.5px;color:rgba(11,31,58,.55)">' + esc(u.landmark.toUpperCase()) + ' ② </span>' + esc(h.dropoff) + '</div>';
     if (r && (r.name || r.phone)) out += '<div class="fx ac" style="gap:8px;background:rgba(31,209,178,.25);border-radius:12px;padding:8px 10px"><span class="col" style="flex:1;gap:1px"><span class="mono" style="font-size:9.5px;color:rgba(11,31,58,.6)">' + esc(u.recipient.toUpperCase()) + '</span><span style="font-weight:700;font-size:13px">' + esc(r.name || "") + '</span></span>' +
@@ -3232,7 +3232,7 @@
       : ret ? "" : o.stage === 0 ? (en ? "Pick up the parcel from " : "Récupérez le colis auprès de ") + who0 : o.stage === 1 ? (en ? "Head to " : "Direction ") + rName
       : o.arrivedAt ? "" : (en ? "Deliver to " : "Livrez à ") + rName + (en ? ", then tap « I've arrived »." : ", puis touchez « Je suis arrivé ».");
     return page3(hdr(o.code + " · " + svcName(o.service)) +
-      (tip ? '<div role="status" style="background:#1FD1B2;border-radius:14px;padding:11px 13px;font-weight:800;font-size:13px;line-height:1.4">' + esc(tip) + '</div>' : '') +
+      (tip ? '<div role="status" style="background:#DDF8F2;border-radius:14px;padding:11px 13px;font-weight:800;font-size:13px;line-height:1.4">' + esc(tip) + '</div>' : '') +
       '<div style="' + card + ';padding:14px;display:flex;flex-direction:column;gap:10px">' +
         '<div class="fx" style="gap:10px"><span style="width:9px;height:9px;margin-top:5px;flex:none;border-radius:99px;background:#1FD1B2;border:2.5px solid #0B1F3A"></span><span style="font-weight:700;font-size:13.5px">' + esc(o.pickup) + '</span></div>' +
         (o.dropoff !== o.pickup ? '<div class="fx" style="gap:10px"><span style="width:9px;height:9px;margin-top:5px;flex:none;background:#0B1F3A"></span><span style="font-weight:700;font-size:13.5px">' + esc(o.dropoff) + '</span></div>' : '') +
