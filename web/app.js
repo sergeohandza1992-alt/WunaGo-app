@@ -9,7 +9,7 @@
   var SUPPORT_PHONE = "+237600000000", SUPPORT_PHONE_LABEL = "+237 6 00 00 00 00";
   var STORE_KEY = "wunago.client.v1";
   /* Version affichée dans Réglages : à changer avec CACHE dans sw.js à chaque mise en ligne */
-  var APP_VERSION = "18 · 17/11/2026";
+  var APP_VERSION = "19 · 18/11/2026";
   var deferredInstall = null;
   var lastScreenKey = "";
   var installDismissed = false;
@@ -480,7 +480,7 @@
           '<span style="background:#FFD700;color:#101010;border-radius:99px;padding:9px 13px;font-weight:700;font-size:11.5px">' + esc(d.topUp) + '</span>' +
         '</button>' +
       '</div>' +
-      '<div class="scroll">' + installBanner() + quickHero() + '<div style="padding:18px 20px 6px;font-weight:700;font-size:12.5px;color:rgba(16,16,16,.5)">' + esc(d.services) + '</div>' +
+      '<div class="scroll">' + installBanner() + quickHero() + linksCard() + '<div style="padding:18px 20px 6px;font-weight:700;font-size:12.5px;color:rgba(16,16,16,.5)">' + esc(d.services) + '</div>' +
       '<div style="padding:2px 20px 0">' + (state.settings.homeLayout === "tiles" ? '<div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">' + tiles + '</div>' : '<div class="col" style="gap:8px">' + listRows + '</div>') + '</div>' +
       activeCard + codeHomeCard() + recentBlock() +
       (srv() ? '<div style="height:24px"></div>' : '<div style="padding:20px 20px 24px"><div style="border:1px dashed rgba(16,16,16,.2);border-radius:16px;padding:14px;background:repeating-linear-gradient(135deg,rgba(255,215,0,.16) 0 8px,transparent 8px 16px)">' +
@@ -517,7 +517,7 @@
       advance: "Le livreur avance l'argent des achats", advanceSub: "Remboursé à la livraison, sur présentation du ticket",
       articlesTotal: "Total estimé des articles",
       lines: { delivery: "Livraison", zone: "Supplément zone", items: "Articles pressing", kilo: "Linge au kilo", kgFree: "1 kg offert",
-        collect: "Collecte + retour", collectFree: "Collecte offerte", articles: "Articles (estimation)", service: "Frais de service", ride: "Course", hour: "" },
+        collect: "Collecte + retour", collectFree: "Collecte offerte", articles: "Articles (estimation)", service: "Frais de service", ride: "Course", hour: "", "return": "Retour à l'expéditeur" },
       zoneNames: { 1: "centre", 2: "intermédiaire", 3: "périphérie" },
       hourNotes: { peak: "Heure de pointe +15 %", evening: "Soirée +20 %" },
       errs: { closed: "Service fermé à cette heure (6 h – 22 h) : choisissez un autre moment.", empty: "Ajoutez au moins un article.",
@@ -550,7 +550,7 @@
       advance: "The courier advances the money", advanceSub: "Paid back on delivery, with the receipt",
       articlesTotal: "Estimated items total",
       lines: { delivery: "Delivery", zone: "Zone fee", items: "Laundry items", kilo: "Laundry by kilo", kgFree: "1 kg free",
-        collect: "Collection + return", collectFree: "Free collection", articles: "Items (estimate)", service: "Service fee", ride: "Ride", hour: "" },
+        collect: "Collection + return", collectFree: "Free collection", articles: "Items (estimate)", service: "Service fee", ride: "Ride", hour: "", "return": "Return to sender" },
       zoneNames: { 1: "centre", 2: "middle", 3: "outskirts" },
       hourNotes: { peak: "Rush hour +15%", evening: "Evening +20%" },
       errs: { closed: "Closed at that time (6 am – 10 pm): pick another time.", empty: "Add at least one item.",
@@ -865,7 +865,7 @@
       '</div>' +
       '<div class="scroll" style="background:#fbfaf7;border-radius:22px 22px 0 0;margin-top:-18px;padding:16px 20px 20px;position:relative;z-index:500"><div class="col" style="gap:16px">' +
         '<div style="width:34px;height:4px;border-radius:9px;background:rgba(16,16,16,.15);margin:0 auto"></div>' +
-        arrivedBanner(o) + courierBlock(o, orderId) + codeCard(o) + notifPrompt() +
+        arrivedBanner(o) + linkInfo(o) + courierBlock(o, orderId) + codeCard(o) + notifPrompt() +
         '<div style="height:1px;background:var(--hair)"></div>' +
         '<div class="col">' + timeline + '</div>' +
         gmapsButton(orderGeo(o).pickup, orderGeo(o).dropoff, false) +
@@ -1354,6 +1354,7 @@
         case "inbox": body = screenInbox(); break;
         case "codes": body = screenCodes(); break;
         case "flash": body = screenFlash(); break;
+        case "linkNew": body = screenLinkNew(); break;
         case "codebook": body = screenCodebook(); break;
         case "codeForm": body = screenCodeForm(); break;
         case "newChat": body = screenNewChat(); break;
@@ -1714,6 +1715,8 @@
     }
     else if (bind === "draft.note") state.draft.note = el.value;
     else if (bind === "quickCode") { state.quick.value = el.value.toUpperCase(); el.value = state.quick.value; return; }
+    else if (bind === "linkName") { if (state.linkForm) state.linkForm.name = el.value.slice(0, 60); return; }
+    else if (bind === "linkNote") { if (state.linkForm) state.linkForm.note = el.value.slice(0, 300); return; }
     else if (bind === "flashRename") { if (state.flash) state.flash.rename = el.value; return; }
     else if (bind === "codeEntry") { state.codeEntry.value = el.value.toUpperCase(); el.value = state.codeEntry.value; return; }
     else if (bind === "codeForm.placeName" || bind === "codeForm.hint") { state.codeForm[bind.slice(9)] = el.value; return; }
@@ -2185,12 +2188,13 @@
     var seg = function (k, label) { var on = Q.service === k; return '<button class="btn" data-action="quickService" data-arg="' + k + '" aria-pressed="' + on + '" style="flex:1;height:40px;border-radius:99px;font-weight:800;font-size:12px;background:' + (on ? "#101010" : "rgba(255,255,255,.55)") + ';color:' + (on ? "#FFD700" : "#101010") + '">' + f[k] + '</button>'; };
     var scan = "BarcodeDetector" in window ? '<label class="btn" aria-label="' + esc(tw().scan) + '" style="width:48px;height:48px;flex:none;border-radius:14px;background:#fff;padding:0;position:relative;cursor:pointer">' + CAMERA +
       '<input type="file" accept="image/*" capture="environment" data-file="qrquick" style="position:absolute;width:1px;height:1px;opacity:0"></label>' : '';
+    if (!ride && canPickContact()) scan = '<button class="btn" data-action="quickContact" aria-label="' + esc(tl().contacts) + '" style="width:48px;height:48px;flex:none;border-radius:14px;background:#fff;padding:0;font-size:19px">👤</button>' + scan;
     var people = (state.codebook || []).slice(0, 8).map(function (c) { return contactBubble(c.code, c.name, c.code, false); });
     var mine = (state.places || []).map(function (p) { return contactBubble(p.code, f.me + " · " + p.label, p.code, true); });
     var row = people.concat(ride ? [] : mine.slice(1)).concat(ride ? mine : []);
     return '<div style="padding:14px 20px 0"><div class="col" style="gap:11px;background:#FFD700;border-radius:20px;padding:14px">' +
       '<div class="fx" style="gap:6px">' + seg("parcel", f.parcel) + seg("ride", f.ride) + '</div>' +
-      '<div class="fx ac" style="gap:7px"><input data-bind="quickCode" autocapitalize="characters" autocomplete="off" enterkeyhint="go" aria-label="' + esc(ride ? f.toRide : f.toParcel) + '" placeholder="' + esc((ride ? f.toRide : f.toParcel) + "  " + f.ph) + '" value="' + esc(Q.value) + '" style="flex:1;min-width:0;height:48px;border-radius:14px;background:#fff;padding:0 14px;font-weight:700;font-size:14px" />' +
+      '<div class="fx ac" style="gap:7px"><input data-bind="quickCode" autocapitalize="characters" autocomplete="off" enterkeyhint="go" aria-label="' + esc(ride ? f.toRide : f.toParcel) + '" placeholder="' + esc((ride ? f.toRide : f.toParcel) + "  " + (ride ? f.ph : tl().phoneOrCode)) + '" value="' + esc(Q.value) + '" style="flex:1;min-width:0;height:48px;border-radius:14px;background:#fff;padding:0 14px;font-weight:700;font-size:14px" />' +
         scan + '<button class="btn btn-ink" data-action="quickGo" aria-label="OK" style="width:48px;height:48px;border-radius:14px;padding:0;font-size:18px">→</button></div>' +
       (row.length ? '<div class="fx ac jb"><span class="mono" style="font-size:9.5px;letter-spacing:.08em;color:rgba(16,16,16,.65)">' + esc(f.book.toUpperCase()) + '</span>' +
         '<button class="btn" data-action="openScreen" data-arg="codebook" style="height:30px;padding:0 6px;background:transparent;font-weight:700;font-size:11px;text-decoration:underline">' + esc(f.seeAll) + '</button></div>' +
@@ -2200,6 +2204,12 @@
   }
   actions.quickService = function (el, arg) { state.quick.service = arg; render(); };
   actions.quickGo = function () {
+    var ph = phoneFromText(state.quick.value);
+    if (ph && String(state.quick.value).replace(/\D/g, "").length >= 9) {
+      if (state.quick.service === "ride") { toast(tl().rideCode); return; }
+      if (!srv()) { toast(state.lang === "en" ? "Available once connected to WunaGo." : "Disponible une fois connecté au serveur WunaGo."); return; }
+      openLinkForm(ph, ""); return;
+    }
     var c = codeFromText("WG-" + String(state.quick.value || "").toUpperCase().replace(/[^0-9A-Z]/g, "").replace(/^WG/, ""));
     if (!c) { toast(state.lang === "en" ? "Code: WG- followed by 4 characters." : "Code : WG- suivi de 4 caractères."); return; }
     actions.flashTo(null, c);
@@ -2274,8 +2284,10 @@
       (ride ? '<div class="fx" style="gap:6px">' + chipS(F.vehicle === "bike", "flashVehicle", "bike", f.moto) + chipS(F.vehicle === "car", "flashVehicle", "car", f.car) + '</div>'
         : '<div class="fx ac" style="gap:8px;font-size:12.5px;font-weight:600"><span style="width:8px;height:8px;border-radius:99px;background:#101010"></span>' + esc(f.size) + '</div>' +
           '<button class="btn" data-action="flashFull" style="height:36px;align-self:flex-start;padding:0;background:transparent;font-weight:700;font-size:12px;text-decoration:underline">' + esc(f.heavy) + '</button>') +
-      '<div class="col" style="gap:7px"><span class="mono" style="font-size:9.5px;letter-spacing:.08em;color:rgba(16,16,16,.55)">' + f.pay + '</span><div class="fx wrap" style="gap:6px">' +
-        payOpts.map(function (k) { return chipS(F.pay === k, "flashPay", k, d.paymentNames[k]); }).join("") + '</div></div>' +
+      (!ride && !to.mine ? '<div class="col" style="gap:7px"><span class="mono" style="font-size:9.5px;letter-spacing:.08em;color:rgba(16,16,16,.55)">' + esc(tl().payer) + '</span><div class="fx wrap" style="gap:6px">' +
+        chipS(F.payer !== "them", "flashPayer", "me", tl().me) + chipS(F.payer === "them", "flashPayer", "them", state.lang === "en" ? "The recipient, to the courier" : "Le destinataire, au livreur") + '</div></div>' : '') +
+      (F.payer === "them" && !ride ? '' : '<div class="col" style="gap:7px"><span class="mono" style="font-size:9.5px;letter-spacing:.08em;color:rgba(16,16,16,.55)">' + f.pay + '</span><div class="fx wrap" style="gap:6px">' +
+        payOpts.map(function (k) { return chipS(F.pay === k, "flashPay", k, d.paymentNames[k]); }).join("") + '</div></div>') +
       (err ? '<div role="alert" style="background:rgba(255,215,0,.25);border-radius:12px;padding:10px 12px;font-size:12px;font-weight:600">' + esc(err) + '</div>' : '') +
     '</div></div>' +
     '<div style="padding:12px 20px 20px"><button class="btn btn-yellow" data-action="flashConfirm" style="width:100%;height:56px;font-size:16px"' + (!q || err || F.busy ? " disabled" : "") + '>' +
@@ -2283,6 +2295,7 @@
   }
   actions.flashVehicle = function (el, arg) { state.flash.vehicle = arg; render(); };
   actions.flashPay = function (el, arg) { state.flash.pay = arg; render(); };
+  actions.flashPayer = function (el, arg) { state.flash.payer = arg; render(); };
   actions.flashFull = function () {
     var F = state.flash; state.draft = newDraft("parcel");
     if (F.from) { state.draft.pickup = F.from.text; state.draft.pickupGeo = F.from.geo; if (F.from.code) state.draft.pickupCode = F.from.code; }
@@ -2296,6 +2309,7 @@
     var body = { service: F.service, pickup: F.from.text, dropoff: F.to.code, pickupGeo: F.from.geo, dropoffGeo: F.to.geo, dropoffCode: F.to.code,
       pickupCode: F.from.type === "code" ? F.from.code : undefined, vehicle: F.service === "ride" ? F.vehicle : "bike", weightKg: 2,
       ride: { passengers: F.passengers }, paymentMethod: F.pay, note: "" };
+    if (F.payer === "them" && F.service === "parcel" && !F.to.mine) { body.paymentMethod = "cash"; body.payBy = { role: "recipient", other: true }; }
     WAPI.post("/orders", body).then(function (r) {
       F.busy = false; state.wallet.balance = r.wallet.balance; replaceOrder(r.order);
       var e = state.codebook.filter(function (x) { return x.code === F.to.code; })[0];
@@ -2319,6 +2333,177 @@
   }
   actions.bookRemove = function (el, arg) { state.codebook = (state.codebook || []).filter(function (x) { return x.code !== arg; }); render(); };
 
+  /* ============================== envoi par lien : « Envoyer à… » / « Recevoir de… » un simple numéro ==============================
+     L'autre personne reçoit un lien WhatsApp et choisit elle-même le lieu ; celui qui paie confirme le prix. WunaGo ne s'occupe que de la livraison. */
+  var LK = {
+    fr: { title: "Envoyer un colis", send: "J'envoie à", receive: "Je reçois de", to: "CONTACT", name: "Son nom (facultatif)",
+      mineSend: "DÉPART · MON POINT", mineRecv: "ARRIVÉE · MON POINT", size: "TAILLE DU COLIS", small: "Petit · jusqu'à 5 kg", medium: "Moyen · jusqu'à 15 kg", bigger: "Plus gros ? Parcours complet",
+      payer: "QUI PAIE LA LIVRAISON ?", me: "Moi", them: "Lui / elle, au livreur", pay: "MON PAIEMENT", note: "Note pour le livreur (facultatif)",
+      howSend: "{n} reçoit un lien WhatsApp et choisit où recevoir le colis : chez lui, chez un proche, ailleurs.",
+      howRecv: "{n} reçoit un lien WhatsApp et indique d'où part le colis.",
+      confMe: "Dès son choix, le prix s'affiche ici : vous confirmez en un geste.", confThem: "Dès son choix, il/elle voit le prix, confirme et règle le livreur.",
+      go: "Envoyer le lien par WhatsApp", other: "Partager autrement", noMine: "Choisissez votre point : votre code ou votre position.",
+      msgSend: "Bonjour{n} ! Je vous envoie un colis avec WunaGo 📦\nIndiquez où le recevoir (1 minute, sans application) :\n{u}",
+      msgRecv: "Bonjour{n} ! Pouvez-vous m'envoyer le colis avec WunaGo ? 📦\nIndiquez d'où il part (1 minute, sans application) :\n{u}",
+      pending: "ENVOIS EN ATTENTE", wPlace: "Lien envoyé · attend le lieu", wThem: "Lieu choisi · attend sa confirmation", expired: "Lien expiré",
+      confirm: "Confirmer", resend: "Renvoyer", cancel: "Annuler", cancelled: "Envoi annulé", sent: "Lien prêt : envoyez-le sur WhatsApp ✓", copied: "Lien copié ✓",
+      phoneOrCode: "Numéro ou Code WG-…", contacts: "Mes contacts", rideCode: "Pour un trajet, tapez un Code WunaGo.",
+      payBySender: "Livraison payée par l'expéditeur", payByRecipient: "Livraison payée par le destinataire, au livreur", payByRecipientSelf: "Livraison payée par le destinataire",
+      returned: "Colis non remis : retour à l'expéditeur", returnFee: "Frais de retour", returnBack: "Colis rendu à l'expéditeur" },
+    en: { title: "Send a parcel", send: "I'm sending to", receive: "I'm receiving from", to: "CONTACT", name: "Their name (optional)",
+      mineSend: "PICKUP · MY PLACE", mineRecv: "DROP-OFF · MY PLACE", size: "PARCEL SIZE", small: "Small · up to 5 kg", medium: "Medium · up to 15 kg", bigger: "Bigger? Full form",
+      payer: "WHO PAYS FOR DELIVERY?", me: "Me", them: "Them, to the courier", pay: "MY PAYMENT", note: "Note for the courier (optional)",
+      howSend: "{n} gets a WhatsApp link and chooses where to receive the parcel: home, a relative's, elsewhere.",
+      howRecv: "{n} gets a WhatsApp link and tells where the parcel leaves from.",
+      confMe: "Once they choose, the price shows here: confirm in one tap.", confThem: "Once they choose, they see the price, confirm and pay the courier.",
+      go: "Send the link on WhatsApp", other: "Share another way", noMine: "Choose your place: your code or your location.",
+      msgSend: "Hello{n}! I'm sending you a parcel with WunaGo 📦\nTell us where to deliver it (1 minute, no app needed):\n{u}",
+      msgRecv: "Hello{n}! Could you send me the parcel with WunaGo? 📦\nTell us where it leaves from (1 minute, no app needed):\n{u}",
+      pending: "WAITING", wPlace: "Link sent · waiting for the place", wThem: "Place chosen · waiting for their confirmation", expired: "Link expired",
+      confirm: "Confirm", resend: "Resend", cancel: "Cancel", cancelled: "Cancelled", sent: "Link ready: send it on WhatsApp ✓", copied: "Link copied ✓",
+      phoneOrCode: "Number or WG-… code", contacts: "My contacts", rideCode: "For a ride, type a WunaGo code.",
+      payBySender: "Delivery paid by the sender", payByRecipient: "Delivery paid by the recipient, to the courier", payByRecipientSelf: "Delivery paid by the recipient",
+      returned: "Parcel not delivered: returning to the sender", returnFee: "Return fee", returnBack: "Parcel returned to the sender" }
+  };
+  function tl() { return LK[state.lang] || LK.fr; }
+  state.links = []; state.linksAt = 0; state.linkForm = null;
+  function phoneFromText(v) { var d = String(v || "").replace(/\D/g, "").replace(/^(00)?237(?=6\d{8}$)/, ""); return /^6\d{8}$/.test(d) ? d : null; }
+  function linkUrl(l) { return location.origin + "/lien.html?t=" + encodeURIComponent(l.token); }
+  function linkMsg(l) { var f = tl(), n = l.contactName ? " " + String(l.contactName).split(" ")[0] : ""; return (l.direction === "send" ? f.msgSend : f.msgRecv).replace("{n}", n).replace("{u}", linkUrl(l)); }
+  function openWhatsApp(l) {
+    var url = "https://wa.me/237" + l.contactPhone + "?text=" + encodeURIComponent(linkMsg(l));
+    var w = null; try { w = window.open(url, "_blank", "noopener"); } catch (e) {}
+    if (!w) try { location.href = url; } catch (e2) {}
+  }
+  function loadLinks() {
+    if (!srv() || isCourier() || !WAPI.token()) return Promise.resolve();
+    return WAPI.get("/links").then(function (r) {
+      var before = JSON.stringify(state.links); state.links = r.links || []; state.linksAt = Date.now();
+      var a = document.activeElement, typing = a && (a.tagName === "INPUT" || a.tagName === "TEXTAREA");
+      if (before !== JSON.stringify(state.links) && !typing) render();
+    }).catch(function () {});
+  }
+  function openLinkForm(phone, name) {
+    var mineFirst = (state.places || [])[0];
+    state.linkForm = { direction: "send", phone: phone, name: name || "", mine: mineFirst ? { type: "code", code: mineFirst.code, text: mineFirst.address } : null,
+      size: "small", payer: "me", pay: state.defaultPay && state.defaultPay !== "wallet" ? state.defaultPay : "cash", note: "" };
+    state.quick.value = ""; state.activeTab = "home"; state.tabStacks.home = [{ screen: "home" }, { screen: "linkNew" }];
+    try { history.pushState({ wg: 3 }, ""); } catch (e) {}
+    render();
+    if (!state.linkForm.mine) actions.linkMyPos(null, null, true);
+  }
+  actions.quickContact = function () {
+    navigator.contacts.select(["name", "tel"], { multiple: false }).then(function (list) {
+      var c = list && list[0]; if (!c) return;
+      var ph = phoneFromText(String((c.tel && c.tel[0]) || "").slice(-12));
+      if (!ph) { toast(state.lang === "en" ? "This contact has no Cameroon mobile number." : "Ce contact n'a pas de numéro mobile camerounais."); return; }
+      openLinkForm(ph, (c.name && c.name[0]) || "");
+    }).catch(function () {});
+  };
+  actions.linkMyPos = function (el, arg, silent) {
+    var L = state.linkForm; if (!L) return;
+    L.locating = true; render();
+    if (!navigator.geolocation) { L.locating = false; render(); return; }
+    navigator.geolocation.getCurrentPosition(function (p) {
+      var g = { lat: p.coords.latitude, lng: p.coords.longitude };
+      L.locating = false; L.mine = { type: "gps", geo: g, text: tf().myPos + " (" + nearestQuartier(g) + ")" }; render();
+    }, function () { L.locating = false; render(); if (!silent) toast(tw().gpsOff); }, { enableHighAccuracy: true, timeout: 15000, maximumAge: 30000 });
+  };
+  actions.linkMine = function (el, arg) { var p = (state.places || []).filter(function (x) { return x.code === arg; })[0]; if (p) { state.linkForm.mine = { type: "code", code: p.code, text: p.address }; render(); } };
+  actions.linkSet = function (el, arg) { var p = arg.split("|"); state.linkForm[p[0]] = p[1]; render(); };
+  actions.linkFull = function () {
+    var L = state.linkForm; state.draft = newDraft("parcel");
+    if (L.mine) { state.draft.pickup = L.mine.text; state.draft.pickupGeo = L.mine.geo || null; if (L.mine.code) state.draft.pickupCode = L.mine.code; }
+    state.draft.recipient = { self: false, name: L.name, phone: L.phone };
+    state.tabStacks.home = [{ screen: "home" }, { screen: "order" }]; render();
+  };
+  function screenLinkNew() {
+    var f = tl(), F = tf(), L = state.linkForm, d = t();
+    if (!L) return page3(hdr("—"));
+    var send = L.direction === "send", nm = String(L.name || "").trim() || "+237 " + prettyPhone(L.phone);
+    var chipS = function (on, action, arg, label) { return '<button class="btn" data-action="' + action + '" data-arg="' + esc(arg) + '" aria-pressed="' + on + '" style="height:auto;min-height:40px;border-radius:99px;padding:7px 12px;font-weight:700;font-size:11.5px;border:1px solid ' + (on ? "#101010" : "rgba(16,16,16,.12)") + ';background:' + (on ? "#101010" : "#fff") + ';color:' + (on ? "#FFD700" : "#101010") + '">' + esc(label) + '</button>'; };
+    var lab = function (txt) { return '<span class="mono" style="font-size:9.5px;letter-spacing:.08em;color:rgba(16,16,16,.55)">' + esc(txt) + '</span>'; };
+    var mineChips = (state.places || []).map(function (p) { return chipS(L.mine && L.mine.code === p.code, "linkMine", p.code, "🏠 " + p.label + " · " + p.code); }).join("") +
+      chipS(L.mine && L.mine.type === "gps", "linkMyPos", "", L.locating ? F.locating : "📍 " + F.myPos);
+    var payOpts = ["cash", "orange_money", "mtn_momo"].concat(state.wallet.balance > 0 ? ["wallet"] : []);
+    var seg = function (k, label) { var on = L.direction === k; return '<button class="btn" data-action="linkSet" data-arg="direction|' + k + '" aria-pressed="' + on + '" style="flex:1;height:44px;border-radius:99px;font-weight:800;font-size:12.5px;background:' + (on ? "#101010" : "#fff") + ';color:' + (on ? "#FFD700" : "#101010") + ';border:1px solid ' + (on ? "#101010" : "rgba(16,16,16,.12)") + '">' + esc(label) + '</button>'; };
+    return '<div class="scroll"><div class="col" style="padding:calc(18px + var(--sat)) 20px 20px;gap:14px">' +
+      '<div class="fx ac" style="gap:11px"><button class="backbtn" aria-label="Retour" data-action="popScreen">←</button><h1 style="margin:0;font-weight:800;font-size:19px;letter-spacing:-.4px;flex:1">' + esc(f.title) + '</h1></div>' +
+      '<div class="fx" style="gap:6px">' + seg("send", f.send) + seg("receive", f.receive) + '</div>' +
+      '<div class="fx ac" style="gap:12px;background:#101010;color:#fff;border-radius:18px;padding:14px">' +
+        '<span class="fx ac jc" style="width:52px;height:52px;flex:none;border-radius:99px;background:#FFD700;color:#101010;font-weight:800;font-size:16px">' + esc(L.name ? initials2(L.name) : "☎") + '</span>' +
+        '<span class="col" style="gap:2px;flex:1;min-width:0"><span class="mono" style="font-size:9.5px;letter-spacing:.08em;color:rgba(255,255,255,.6)">' + f.to + ' · +237 ' + esc(prettyPhone(L.phone)) + '</span>' +
+        '<span style="font-weight:800;font-size:16px">' + esc(nm) + '</span>' +
+        '<span style="font-size:12px;color:rgba(255,255,255,.75)">' + esc((send ? f.howSend : f.howRecv).replace("{n}", String(L.name || "").split(" ")[0] || (state.lang === "en" ? "They" : "La personne"))) + '</span></span></div>' +
+      '<input data-bind="linkName" aria-label="' + esc(f.name) + '" placeholder="' + esc(f.name) + '" value="' + esc(L.name) + '" style="' + card + ';height:44px;padding:0 13px;font-weight:600;font-size:13px" />' +
+      '<div class="col" style="gap:7px">' + lab((send ? f.mineSend : f.mineRecv) + (L.mine ? " · " + L.mine.text : "")) + '<div class="fx wrap" style="gap:6px">' + mineChips + '</div></div>' +
+      '<div class="col" style="gap:7px">' + lab(f.size) + '<div class="fx wrap" style="gap:6px">' + chipS(L.size === "small", "linkSet", "size|small", f.small) + chipS(L.size === "medium", "linkSet", "size|medium", f.medium) + '</div>' +
+        '<button class="btn" data-action="linkFull" style="height:36px;align-self:flex-start;padding:0;background:transparent;font-weight:700;font-size:12px;text-decoration:underline">' + esc(f.bigger) + '</button></div>' +
+      '<div class="col" style="gap:7px">' + lab(f.payer) + '<div class="fx wrap" style="gap:6px">' + chipS(L.payer === "me", "linkSet", "payer|me", f.me) + chipS(L.payer === "them", "linkSet", "payer|them", f.them) + '</div></div>' +
+      (L.payer === "me" ? '<div class="col" style="gap:7px">' + lab(f.pay) + '<div class="fx wrap" style="gap:6px">' + payOpts.map(function (k) { return chipS(L.pay === k, "linkSet", "pay|" + k, d.paymentNames[k]); }).join("") + '</div></div>' : '') +
+      '<input data-bind="linkNote" aria-label="' + esc(f.note) + '" placeholder="' + esc(f.note) + '" value="' + esc(L.note) + '" style="' + card + ';height:44px;padding:0 13px;font-weight:600;font-size:13px" />' +
+      '<div style="background:rgba(255,215,0,.25);border-radius:12px;padding:10px 12px;font-size:12px;line-height:1.45;font-weight:600">' + esc(L.payer === "me" ? f.confMe : f.confThem) + '</div>' +
+    '</div></div>' +
+    '<div style="padding:12px 20px 20px"><button class="btn btn-yellow" data-action="linkCreate" style="width:100%;height:56px;font-size:15px"' + (L.busy ? " disabled" : "") + '>' + esc(L.busy ? "…" : "💬 " + f.go) + '</button></div>';
+  }
+  actions.linkCreate = function () {
+    var L = state.linkForm; if (!L || L.busy) return;
+    if (!L.mine) { toast(tl().noMine); return; }
+    L.busy = true; render();
+    var b = { direction: L.direction, phone: L.phone, name: L.name, payer: L.payer, paymentMethod: L.pay, size: L.size, note: L.note };
+    if (L.mine.code) b.mineCode = L.mine.code; else b.mineGeo = L.mine.geo;
+    WAPI.post("/links", b).then(function (r) {
+      state.linkForm = null; state.links = [r.link].concat(state.links.filter(function (x) { return x.id !== r.link.id; }));
+      state.tabStacks.home = [{ screen: "home" }]; render(); toast(tl().sent);
+      openWhatsApp(r.link);
+    }).catch(function (e) { L.busy = false; render(); errToast(e); });
+  };
+  function findLink(id) { return state.links.filter(function (x) { return x.id === id; })[0]; }
+  actions.linkResend = function (el, id) { var l = findLink(id); if (l) openWhatsApp(l); };
+  actions.linkShare = function (el, id) {
+    var l = findLink(id); if (!l) return;
+    if (navigator.share) { navigator.share({ text: linkMsg(l) }).catch(function () {}); return; }
+    try { navigator.clipboard.writeText(linkMsg(l)).then(function () { toast(tl().copied); }); } catch (e) {}
+  };
+  actions.linkCancel = function (el, id) {
+    WAPI.post("/links/" + id + "/cancel", {}).then(function () { state.links = state.links.filter(function (x) { return x.id !== id; }); render(); toast(tl().cancelled); }).catch(errToast);
+  };
+  actions.linkConfirm = function (el, id) {
+    if (state.busy) return; state.busy = true; render();
+    WAPI.post("/links/" + id + "/confirm", {}).then(function (r) {
+      state.busy = false; state.wallet.balance = r.wallet.balance; replaceOrder(r.order);
+      state.links = state.links.filter(function (x) { return x.id !== id; });
+      state.activeTab = "home"; state.tabStacks.home = [{ screen: "home" }, { screen: "track", orderId: r.order.id }]; render();
+    }).catch(function (e) { state.busy = false; render(); errToast(e); loadLinks(); });
+  };
+  function linksCard() {
+    if (!srv() || isCourier()) return "";
+    var f = tl(), L = (state.links || []).filter(function (l) { return l.status === "waiting_place" || l.status === "waiting_confirm" || l.status === "expired"; });
+    if (!L.length) return "";
+    var small = function (action, id, label) { return '<button class="btn" data-action="' + action + '" data-arg="' + id + '" style="height:36px;padding:0 10px;border-radius:99px;background:rgba(16,16,16,.06);font-weight:700;font-size:11px;color:#101010">' + esc(label) + '</button>'; };
+    return '<div style="padding:14px 20px 0"><div class="col" style="gap:8px">' +
+      '<span class="mono" style="font-size:9.5px;letter-spacing:.08em;color:rgba(16,16,16,.55)">' + esc(f.pending) + '</span>' +
+      L.map(function (l) {
+        var who = l.contactName || "+237 " + prettyPhone(l.contactPhone), place = l.other ? String(l.other.text).split(" · ")[0] : "";
+        var st = l.status === "expired" ? f.expired : l.status === "waiting_place" ? f.wPlace : l.payer === "them" ? f.wThem : "📍 " + place + " · " + fmtFcfa(l.price);
+        var mustConfirm = l.status === "waiting_confirm" && l.payer === "me";
+        return '<div class="col" style="gap:9px;' + card + ';padding:12px 14px' + (mustConfirm ? ';border:2px solid #101010' : '') + '">' +
+          '<div class="fx ac" style="gap:11px"><span class="fx ac jc" style="width:40px;height:40px;flex:none;border-radius:99px;background:#101010;color:#FFD700;font-weight:800;font-size:13px">' + esc(l.contactName ? initials2(l.contactName) : (l.direction === "send" ? "→" : "←")) + '</span>' +
+          '<span class="col" style="gap:1px;flex:1;min-width:0"><span style="font-weight:800;font-size:13.5px">' + esc((l.direction === "send" ? "📦 → " : "📦 ← ") + who) + '</span>' +
+          '<span style="font-size:12px;color:rgba(16,16,16,.7)">' + esc(st) + '</span></span></div>' +
+          (mustConfirm ? '<button class="btn btn-yellow" data-action="linkConfirm" data-arg="' + l.id + '" style="height:46px"' + (state.busy ? " disabled" : "") + '>' + esc(f.confirm) + ' · ' + fmtFcfa(l.price) + '</button>' : '') +
+          '<div class="fx wrap" style="gap:6px">' + (l.status === "waiting_place" ? small("linkResend", l.id, "💬 " + f.resend) + small("linkShare", l.id, f.other) : '') + small("linkCancel", l.id, f.cancel) + '</div></div>';
+      }).join("") + '</div></div>';
+  }
+  /* commande : qui paie, retour à l'expéditeur (suivi client) */
+  function linkInfo(o) {
+    var x = o.details || {}, f = tl(), out = "";
+    if (x.returned) out += '<div role="status" style="background:#FFD700;border-radius:14px;padding:11px 13px;font-size:12.5px;line-height:1.45;font-weight:700">' +
+      esc(o.status === "delivered" ? f.returnBack : f.returned) + '<br><span style="font-weight:600">' + esc(f.returnFee) + ' : ' + fmtFcfa(x.returned.fee) + '</span></div>';
+    if (x.payBy) out += '<div class="mono" style="font-size:10.5px;color:rgba(16,16,16,.65)">' + esc(x.payBy.role === "sender" ? f.payBySender : x.payBy.other ? f.payByRecipient : f.payByRecipientSelf) + '</div>';
+    return out;
+  }
+
   /* ============================== mode serveur (API WunaGo) ============================== */
   /* Si l'API répond, comptes, commandes, portefeuille et réclamations sont enregistrés sur le serveur.
      Sinon, l'app garde le mode local (démo) d'origine. */
@@ -2334,10 +2519,11 @@
     var name = u.name || "";
     var wasCourier = state.user && state.user.role === "courier";
     state.user = { id: u.id, name: name || (state.lang === "en" ? "WunaGo customer" : "Client WunaGo"), initials: initials(name || "W G"), role: u.role || "client", courier: u.courier || null };
-    if (state.user.role === "courier" && !wasCourier) {
-      state.tabStacks.courses = [{ screen: "courierHome" }]; state.tabStacks.account = [{ screen: "courierAccount" }];
+    if (state.user.role === "courier" && (!wasCourier || !state.tabStacks.courses || ["courses", "support", "account"].indexOf(state.activeTab) < 0)) {
+      /* aussi après un rechargement de la page : l'espace livreur s'affiche, jamais l'accueil client */
+      state.tabStacks.courses = state.tabStacks.courses || [{ screen: "courierHome" }]; state.tabStacks.account = state.tabStacks.account || [{ screen: "courierAccount" }];
       if (["courses", "support", "account"].indexOf(state.activeTab) < 0) state.activeTab = "courses";
-      if (u.courier && u.courier.online) startGps();
+      if (!wasCourier && u.courier && u.courier.online) startGps();
     }
     state.phone = prettyPhone(u.phone);
     state.wallet = { balance: u.wallet.balance };
@@ -2355,7 +2541,7 @@
     return Promise.all([WAPI.get("/me"), WAPI.get("/orders"), WAPI.get("/disputes")]).then(function (r) {
       applyUser(r[0].user); state.orders = r[1].orders; state.disputes = r[2].disputes;
       if (state.tabStacks.support[0].screen === "chat") state.tabStacks.support = [{ screen: "inbox" }];
-      render(); loadConvs(); loadCourier(); subscribePush(); loadPlaces(); handleHash();
+      render(); loadConvs(); loadCourier(); subscribePush(); loadPlaces(); loadLinks(); handleHash();
     }).catch(function (e) { if (e.status === 401) forceLogin(); });
   }
   function resetAccountState() {
@@ -2363,7 +2549,7 @@
     state.payAccounts = []; state.defaultPay = "orange_money"; state.notifPrefs = { orders: true, sms: true, push: false, promos: true };
     state.tabStacks = { home: [{ screen: "home" }], orders: [{ screen: "history" }], wallet: [{ screen: "wallet" }], support: [{ screen: srv() ? "inbox" : "chat" }],
       courses: [{ screen: "courierHome" }], account: [{ screen: "courierAccount" }] };
-    state.activeTab = "home"; state.convs = []; state.convMsgs = {}; state.places = []; state.codeEntry = null; state.flash = null; state.codebook = []; state.courierData = { offers: [], orders: [] }; state.proofForm = null;
+    state.activeTab = "home"; state.convs = []; state.convMsgs = {}; state.places = []; state.codeEntry = null; state.flash = null; state.codebook = []; state.links = []; state.linkForm = null; state.courierData = { offers: [], orders: [] }; state.proofForm = null;
     if (typeof stopGps === "function") stopGps();
   }
   function forceLogin() {
@@ -2734,7 +2920,7 @@
   }
   function offerCard(o, mine) {
     var c = tc(), d = t();
-    var payInfo = o.paymentMethod === "cash" ? c.collect + " : " + fmtFcfa(o.price.net) : c.prepaid;
+    var payInfo = coursePay(o);
     return '<button class="col" data-action="openCourse" data-arg="' + o.id + '" style="gap:8px;width:100%;text-align:left;' + card + ';padding:13px 14px;cursor:pointer;color:#101010">' +
       '<span class="fx ac jb" style="gap:8px"><span class="mono" style="font-size:10px;color:rgba(16,16,16,.6)">' + o.code + ' · ' + esc(svcName(o.service)) + '</span>' +
         (mine ? '<span class="mono" style="border-radius:99px;padding:4px 9px;background:#FFD700;font-weight:700;font-size:9.5px">' + esc(statusLabel(o.status)) + '</span>' : (o.fromMeKm != null ? '<span class="mono" style="font-size:10px;font-weight:700">' + fmtKm(o.fromMeKm) + ' ' + esc(c.fromMe) + '</span>' : '')) + '</span>' +
@@ -2753,9 +2939,21 @@
       (mine.length ? sectionTitle(c.mine) + mine.map(function (o) { return offerCard(o, true); }).join("") : '') +
       (online ? sectionTitle(c.offers) + (cd.offers.length ? cd.offers.map(function (o) { return offerCard(o, false); }).join("") : '<p style="margin:0;font-size:12.5px;line-height:1.5;color:rgba(16,16,16,.6)">' + esc(c.noOffers) + '</p>') : ''));
   }
+  /* ce que le livreur encaisse, et auprès de qui */
+  function coursePay(o) {
+    var c = tc(), x = o.details || {}, en = state.lang === "en";
+    if (x.returned) return (en ? "Return · collect from sender " : "Retour · à encaisser auprès de l'expéditeur ") + fmtFcfa(x.returned.due);
+    if (o.paymentMethod !== "cash") return c.prepaid;
+    var who = x.payBy ? (x.payBy.role === "recipient" ? (en ? " · from the recipient" : " · auprès du destinataire") : (en ? " · from the sender" : " · auprès de l'expéditeur")) : "";
+    return c.collect + " : " + fmtFcfa(o.price.net) + who;
+  }
   function courseExtras(o) {
     var x = o.details || {}, h = x.hints || {}, r = x.recipient, u = tu(), out = "";
     if (h.pickup) out += '<div style="font-size:12px;line-height:1.45"><span class="mono" style="font-size:9.5px;color:rgba(16,16,16,.55)">' + esc(u.landmark.toUpperCase()) + ' ① </span>' + esc(h.pickup) + '</div>';
+    var pc = x.pickupContact, live = o.courier && o.courier.id === state.user.id && o.status !== "delivered" && o.status !== "cancelled";
+    if (pc && (pc.name || pc.phone)) out += '<div class="fx ac" style="gap:8px;background:rgba(16,16,16,.05);border-radius:12px;padding:8px 10px"><span class="col" style="flex:1;gap:1px"><span class="mono" style="font-size:9.5px;color:rgba(16,16,16,.6)">' + esc(state.lang === "en" ? "HANDS OVER THE PARCEL ①" : "REMET LE COLIS ①") + '</span><span style="font-weight:700;font-size:13px">' + esc(pc.name || ("+237 " + prettyPhone(pc.phone))) + '</span></span>' +
+      (pc.phone && live ? '<a class="btn btn-ink" href="tel:+237' + esc(pc.phone) + '" aria-label="' + esc(tm().call) + '" style="width:44px;height:44px;border-radius:11px;padding:0;text-decoration:none">' + ICON_PHONE + '</a>' : '') + '</div>';
+    if (x.returned) out += '<div role="status" style="background:#FFD700;border-radius:12px;padding:9px 11px;font-weight:800;font-size:12.5px;line-height:1.4">↩ ' + esc(state.lang === "en" ? "RETURN TO SENDER — bring the parcel back to the pickup point" : "RETOUR À L'EXPÉDITEUR — rapportez le colis au point de départ") + '</div>';
     if (x.dropoffShared) out += '<div class="mono" style="font-size:10.5px;font-weight:600;color:#101010;background:#FFD700;border-radius:8px;padding:5px 8px;align-self:flex-start">📍 ' + esc(te().posShared) + '</div>';
     if (h.dropoff) out += '<div style="font-size:12px;line-height:1.45"><span class="mono" style="font-size:9.5px;color:rgba(16,16,16,.55)">' + esc(u.landmark.toUpperCase()) + ' ② </span>' + esc(h.dropoff) + '</div>';
     if (r && (r.name || r.phone)) out += '<div class="fx ac" style="gap:8px;background:rgba(255,215,0,.25);border-radius:12px;padding:8px 10px"><span class="col" style="flex:1;gap:1px"><span class="mono" style="font-size:9.5px;color:rgba(16,16,16,.6)">' + esc(u.recipient.toUpperCase()) + '</span><span style="font-weight:700;font-size:13px">' + esc(r.name || "") + '</span></span>' +
@@ -2768,7 +2966,7 @@
     if (!o) return page3(hdr("—"));
     var mine = o.courier && o.courier.id === state.user.id, steps = o.service === "ride" ? c.stepsRide : c.steps;
     var next = o.status === "cancelled" || o.status === "delivered" ? null : o.stage === 0 ? "picked_up" : o.stage === 1 ? "en_route" : "delivered";
-    var g = orderGeo(o), pf = state.proofForm && state.proofForm.orderId === id ? state.proofForm : null;
+    var g = orderGeo(o), pf = state.proofForm && state.proofForm.orderId === id ? state.proofForm : null, ret = !!(o.details || {}).returned, en = state.lang === "en";
     var nav = function (to, label) { return '<a class="btn btn-outline gmaps-link" target="_blank" rel="noopener" href="https://www.google.com/maps/dir/?api=1&destination=' + to.lat.toFixed(6) + ',' + to.lng.toFixed(6) + '&travelmode=driving" style="width:100%;gap:7px;color:#101010;text-decoration:none">' + ICON.pin + esc(label) + '</a>'; };
     var action = "";
     if (!mine && o.status === "received") action = '<button class="btn btn-yellow" data-action="acceptCourse" data-arg="' + o.id + '">' + esc(c.accept) + ' · ' + fmtFcfa(courierGain(o)) + '</button>';
@@ -2779,9 +2977,19 @@
         '<label class="fx ac" style="gap:10px;background:rgba(16,16,16,.04);border-radius:12px;padding:8px 12px;min-height:52px;cursor:pointer;position:relative">' + (pf.photo ? '<img src="' + pf.photo + '" alt="" width="40" height="40" style="border-radius:8px;object-fit:cover">' : CAMERA) +
           '<span style="font-weight:700;font-size:13px">' + esc(pf.noCode ? tu().cPhotoReq : c.proofPhoto) + '</span><input type="file" accept="image/*" capture="environment" data-file="proof" style="position:absolute;width:1px;height:1px;opacity:0"></label>' +
         '<button class="btn btn-ink" data-action="confirmDelivery" data-arg="' + o.id + '">' + esc(c.confirmDelivery) + '</button>' +
-        '<button class="btn" data-action="toggleNoCode" style="height:44px;background:transparent;font-weight:700;font-size:12.5px;text-decoration:underline">' + esc(pf.noCode ? tu().cWithCode : tu().cNoCode) + '</button></div>'
-      : '<button class="btn btn-ink" data-action="startProof" data-arg="' + o.id + '">' + esc(steps.delivered) + '</button>';
+        (ret ? '</div>' : '<button class="btn" data-action="toggleNoCode" style="height:44px;background:transparent;font-weight:700;font-size:12.5px;text-decoration:underline">' + esc(pf.noCode ? tu().cWithCode : tu().cNoCode) + '</button></div>')
+      : '<button class="btn btn-ink" data-action="startProof" data-arg="' + o.id + '">' + esc(ret ? (en ? "Handed back to the sender" : "Rendu à l'expéditeur") : steps.delivered) + '</button>';
     else if (mine && next) action = '<button class="btn btn-ink" data-action="courseStep" data-arg="' + o.id + '|' + next + '">' + esc(steps[next]) + '</button>';
+    /* destinataire absent, refus : retour à l'expéditeur */
+    if (mine && o.service === "parcel" && o.stage === 2 && o.arrivedAt && !ret && !pf && o.status !== "cancelled") {
+      var R = [["absent", en ? "Nobody there" : "Personne sur place"], ["refused", en ? "Parcel refused" : "Colis refusé"], ["unreachable", en ? "Can't reach them" : "Injoignable"]];
+      action += state.returnFor === o.id
+        ? '<div class="col" style="gap:8px;' + card + ';padding:12px">' + sectionTitle(en ? "Why can't you deliver?" : "Pourquoi le colis n'est pas remis ?") +
+            R.map(function (r) { return '<button class="btn btn-outline" data-action="courseReturn" data-arg="' + o.id + '|' + r[0] + '" style="color:#101010">' + esc(r[1]) + '</button>'; }).join("") +
+            '<span style="font-size:11.5px;line-height:1.45;color:rgba(16,16,16,.65)">' + esc(en ? "The parcel goes back to the sender, who pays the return fee." : "Le colis retourne à l'expéditeur, qui règle les frais de retour.") + '</span>' +
+            '<button class="btn" data-action="courseReturnAsk" data-arg="" style="height:40px;background:transparent;font-weight:700;font-size:12px;text-decoration:underline">' + esc(en ? "Back" : "Retour") + '</button></div>'
+        : '<button class="btn" data-action="courseReturnAsk" data-arg="' + o.id + '" style="height:44px;background:transparent;font-weight:700;font-size:12.5px;text-decoration:underline;color:#101010">' + esc(en ? "Nobody there or refused? Return to sender" : "Personne ou refus ? Retour à l'expéditeur") + '</button>';
+    }
     var canArrive = mine && !o.arrivedAt && (o.stage === 2 || (o.service === "ride" && o.stage === 0)) && o.status !== "cancelled";
     if (canArrive) action = '<button class="btn btn-yellow" data-action="courseStep" data-arg="' + o.id + '|arrived">📍 ' + (state.lang === "en" ? "I've arrived" : "Je suis arrivé") + '</button>' + action;
     else if (mine && o.arrivedAt && o.status !== "delivered") action = '<div class="mono" style="font-size:11px;text-align:center;color:rgba(16,16,16,.6)">' + (state.lang === "en" ? "Customer notified of your arrival" : "Client prévenu de votre arrivée") + ' ✓</div>' + action;
@@ -2792,11 +3000,11 @@
         (o.dropoff !== o.pickup ? '<div class="fx" style="gap:10px"><span style="width:9px;height:9px;margin-top:5px;flex:none;background:#101010"></span><span style="font-weight:700;font-size:13.5px">' + esc(o.dropoff) + '</span></div>' : '') +
         courseExtras(o) +
         '<div style="font-size:12.5px;line-height:1.5;color:rgba(16,16,16,.75)">' + esc(detailsSummary(o)) + (o.note ? '<br>« ' + esc(o.note) + ' »' : '') + '</div>' +
-        '<div class="fx ac jb"><span class="mono" style="font-size:10.5px;color:rgba(16,16,16,.6)">' + esc(o.paymentMethod === "cash" ? c.collect + " " + fmtFcfa(o.price.net) : c.prepaid) + '</span><span style="font-weight:800">' + esc(c.gain) + ' ' + fmtFcfa(courierGain(o)) + '</span></div></div>' +
+        '<div class="fx ac jb"><span class="mono" style="font-size:10.5px;color:rgba(16,16,16,.6)">' + esc(coursePay(o)) + '</span><span style="font-weight:800">' + esc(c.gain) + ' ' + fmtFcfa(courierGain(o)) + '</span></div></div>' +
       (mine && client.phone ? '<div class="fx ac" style="gap:11px;' + card + ';padding:12px 14px">' + avatar(client.name) + '<div class="col" style="gap:2px;flex:1"><span class="mono" style="font-size:9.5px;color:rgba(16,16,16,.55)">' + esc(c.client.toUpperCase()) + '</span><span style="font-weight:700">' + esc(client.name) + '</span></div>' +
         '<button class="btn" data-action="openOrderChat" data-arg="' + o.id + '" aria-label="' + esc(tm().write) + '" style="width:44px;height:44px;border-radius:11px;background:rgba(16,16,16,.07);padding:0">' + ICON_CHAT + '</button>' +
         '<a class="btn btn-ink" href="tel:+237' + esc(client.phone) + '" aria-label="' + esc(tm().call) + '" style="width:44px;height:44px;border-radius:11px;padding:0;text-decoration:none">' + ICON_PHONE + '</a></div>' : '') +
-      (mine && o.stage === 0 ? nav(g.pickup, c.route1) : '') + (mine && o.stage >= 1 && next ? nav(g.dropoff, c.route2) : '') + action);
+      (mine && o.stage === 0 ? nav(g.pickup, c.route1) : '') + (mine && o.stage >= 1 && next ? (ret ? nav(g.pickup, en ? "Route back to the sender" : "Itinéraire retour") : nav(g.dropoff, c.route2)) : '') + action);
   }
   /* espace livreur : mes courses et mes gains, par jour / semaine / mois / année */
   function dUTCa(s) { return new Date(s + "T00:00:00Z"); }
@@ -2887,6 +3095,7 @@
     if (c.screen === "conv") loadMessages(c.convId);
     if (c.screen === "inbox" ? tick % 2 === 0 : tick % 5 === 0) loadConvs();
     if (isCourier() && (c.screen === "courierHome" || c.screen === "course") && tick % 4 === 0) loadCourier();
+    if (!isCourier() && c.screen === "home" && tick % 4 === 0 && (state.links || []).some(function (l) { return l.status === "waiting_place" || l.status === "waiting_confirm"; })) loadLinks();
   }, 4000);
 
   /* liens ouverts depuis une notification : #discussion=… #commande=… #courses */
@@ -2897,8 +3106,9 @@
     if (m1 && srv()) { state.activeTab = "support"; state.tabStacks.support = [{ screen: "inbox" }, { screen: "conv", convId: m1[1] }]; loadConvs().then(function () { loadMessages(m1[1], true); }); }
     else if (m2) { var o = findOrder(m2[1]); if (o) { state.activeTab = "orders"; state.tabStacks.orders = [{ screen: "history" }, { screen: o.status === "delivered" ? "proof" : "track", orderId: o.id }]; } }
     else if (h === "#courses" && isCourier()) { state.activeTab = "courses"; }
+    else if (h === "#liens" && !isCourier()) { state.activeTab = "home"; state.tabStacks.home = [{ screen: "home" }]; loadLinks(); }
     else if (h === "#compte" && isCourier()) { state.activeTab = "account"; }
-    if (m1 || m2 || h === "#courses" || h === "#compte") { try { history.replaceState(null, "", location.pathname); } catch (e) {} render(); }
+    if (m1 || m2 || h === "#courses" || h === "#compte" || h === "#liens") { try { history.replaceState(null, "", location.pathname); } catch (e) {} render(); }
   }
   window.addEventListener("hashchange", handleHash);
   if (navigator.serviceWorker) navigator.serviceWorker.addEventListener("message", function (ev) { if (ev.data && ev.data.wgOpen && ev.data.wgOpen.indexOf("#") >= 0) { location.hash = ev.data.wgOpen.replace(/^.*#/, "#"); } });
@@ -2960,7 +3170,14 @@
     WAPI.post("/courier/orders/" + p[0] + "/step", { to: p[1] }).then(function (r) { state.busy = false; putCourse(r.order); render(); })
       .catch(function (e) { state.busy = false; errToast(e); loadCourier(); });
   };
-  actions.startProof = function (el, arg) { state.proofForm = { orderId: arg, name: "", code: "", photo: null, noCode: false }; render(); };
+  actions.startProof = function (el, arg) { var o = findCourse(arg); state.proofForm = { orderId: arg, name: "", code: "", photo: null, noCode: !!(o && o.details && o.details.returned) }; render(); };
+  actions.courseReturnAsk = function (el, arg) { state.returnFor = arg || null; render(); };
+  actions.courseReturn = function (el, arg) {
+    if (state.busy) return; state.busy = true;
+    var p = arg.split("|");
+    WAPI.post("/courier/orders/" + p[0] + "/step", { to: "return", reason: p[1] }).then(function (r) { state.busy = false; state.returnFor = null; putCourse(r.order); render(); })
+      .catch(function (e) { state.busy = false; errToast(e); loadCourier(); });
+  };
   actions.toggleNoCode = function () { if (state.proofForm) { state.proofForm.noCode = !state.proofForm.noCode; render(); } };
   actions.confirmDelivery = function (el, arg) {
     var pf = state.proofForm; if (!pf || state.busy) return;

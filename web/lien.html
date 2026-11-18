@@ -1,0 +1,215 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <meta name="robots" content="noindex" />
+  <meta name="theme-color" content="#FFD700" />
+  <title>Votre colis — WunaGo</title>
+  <link rel="icon" href="icons/icon-192.png" />
+  <link rel="stylesheet" href="vendor/leaflet/leaflet.css" />
+  <style>
+    @font-face { font-family: "Manrope"; src: url("fonts/Manrope-200-800.woff2") format("woff2"); font-weight: 200 800; font-display: swap; }
+    @font-face { font-family: "IBM Plex Mono"; src: url("fonts/IBMPlexMono-500.woff2") format("woff2"); font-weight: 400 600; font-display: swap; }
+    :root { --y: #FFD700; --k: #101010; --bg: #FBFAF7; --hair: rgba(16,16,16,.08); --mono: "IBM Plex Mono", ui-monospace, monospace; }
+    * { box-sizing: border-box; }
+    body { margin: 0; background: var(--bg); color: var(--k); font-family: "Manrope", system-ui, sans-serif; -webkit-font-smoothing: antialiased; }
+    .wrap { max-width: 480px; margin: 0 auto; min-height: 100vh; display: flex; flex-direction: column; }
+    header { background: var(--y); padding: calc(16px + env(safe-area-inset-top, 0px)) 20px 18px; display: flex; flex-direction: column; gap: 12px; }
+    .brand { display: flex; align-items: center; gap: 9px; } .brand b { font-weight: 800; font-size: 19px; letter-spacing: -.5px; }
+    header h1 { margin: 0; font-weight: 800; font-size: 23px; line-height: 1.15; letter-spacing: -.6px; }
+    header p { margin: 0; font-size: 13px; line-height: 1.5; color: rgba(16,16,16,.75); }
+    main { padding: 18px 20px 30px; display: flex; flex-direction: column; gap: 14px; }
+    h2 { margin: 0; font-weight: 800; font-size: 18px; letter-spacing: -.4px; }
+    .lbl { font-family: var(--mono); font-size: 10px; letter-spacing: .07em; text-transform: uppercase; color: rgba(16,16,16,.55); }
+    .card { background: #fff; border: 1px solid var(--hair); border-radius: 16px; padding: 14px; display: flex; flex-direction: column; gap: 10px; }
+    .opt { display: flex; align-items: center; gap: 12px; min-height: 58px; width: 100%; text-align: left; background: #fff; border: 1.5px solid var(--hair); border-radius: 16px; padding: 10px 14px; font: inherit; color: var(--k); cursor: pointer; }
+    .opt .ic { width: 38px; height: 38px; border-radius: 12px; background: #F3F1EA; display: flex; align-items: center; justify-content: center; font-size: 18px; flex: none; }
+    .opt b { display: block; font-size: 14.5px; } .opt small { display: block; font-size: 12px; color: rgba(16,16,16,.6); margin-top: 1px; }
+    .opt[aria-pressed="true"] { border-color: var(--k); box-shadow: 0 0 0 1px var(--k) inset; } .opt[aria-pressed="true"] .ic { background: var(--y); }
+    input, select { width: 100%; height: 48px; border-radius: 14px; border: 1.5px solid rgba(16,16,16,.12); background: #fff; padding: 0 14px; font: inherit; font-size: 15px; font-weight: 600; color: var(--k); }
+    input:focus, select:focus { outline: 2px solid var(--k); outline-offset: 1px; }
+    .code-in { font-family: var(--mono); text-transform: uppercase; letter-spacing: .08em; }
+    .row { display: flex; align-items: center; gap: 8px; }
+    .seg { display: flex; gap: 6px; } .seg button { flex: 1; min-height: 44px; border-radius: 99px; border: 1.5px solid rgba(16,16,16,.12); background: #fff; font: inherit; font-weight: 700; font-size: 13px; color: var(--k); cursor: pointer; }
+    .seg button[aria-pressed="true"] { background: var(--k); color: var(--y); border-color: var(--k); }
+    .btn { min-height: 52px; border-radius: 17px; border: 0; display: inline-flex; align-items: center; justify-content: center; gap: 8px; font: inherit; font-weight: 800; font-size: 15px; text-decoration: none; padding: 0 18px; cursor: pointer; width: 100%; }
+    .btn[disabled] { opacity: .45; cursor: default; }
+    .ink { background: var(--k); color: var(--y); } .yel { background: var(--y); color: var(--k); } .out { background: #fff; color: var(--k); border: 1.5px solid rgba(16,16,16,.12); }
+    .link { background: transparent; border: 0; font: inherit; font-weight: 700; font-size: 13px; text-decoration: underline; color: var(--k); cursor: pointer; min-height: 44px; padding: 0; }
+    .muted { font-size: 12.5px; line-height: 1.5; color: rgba(16,16,16,.7); margin: 0; }
+    .price { display: flex; align-items: baseline; justify-content: space-between; gap: 10px; } .price b { font-weight: 800; font-size: 26px; letter-spacing: -.6px; }
+    .dark { background: var(--k); color: #fff; border: 0; } .dark .lbl { color: rgba(255,255,255,.6); } .dark .muted { color: rgba(255,255,255,.75); }
+    .bigcode { font-family: var(--mono); font-weight: 600; font-size: 34px; letter-spacing: .25em; color: var(--y); }
+    #map { height: 230px; border-radius: 14px; overflow: hidden; background: #eceae4; }
+    .err { background: rgba(255,215,0,.28); border-radius: 12px; padding: 10px 12px; font-size: 12.5px; font-weight: 600; }
+    .scan { width: 48px; height: 48px; flex: none; border-radius: 14px; border: 1.5px solid rgba(16,16,16,.12); background: #fff; display: flex; align-items: center; justify-content: center; position: relative; cursor: pointer; font-size: 18px; }
+    .scan input { position: absolute; width: 1px; height: 1px; opacity: 0; }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <header id="head"><div class="brand"><svg width="20" height="26" viewBox="0 0 60 76" aria-hidden="true"><path d="M30 4C14.5 4 4 15.4 4 29.5C4 47 30 72 30 72C30 72 56 47 56 29.5C56 15.4 45.5 4 30 4Z" fill="#101010"/><rect x="20" y="20" width="20" height="20" rx="3" fill="#FFD700"/></svg><b>WunaGo</b></div><p>Chargement…</p></header>
+    <main id="main"></main>
+  </div>
+  <script src="vendor/leaflet/leaflet.js"></script>
+  <script type="module">
+  import { QUARTIERS } from "./pricing.mjs";
+  var token = new URLSearchParams(location.search).get("t") || "";
+  var head = document.getElementById("head"), main = document.getElementById("main");
+  var D = null, ui = { mode: null, code: "", hint: "", other: false, pname: "", pphone: "", area: "", pin: null, busy: false, err: "", gps: null, edit: false };
+  var map = null, marker = null, timer = null;
+  function esc(s) { return String(s == null ? "" : s).replace(/[&<>"']/g, function (c) { return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]; }); }
+  function F(n) { return String(Math.round(n || 0)).replace(/\B(?=(\d{3})+(?!\d))/g, " ") + " F"; }
+  function first(n) { return String(n || "").split(" ")[0]; }
+  function api(path, body) {
+    return fetch("/api/lien/" + encodeURIComponent(token) + path, body ? { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(body) } : { cache: "no-store" })
+      .then(function (r) { return r.json().then(function (j) { if (!r.ok) throw new Error(j.error || "Erreur."); return j; }); });
+  }
+  function normCode(v) { var s = String(v || "").toUpperCase().replace(/[^0-9A-Z]/g, "").replace(/^WG/, ""); return s.length === 4 ? "WG-" + s : null; }
+  var send = function () { return D.direction === "send"; };
+
+  function header() {
+    var who = esc(D.from);
+    var title = send() ? who + " vous envoie un colis 📦" : who + " attend un colis de votre part 📦";
+    var sub = send() ? "Il part de " + esc(D.mineArea) + "." : "Il sera livré à " + esc(D.mineArea) + ".";
+    var pay = D.payer === "them" ? "La livraison est à votre charge : vous la réglez au livreur." : "La livraison est payée par " + esc(D.from) + ".";
+    head.innerHTML = head.firstElementChild.outerHTML + '<h1>' + title + '</h1><p>' + sub + ' ' + pay + '</p>' + (D.note ? '<p><b>Note :</b> ' + esc(D.note) + '</p>' : '');
+  }
+  function option(mode, ic, title, sub) {
+    return '<button class="opt" data-mode="' + mode + '" aria-pressed="' + (ui.mode === mode) + '"><span class="ic" aria-hidden="true">' + ic + '</span><span><b>' + title + '</b><small>' + sub + '</small></span></button>';
+  }
+  function codeBox(label) {
+    var scan = "BarcodeDetector" in window ? '<label class="scan" aria-label="Scanner un QR code WunaGo">📷<input type="file" accept="image/*" capture="environment" id="scan"></label>' : '';
+    return '<div class="card"><span class="lbl">' + label + '</span><div class="row"><input id="code" class="code-in" inputmode="text" autocomplete="off" autocapitalize="characters" placeholder="WG-XXXX" maxlength="8" value="' + esc(ui.code) + '" aria-label="' + label + '">' + scan + '</div></div>';
+  }
+  function choose() {
+    var q = send() ? "Où voulez-vous recevoir le colis ?" : "D'où part le colis ?";
+    var areas = QUARTIERS.map(function (x) { return x.name; }).sort(function (a, b) { return a.localeCompare(b, "fr"); });
+    var who = send() ? "Qui recevra le colis ?" : "Qui remettra le colis au livreur ?";
+    var html = '<h2>' + q + '</h2><div style="display:flex;flex-direction:column;gap:8px">' +
+      option("gps", "📍", "Ici, là où je suis", ui.gps ? "Position trouvée ✓" : "Votre position exacte, en un geste") +
+      option("mycode", "🏷️", "Mon Code WunaGo", "WG-… : votre adresse enregistrée") +
+      option("contact", "👥", send() ? "Chez un proche" : "Chez quelqu'un d'autre", "Son Code WunaGo : famille, voisin, bureau, boutique…") +
+      option("map", "🗺️", "Autre lieu", "Choisissez le quartier et placez l'épingle") + '</div>';
+    if (ui.mode === "mycode") html += codeBox("Votre Code WunaGo");
+    if (ui.mode === "contact") html += codeBox("Code WunaGo de la personne");
+    if (ui.mode === "map") html += '<div class="card"><span class="lbl">Quartier</span><select id="area" aria-label="Quartier"><option value="">Choisir le quartier…</option>' +
+      areas.map(function (a) { return '<option' + (a === ui.area ? ' selected' : '') + '>' + esc(a) + '</option>'; }).join("") + '</select>' +
+      '<div id="map" aria-label="Carte : déplacez l\'épingle sur le lieu exact"></div><p class="muted">Touchez la carte ou déplacez l\'épingle jusqu\'au lieu exact.</p></div>';
+    if (ui.mode) {
+      html += '<div class="card"><span class="lbl">Point de repère' + (ui.mode === "gps" || ui.mode === "map" ? '' : ' (facultatif)') + '</span>' +
+        '<input id="hint" placeholder="Ex. portail bleu après la boulangerie" maxlength="120" value="' + esc(ui.hint) + '" aria-label="Point de repère"></div>' +
+        '<div class="card"><span class="lbl">' + who + '</span><div class="seg"><button data-other="0" aria-pressed="' + !ui.other + '">Moi</button><button data-other="1" aria-pressed="' + ui.other + '">Une autre personne</button></div>' +
+        (ui.other ? '<input id="pname" placeholder="Son nom" maxlength="60" value="' + esc(ui.pname) + '" aria-label="Nom de la personne"><input id="pphone" inputmode="tel" placeholder="Son numéro (6 XX XX XX XX)" value="' + esc(ui.pphone) + '" aria-label="Numéro de la personne">' : '') + '</div>';
+    }
+    if (ui.err) html += '<div class="err" role="alert">' + esc(ui.err) + '</div>';
+    html += '<button class="btn ink" id="go"' + (!ui.mode || ui.busy ? " disabled" : "") + '>' + (ui.busy ? "…" : "Voir le prix") + '</button>';
+    if (ui.edit) html += '<button class="link" id="noedit">Annuler la modification</button>';
+    return html;
+  }
+  function priced() {
+    var o = D.other || {}, mine = D.payer === "them";
+    var html = '<div class="card"><span class="lbl">' + (send() ? "Livraison à" : "Départ") + '</span><div style="font-weight:800;font-size:15px">' + esc(String(o.text || "").split(" · ")[0]) + '</div>' +
+      (o.hint ? '<p class="muted">Repère : ' + esc(o.hint) + '</p>' : '') + (o.person && o.person.name ? '<p class="muted">' + (send() ? "Reçu par " : "Remis par ") + esc(o.person.name) + '</p>' : '') +
+      '<button class="link" id="edit" style="align-self:flex-start">Modifier le lieu</button></div>' +
+      '<div class="card"><div class="price"><span class="lbl">Prix de la livraison</span><b>' + F(D.price) + '</b></div>' +
+      (mine ? '<p class="muted">À régler au livreur ' + (send() ? "à la réception" : "au moment de la prise en charge") + ' : espèces, Orange Money ou MTN MoMo.</p>' : '<p class="muted">Payée par ' + esc(D.from) + '.</p>') + '</div>';
+    if (D.closed) html += '<div class="err" role="status">Le service est fermé à cette heure (6 h – 22 h). La course pourra être confirmée dès l\'ouverture.</div>';
+    if (ui.err) html += '<div class="err" role="alert">' + esc(ui.err) + '</div>';
+    if (mine) html += '<button class="btn yel" id="confirm"' + (ui.busy || D.closed ? " disabled" : "") + '>' + (ui.busy ? "…" : "Confirmer · " + F(D.price)) + '</button>';
+    else html += '<div class="card dark"><div style="font-weight:800;font-size:15px">C\'est noté ✓</div><p class="muted">' + esc(D.from) + ' confirme la course. Cette page se met à jour toute seule.</p></div>';
+    return html;
+  }
+  function ordered() {
+    var o = D.order || {};
+    return '<div class="card dark"><span class="lbl">Course lancée · ' + esc(o.code) + '</span><div style="font-weight:800;font-size:18px">Un livreur WunaGo arrive ✓</div>' +
+      (o.deliveryCode ? '<p class="muted">Code de remise, à donner au livreur ' + (D.other && D.other.person && D.other.person.name ? "(transmettez-le à " + esc(D.other.person.name) + ")" : "à l'arrivée") + ' :</p><div class="bigcode">' + esc(o.deliveryCode) + '</div>' : '') + '</div>' +
+      (o.trackToken ? '<a class="btn ink" href="suivi.html?c=' + encodeURIComponent(o.trackToken) + '">Suivre la livraison</a>' : '') +
+      '<a class="btn out" href="/">Découvrir WunaGo</a>';
+  }
+  function ended(title, text) {
+    return '<div class="card"><h2>' + title + '</h2><p class="muted">' + text + '</p></div><a class="btn yel" href="/">Ouvrir WunaGo</a>';
+  }
+  function render() {
+    clearTimeout(timer);
+    header();
+    var html;
+    if (D.status === "cancelled") html = ended("Envoi annulé", esc(D.from) + " a annulé cet envoi.");
+    else if (D.status === "expired") html = ended("Ce lien a expiré", "Demandez à " + esc(D.from) + " de vous renvoyer un lien.");
+    else if (D.status === "ordered") html = ordered();
+    else if (D.status === "waiting_confirm" && !ui.edit) { html = priced(); if (D.payer === "me") timer = setTimeout(load, 10000); }
+    else html = choose();
+    main.innerHTML = html;
+    if (ui.mode === "map" && document.getElementById("map")) drawMap();
+  }
+  function drawMap() {
+    if (!window.L) return;
+    var q = QUARTIERS.filter(function (x) { return x.name === ui.area; })[0];
+    var c = ui.pin || (q ? { lat: q.lat, lng: q.lng } : { lat: 4.05, lng: 9.72 });
+    map = L.map("map", { zoomControl: true }).setView([c.lat, c.lng], q || ui.pin ? 16 : 12);
+    L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", { maxZoom: 19, attribution: "© OpenStreetMap" }).addTo(map);
+    marker = L.marker([c.lat, c.lng], { draggable: true, icon: L.divIcon({ className: "", iconSize: [26, 26], iconAnchor: [13, 13], html: '<div style="width:26px;height:26px;background:#FFD700;border:3px solid #101010;border-radius:99px"></div>' }) }).addTo(map);
+    if (q || ui.pin) ui.pin = { lat: c.lat, lng: c.lng };
+    marker.on("dragend", function () { var p = marker.getLatLng(); ui.pin = { lat: p.lat, lng: p.lng }; });
+    map.on("click", function (e) { marker.setLatLng(e.latlng); ui.pin = { lat: e.latlng.lat, lng: e.latlng.lng }; });
+  }
+  function readInputs() {
+    var g = function (id) { var el = document.getElementById(id); return el ? el.value : null; };
+    if (g("code") != null) ui.code = g("code"); if (g("hint") != null) ui.hint = g("hint");
+    if (g("pname") != null) ui.pname = g("pname"); if (g("pphone") != null) ui.pphone = g("pphone");
+  }
+  function locate() {
+    if (!navigator.geolocation) { ui.err = "Votre téléphone ne permet pas de partager la position : choisissez « Autre lieu »."; render(); return; }
+    ui.err = ""; ui.busy = true; render();
+    navigator.geolocation.getCurrentPosition(function (p) { ui.busy = false; ui.gps = { lat: p.coords.latitude, lng: p.coords.longitude }; render(); },
+      function () { ui.busy = false; ui.err = "Autorisez la localisation dans votre navigateur, ou choisissez « Autre lieu »."; render(); },
+      { enableHighAccuracy: true, timeout: 20000, maximumAge: 0 });
+  }
+  function submit() {
+    readInputs(); ui.err = "";
+    var b = { hint: ui.hint };
+    if (ui.mode === "gps") { if (!ui.gps) { locate(); return; } b.mode = "gps"; b.lat = ui.gps.lat; b.lng = ui.gps.lng; }
+    else if (ui.mode === "mycode" || ui.mode === "contact") { var c = normCode(ui.code); if (!c) { ui.err = "Code : WG- suivi de 4 caractères."; render(); return; } b.mode = "code"; b.code = c; }
+    else { if (!ui.pin) { ui.err = "Choisissez le quartier, puis placez l'épingle."; render(); return; } b.mode = "map"; b.lat = ui.pin.lat; b.lng = ui.pin.lng; b.placeName = ""; }
+    if (ui.other) {
+      if (String(ui.pname).trim().length < 2) { ui.err = "Indiquez le nom de la personne."; render(); return; }
+      b.person = { name: ui.pname, phone: ui.pphone };
+    }
+    ui.busy = true; render();
+    api("/place", b).then(function (j) { D = j; ui.busy = false; ui.edit = false; render(); }).catch(function (e) { ui.busy = false; ui.err = e.message; render(); });
+  }
+  main.addEventListener("click", function (e) {
+    var t = e.target.closest("button"); if (!t) return;
+    readInputs();
+    if (t.dataset.mode) { ui.mode = t.dataset.mode; ui.err = ""; render(); if (ui.mode === "gps" && !ui.gps) locate(); return; }
+    if (t.dataset.other != null) { ui.other = t.dataset.other === "1"; render(); return; }
+    if (t.id === "go") submit();
+    if (t.id === "edit") { ui.edit = true; ui.err = ""; render(); }
+    if (t.id === "noedit") { ui.edit = false; ui.err = ""; render(); }
+    if (t.id === "confirm") {
+      ui.busy = true; ui.err = ""; render();
+      api("/confirm", {}).then(function (j) { D = j; ui.busy = false; render(); }).catch(function (e2) { ui.busy = false; ui.err = e2.message; render(); });
+    }
+  });
+  main.addEventListener("change", function (e) {
+    var el = e.target;
+    if (el.id === "area") { readInputs(); ui.area = el.value; ui.pin = null; render(); }
+    if (el.id === "scan" && el.files && el.files[0]) {
+      createImageBitmap(el.files[0]).then(function (bmp) { return new BarcodeDetector({ formats: ["qr_code"] }).detect(bmp); }).then(function (res) {
+        var m = res && res[0] && String(res[0].rawValue).toUpperCase().match(/WG-?([0-9A-Z]{4})/);
+        if (!m) { ui.err = "Aucun Code WunaGo trouvé sur la photo."; render(); return; }
+        ui.code = "WG-" + m[1]; ui.err = ""; render();
+      }).catch(function () { ui.err = "Lecture du QR code impossible : tapez le code."; render(); });
+    }
+  });
+  function load() {
+    api("").then(function (j) { D = j; render(); }).catch(function (e) {
+      head.innerHTML = head.firstElementChild.outerHTML + '<h1>Lien introuvable</h1>';
+      main.innerHTML = ended("Lien introuvable", esc(e.message));
+    });
+  }
+  load();
+  </script>
+</body>
+</html>

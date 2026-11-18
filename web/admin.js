@@ -70,7 +70,7 @@
     return '<div class="shell"><nav class="side" aria-label="Sections">' +
       '<div class="brand"><svg width="22" height="28" viewBox="0 0 60 76" aria-hidden="true"><path d="M30 4C14.5 4 4 15.4 4 29.5C4 47 30 72 30 72C30 72 56 47 56 29.5C56 15.4 45.5 4 30 4Z" fill="#FFD700"/><rect x="20" y="20" width="20" height="20" rx="3" fill="#101010"/></svg><span>WunaGo<br><small>BACKOFFICE</small></span></div>' +
       NAV.map(function (n) { var k = c[n[0]]; return '<button class="' + (S.view === n[0] || (S.view === "courier" && n[0] === "couriers") ? "on" : "") + '" data-a="nav" data-v="' + n[0] + '">' + n[1] + (k ? '<span class="count">' + k + '</span>' : '') + '</button>'; }).join("") +
-      '<div class="foot"><span class="mono" style="font-size:10px;opacity:.6">Version 18 · 17/11/2026</span><span>' + esc(S.me.name || "Administrateur") + '<br><span class="mono">' + esc(phone(S.me.phone)) + '</span></span><button class="btn btn-sm btn-ghost" style="background:rgba(255,255,255,.1);color:#fff" data-a="logout">Se déconnecter</button></div>' +
+      '<div class="foot"><span class="mono" style="font-size:10px;opacity:.6">Version 19 · 18/11/2026</span><span>' + esc(S.me.name || "Administrateur") + '<br><span class="mono">' + esc(phone(S.me.phone)) + '</span></span><button class="btn btn-sm btn-ghost" style="background:rgba(255,255,255,.1);color:#fff" data-a="logout">Se déconnecter</button></div>' +
       '</nav><main>' + lateBanner() + inner + '</main></div>';
   }
   function kpi(label, value, dark) { return '<div class="card kpi' + (dark ? " dark" : "") + '"><span class="lbl">' + label + '</span><b>' + value + '</b></div>'; }
@@ -156,7 +156,8 @@
       kpiA("À assigner", s.unassigned || 0, "orderFilter", "unassigned", (s.unassigned ? " warn" : "")) +
       kpiA("Livreurs en ligne", (s.couriers_online || 0) + " / " + (s.couriers || 0), "nav", "couriers") +
       kpiA("Réclamations ouvertes", s.open_disputes || 0, "nav", "disputes", (s.open_disputes ? " warn" : "")) +
-      kpiA("Messages non lus", counts().messages, "nav", "messages", (counts().messages ? " warn" : "")) + '</div>';
+      kpiA("Messages non lus", counts().messages, "nav", "messages", (counts().messages ? " warn" : "")) +
+      kpiA("Envois par lien en attente", s.links_waiting || 0, "showLinks", "") + '</div>' + linksTable();
     if (!r) return shell(head + '<h2 class="sec">Opérations en direct</h2>' + ops + '<div class="card empty">' + (S.reportBusy ? "Calcul des rapports…" : "Rapports indisponibles.") + '</div>');
     var t = r.totals, valid = t.orders - t.cancelled;
     var kpis = '<div class="kpis">' +
@@ -222,6 +223,20 @@
   function periodLabel() {
     var P = S.period, f = function (d) { return new Date(d + "T12:00:00Z").toLocaleDateString("fr-FR", { day: "numeric", month: "short", year: "numeric" }); };
     return P.from === P.to ? f(P.from) : "du " + f(P.from) + " au " + f(P.to);
+  }
+  /* envois par lien : le correspondant n'a pas encore choisi le lieu, ou le prix attend confirmation */
+  function linksTable() {
+    if (!S.showLinks) return "";
+    var L = S.links || [];
+    if (!L.length) return '<div class="card empty" style="margin-bottom:14px">Aucun envoi par lien en attente.</div>';
+    var ST = { waiting_place: "Attend le lieu", waiting_confirm: "Prix à confirmer" };
+    return '<div class="card" style="margin-bottom:14px;overflow-x:auto"><table><thead><tr><th>Créé par</th><th>Sens</th><th>Correspondant</th><th>Lieu choisi</th><th>Qui paie</th><th>Statut</th><th>Expire</th></tr></thead><tbody>' +
+      L.map(function (l) {
+        return '<tr><td><b>' + esc(l.creator.name) + '</b><br><span class="mono" style="font-size:11px">' + esc(phone(l.creator.phone)) + '</span></td>' +
+          '<td>' + (l.direction === "send" ? "Envoie à" : "Reçoit de") + '</td><td>' + esc(l.contactName || "—") + '<br><span class="mono" style="font-size:11px">' + esc(phone(l.contactPhone)) + '</span></td>' +
+          '<td>' + (l.other ? esc(String(l.other.text).split(" · ")[0]) + (l.price ? '<br><b>' + F(l.price) + '</b>' : '') : '—') + '</td>' +
+          '<td>' + (l.payer === "me" ? "Le créateur" : "Le correspondant") + '</td><td>' + ST[l.status] + '</td><td class="mono" style="font-size:11px">' + when(l.expiresAt) + '</td></tr>';
+      }).join("") + '</tbody></table></div>';
   }
   function kpiA(label, value, action, arg, cls) { return '<button class="card kpi kpi-btn' + (cls || "") + '" data-a="' + action + '" data-v="' + arg + '"><span class="lbl">' + label + '</span><b>' + value + '</b><span class="kpi-go">Voir →</span></button>'; }
   function kpiB(label, value, sub, dark) { return '<div class="card kpi' + (dark ? " dark" : "") + '"><span class="lbl">' + label + '</span><b>' + value + '</b>' + (sub ? '<span class="kpi-sub">' + sub + '</span>' : '') + '</div>'; }
@@ -458,11 +473,15 @@
         '<div class="card" style="padding:6px 14px">' +
           [["Service", SVC[o.service]], ["Client", (o.client.name || "") + " · " + phone(o.client.phone)], ["Départ", o.pickup], ["Arrivée", o.dropoff], ["Montant", F(o.price.net) + " · " + (PAY[o.paymentMethod] || o.paymentMethod)],
            ["Distance", o.distanceKm ? o.distanceKm + " km" : "—"], ["Créée", when(o.createdAt)], ["Prévue", o.scheduledAt ? when(o.scheduledAt) : "Dès que possible"], ["Livreur", o.courier ? o.courier.name + " · " + phone(o.courier.phone) : "Non assigné"],
-           ["Reçu par", o.deliveredWith === "code" ? (o.proofName ? o.proofName + " · " : "") + "remis avec le code ✓" : (o.proofName || "—")],
+           ["Reçu par", o.deliveredWith === "code" ? (o.proofName ? o.proofName + " · " : "") + "remis avec le code ✓" : o.deliveredWith === "returned" ? "Rendu à l'expéditeur · " + (o.proofName || "") : (o.proofName || "—")],
            ["Code de remise", o.deliveryCode || "—"],
-           ["Destinataire", (o.details && o.details.recipient) ? (o.details.recipient.name || "") + " · " + phone(o.details.recipient.phone) : "Le client"],
-           ["Repère départ", (o.details && o.details.hints && o.details.hints.pickup) || "—"],
-           ["Repère arrivée", (o.details && o.details.hints && o.details.hints.dropoff) || "—"]].map(function (r) { return '<div class="row2"><span class="lbl">' + r[0] + '</span><span style="text-align:right">' + esc(r[1]) + '</span></div>'; }).join("") + '</div>' +
+           ["Destinataire", (o.details && o.details.recipient) ? (o.details.recipient.name || "") + " · " + phone(o.details.recipient.phone) : "Le client"]].concat(
+           o.details && o.details.pickupContact ? [["Remis par", (o.details.pickupContact.name || "") + " · " + phone(o.details.pickupContact.phone)]] : [],
+           o.details && o.details.payBy ? [["Livraison payée par", (o.details.payBy.role === "recipient" ? "le destinataire" : "l'expéditeur") + (o.details.payBy.other ? " (au livreur)" : "")]] : [],
+           o.details && o.details.via === "link" ? [["Origine", "Envoi par lien (lieu choisi par le correspondant)"]] : [],
+           o.details && o.details.returned ? [["Retour à l'expéditeur", "Frais " + F(o.details.returned.fee) + " · à encaisser " + F(o.details.returned.due)]] : [],
+           [["Repère départ", (o.details && o.details.hints && o.details.hints.pickup) || "—"],
+           ["Repère arrivée", (o.details && o.details.hints && o.details.hints.dropoff) || "—"]]).map(function (r) { return '<div class="row2"><span class="lbl">' + r[0] + '</span><span style="text-align:right">' + esc(r[1]) + '</span></div>'; }).join("") + '</div>' +
         (o.note ? '<div class="card" style="padding:12px 14px">« ' + esc(o.note) + ' »</div>' : '') +
         (o.proofPhoto ? '<img src="' + o.proofPhoto + '" alt="Preuve de livraison" style="width:100%;border-radius:16px">' : '') +
         (o.status !== "delivered" && o.status !== "cancelled" ? '<div class="card" style="padding:14px;display:flex;flex-direction:column;gap:10px"><span class="lbl">Assigner un livreur</span>' +
@@ -553,6 +572,10 @@
 
   /* ---------- actions ---------- */
   var A = {
+    showLinks: function () {
+      S.showLinks = !S.showLinks; render();
+      if (S.showLinks) WAPI.get("/admin/links").then(function (r) { S.links = r.links; render(); }).catch(err);
+    },
     sendCode: function () {
       var p = S.login.phone.replace(/\D/g, "");
       WAPI.post("/auth/request", { phone: p }).then(function (r) { S.login.step = "code"; S.login.demoCode = r.demoCode || null; render(); }).catch(err);
