@@ -99,7 +99,7 @@ await A.goto(URL+'admin.html#candidatures');
 await A.waitForSelector(`[data-a="openApp"][data-v="${me.id}"]`,{timeout:15000});
 ok('Backoffice : menu « Candidatures » avec le nombre à valider',await A.isVisible('button[data-v="apps"] .count'));
 await A.click(`[data-a="openApp"][data-v="${me.id}"]`);
-await A.waitForSelector('figure img',{timeout:15000});
+await A.waitForFunction(()=>document.querySelectorAll('figure img').length>=4,null,{timeout:15000});
 ok('Fiche complète : pièces, identité, garant, contrat accepté',await A.isVisible('text=NGONO Marie')&&await A.isVisible('text=acceptée le')&&(await A.locator('figure img').count())>=4);
 await A.screenshot({path:'tests/captures/inscription-4-backoffice.png'});
 await A.click(`[data-a="approveApp"][data-v="${me.id}"]`);

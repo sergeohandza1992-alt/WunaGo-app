@@ -9,7 +9,7 @@
   var SUPPORT_PHONE = "+237600000000", SUPPORT_PHONE_LABEL = "+237 6 00 00 00 00";
   var STORE_KEY = "wunago.client.v1";
   /* Version affichée dans Réglages : à changer avec CACHE dans sw.js à chaque mise en ligne */
-  var APP_VERSION = "24 · 18/11/2026";
+  var APP_VERSION = "25 · 18/11/2026";
   var deferredInstall = null;
   var lastScreenKey = "";
   var installDismissed = false;
@@ -1659,7 +1659,7 @@
       Notification.requestPermission().then(function (perm) {
         if (perm !== "granted") { n.push = false; render(); toast(e.notifDenied); return; }
         n.push = true; render(); toast(e.notifOn);
-        if (navigator.serviceWorker && navigator.serviceWorker.ready) navigator.serviceWorker.ready.then(function (reg) { reg.showNotification("WunaGo", { body: e.notifTest, icon: "icons/icon-192.png", badge: "icons/icon-192.png" }); }).catch(function () {});
+        if (navigator.serviceWorker && navigator.serviceWorker.ready) navigator.serviceWorker.ready.then(function (reg) { reg.showNotification("WunaGo", { body: e.notifTest, icon: "icons/wouri-icon-192.png", badge: "icons/wouri-icon-192.png" }); }).catch(function () {});
       });
     },
     askCancel: function (el, arg) { state.cancelFor = { orderId: arg, reason: null }; render(); },
@@ -1787,7 +1787,7 @@
     if (!deferredInstall && !isIOS) return "";
     var d = p();
     return '<div style="padding:16px 20px 0"><div class="install-card" role="region" aria-label="' + esc(d.install) + '" style="display:flex;gap:12px;align-items:center;background:#0B1F3A;border-radius:16px;padding:13px 14px">' +
-      '<img src="icons/icon-192.png" alt="" width="38" height="38" style="border-radius:10px;flex:none">' +
+      '<img src="icons/wouri-icon-192.png" alt="" width="38" height="38" style="border-radius:10px;flex:none">' +
       '<div class="col" style="gap:2px;flex:1"><span style="font-weight:800;font-size:13.5px;color:#fff">' + esc(d.install) + '</span>' +
       '<span style="font-size:11.5px;line-height:1.4;color:rgba(255,255,255,.7)">' + esc(isIOS && !deferredInstall ? d.iosHint : d.installSub) + '</span></div>' +
       '<div class="col" style="gap:4px;flex:none">' +
