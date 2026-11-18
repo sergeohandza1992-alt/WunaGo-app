@@ -81,7 +81,7 @@ await page.click('[data-action="pickService"][data-arg="parcel"]');
 await page.click('[data-action="pickQuartier"][data-arg="Akwa"]');
 await page.click('[data-action="orderNext"]'); await page.click('[data-action="setWhen"][data-arg="tomorrow"]');
 for(let i=0;i<2;i++) await page.click('[data-action="orderNext"]');
-ok('Le moyen par défaut est présélectionné',await page.getAttribute('[data-action="pickPay"][data-arg="mtn_momo"]','style').then(s=>s.includes('#101010')));
+ok('Le moyen par défaut est présélectionné',await page.getAttribute('[data-action="pickPay"][data-arg="mtn_momo"]','style').then(s=>s.includes('#0B1F3A')));
 await page.click('[data-action="pickPay"][data-arg="wallet"]');
 await page.click('[data-action="confirmPay"]');
 await page.waitForSelector('[data-action="askCancel"]');

@@ -9,10 +9,10 @@
   function icon(html, size) {
     return L.divIcon({ className: "wg-pin", html: html, iconSize: [size, size], iconAnchor: [size / 2, size / 2] });
   }
-  var PICKUP = '<span style="display:block;width:16px;height:16px;box-sizing:border-box;border-radius:99px;background:#101010;border:3.5px solid #FFD700;box-shadow:0 1px 4px rgba(0,0,0,.35)"></span>';
-  var DROPOFF = '<span style="display:block;width:15px;height:15px;border-radius:3px;background:#101010;box-shadow:0 1px 4px rgba(0,0,0,.35)"></span>';
+  var PICKUP = '<span style="display:block;width:16px;height:16px;box-sizing:border-box;border-radius:99px;background:#0B1F3A;border:3.5px solid #1FD1B2;box-shadow:0 1px 4px rgba(0,0,0,.35)"></span>';
+  var DROPOFF = '<span style="display:block;width:15px;height:15px;border-radius:3px;background:#0B1F3A;box-shadow:0 1px 4px rgba(0,0,0,.35)"></span>';
   var COURIER = '<span class="wg-courier"><span class="wg-courier-pulse"></span><span class="wg-courier-dot">' +
-    '<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#FFD700" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="5.5" cy="17.5" r="3"/><circle cx="18.5" cy="17.5" r="3"/><path d="M8.5 17.5h6l3-7h-4M12 10.5 9.5 6H7"/></svg></span></span>';
+    '<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#1FD1B2" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="5.5" cy="17.5" r="3"/><circle cx="18.5" cy="17.5" r="3"/><path d="M8.5 17.5h6l3-7h-4M12 10.5 9.5 6H7"/></svg></span></span>';
 
   function ensure() {
     if (host) return true;
@@ -41,7 +41,7 @@
       currentKey = opts.key;
       layers.clearLayers();
       courier = null;
-      L.polyline([opts.pickup, opts.dropoff], { color: "#101010", weight: 4, opacity: .85, dashArray: "1 8", lineCap: "round" }).addTo(layers);
+      L.polyline([opts.pickup, opts.dropoff], { color: "#0B1F3A", weight: 4, opacity: .85, dashArray: "1 8", lineCap: "round" }).addTo(layers);
       L.marker(opts.pickup, { icon: icon(PICKUP, 16), keyboard: false, title: "Récupération" }).addTo(layers);
       L.marker(opts.dropoff, { icon: icon(DROPOFF, 15), keyboard: false, title: "Livraison" }).addTo(layers);
       map.fitBounds(L.latLngBounds([opts.pickup, opts.dropoff]), { paddingTopLeft: [40, 90], paddingBottomRight: [40, 40], maxZoom: 16 });

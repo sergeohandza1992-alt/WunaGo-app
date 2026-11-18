@@ -90,7 +90,7 @@
     return { path: window.google.maps.SymbolPath.CIRCLE, scale: scale, fillColor: fill, fillOpacity: 1, strokeColor: stroke, strokeWeight: 3 };
   }
   function square() {
-    return { path: "M -6 -6 L 6 -6 L 6 6 L -6 6 Z", fillColor: "#101010", fillOpacity: 1, strokeColor: "#ffffff", strokeWeight: 1.5, scale: 1 };
+    return { path: "M -6 -6 L 6 -6 L 6 6 L -6 6 Z", fillColor: "#0B1F3A", fillOpacity: 1, strokeColor: "#ffffff", strokeWeight: 1.5, scale: 1 };
   }
 
   function mount(slotId, opts) {
@@ -103,9 +103,9 @@
       currentKey = opts.key; currentRoute = null;
       items.forEach(function (x) { x.setMap(null); }); items = [];
       if (courier) { courier.setMap(null); courier = null; }
-      items.push(new g.Marker({ position: opts.pickup, map: map, icon: dot("#101010", "#FFD700", 7), title: "Récupération" }));
+      items.push(new g.Marker({ position: opts.pickup, map: map, icon: dot("#0B1F3A", "#1FD1B2", 7), title: "Récupération" }));
       items.push(new g.Marker({ position: opts.dropoff, map: map, icon: square(), title: "Livraison" }));
-      var line = new g.Polyline({ path: [opts.pickup, opts.dropoff], map: map, strokeColor: "#101010", strokeOpacity: 0.5, strokeWeight: 4 });
+      var line = new g.Polyline({ path: [opts.pickup, opts.dropoff], map: map, strokeColor: "#0B1F3A", strokeOpacity: 0.5, strokeWeight: 4 });
       items.push(line);
       var bounds = new g.LatLngBounds(); bounds.extend(opts.pickup); bounds.extend(opts.dropoff);
       map.fitBounds(bounds, { top: 90, bottom: 40, left: 40, right: 40 });
@@ -128,7 +128,7 @@
     var g = window.google.maps;
     if (currentRoute && typeof fraction === "number") pos = along(currentRoute.path, fraction) || pos;
     if (!pos) { if (courier) { courier.setMap(null); courier = null; } return; }
-    if (!courier) courier = new g.Marker({ position: pos, map: map, icon: dot("#FFD700", "#101010", 9), zIndex: 1000, title: "Livreur" });
+    if (!courier) courier = new g.Marker({ position: pos, map: map, icon: dot("#1FD1B2", "#0B1F3A", 9), zIndex: 1000, title: "Livreur" });
     else courier.setPosition(pos);
   }
 
