@@ -542,7 +542,9 @@ async function placesRoutes(req: Request, user: Row, path: string, m: string): P
 /* ---------- envoi par lien : « Envoyer à… » / « Recevoir de… » un numéro ----------
    Celui qui crée le lien indique son côté (son code ou sa position) et qui paie la livraison.
    L'autre personne ouvre le lien (WhatsApp), choisit le lieu ; la course part quand celui qui paie confirme le prix. */
-const LINK_SIZES: Record<string, number> = { small: 2, medium: 15 };
+/* tailles proposées : poids estimé et véhicule */
+const LINK_SIZES: Record<string, { kg: number; v: string }> = { small: { kg: 2, v: "bike" }, medium: { kg: 15, v: "bike" }, large: { kg: 80, v: "tricycle" }, xl: { kg: 400, v: "van" } };
+const sizeOf = (k: string) => LINK_SIZES[k] || LINK_SIZES.small;
 const DIR_OK = (d: any) => d === "send" || d === "receive";
 function sideGeo(x: Row | null) { return x && x.lat != null ? { lat: Number(x.lat), lng: Number(x.lng) } : null; }
 function linkEnds(l: Row, other: Row | null) {
@@ -551,7 +553,7 @@ function linkEnds(l: Row, other: Row | null) {
 }
 function linkQuote(l: Row, other: Row) {
   const { from, to } = linkEnds(l, other);
-  return quote({ service: "parcel", pickup: from.text, dropoff: to.text, pickupGeo: sideGeo(from), dropoffGeo: sideGeo(to), vehicle: "bike", weightKg: LINK_SIZES[l.size] || 2 }, Date.now());
+  return quote({ service: "parcel", pickup: from.text, dropoff: to.text, pickupGeo: sideGeo(from), dropoffGeo: sideGeo(to), vehicle: sizeOf(l.size).v, weightKg: sizeOf(l.size).kg }, Date.now());
 }
 function linkExpired(l: Row) { return (l.status === "waiting_place" || l.status === "waiting_confirm") && new Date(l.expires_at).getTime() < Date.now(); }
 function linkOut(l: Row) {
@@ -566,7 +568,7 @@ async function linkOrder(l: Row) {
   const creator = (await db().sql`SELECT * FROM users WHERE id = ${l.user_id}`)[0];
   const o = l.other || {}, mine = l.mine || {}, send = l.direction === "send";
   const contact = { name: (o.person && o.person.name) || l.contact_name || "", phone: (o.person && o.person.phone) || l.contact_phone };
-  const b: Row = { service: "parcel", vehicle: "bike", weightKg: LINK_SIZES[l.size] || 2, note: l.note || "", via: "link", keepRecipient: true,
+  const b: Row = { service: "parcel", vehicle: sizeOf(l.size).v, weightKg: sizeOf(l.size).kg, note: l.note || "", via: "link", keepRecipient: true,
     paymentMethod: l.payer === "me" ? l.payment_method : "cash", hints: {} };
   const put = (f: "pickup" | "dropoff", x: Row) => {
     if (x.code) b[f + "Code"] = x.code; else { b[f] = x.text; b[f + "Geo"] = sideGeo(x); b.hints[f] = x.hint || ""; }

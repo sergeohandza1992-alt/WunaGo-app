@@ -48,8 +48,12 @@ Porteur du projet : Serge-Venant OHANDZA. Langue de travail et de l'interface : 
   ou dans l'app (`POST /api/suivi/:token/receive`, 5 essais, `delivered_with = "recipient"`) ; secours : code de remise dicté (`delivery_code`) ou nom + photo.
   « Ce qui va se passer » (suivi, lien), consignes livreur à chaque étape. **Accueil recentré** : colis + trajets (`SERVICES_ON` dans app.js) ;
   pressing et courses masqués mais conservés (tests : `window.WG_ALL_SERVICES`, posé par `tests/horloge.mjs`).
+  **Parcours en un écran** : tuile « Livraison colis » → écran « Envoyer un colis » (numéro → lien WhatsApp ; code → écran éclair ; « J'ai l'adresse » →
+  quartier + repère + destinataire), tailles Petit / Moyen / Gros (tricycle) / Très gros (camionnette) ; tuile « Déplacement » → écran éclair trajet
+  (« Où allez-vous ? » : code ou quartier + lieu précis, moto / voiture + passagers, « Quand ? »). Formulaire détaillé conservé pour pressing / courses
+  (tests : `window.WG_CLASSIC_FORM`). Plus d'adresses fictives pré-remplies en mode serveur. Livreur : bilan du jour, gain estimé mis en avant.
   Version affichée : `APP_VERSION` (app.js) et pied du menu (admin.js), à changer avec `CACHE` (sw.js).
-- Tests : `envoi-lien` (envoi par lien, remise contrôlée, accueil recentré), `livraison2` (multi-acteurs : backoffice, livreur, clients, messagerie, notifications), `tarifs` (grille, sans navigateur), `services` (parcours dédiés, profil), `parcours` (mode local), `google-maps` (API Google simulée), `ecrans-compte` (étape 3), `serveur` (API + Postgres local
+- Tests : `parcours-simple` (colis et trajet en un écran, bilan livreur), `envoi-lien` (envoi par lien, remise contrôlée, accueil recentré), `livraison2` (multi-acteurs : backoffice, livreur, clients, messagerie, notifications), `tarifs` (grille, sans navigateur), `services` (parcours dédiés, profil), `parcours` (mode local), `google-maps` (API Google simulée), `ecrans-compte` (étape 3), `serveur` (API + Postgres local
   via `tests/dev-server.mjs`). Les tests décalent l'heure à midi la nuit (`tests/horloge.mjs`). Lancer : `npm install && npx playwright install chromium && npm test`. Serveur local : `npm run dev`.
 - Mise en ligne : **Cloudflare Workers** (offre gratuite, `wrangler.toml`) relié au dépôt GitHub : chaque fusion dans `main` publie
   automatiquement. Base : **Neon** (Postgres gratuit). Secrets Cloudflare : `DATABASE_URL`, `ADMIN_PHONES`. Netlify (crédits épuisés en nov. 2026) abandonné ;

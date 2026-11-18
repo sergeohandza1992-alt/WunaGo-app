@@ -70,7 +70,7 @@
     return '<div class="shell"><nav class="side" aria-label="Sections">' +
       '<div class="brand"><svg width="22" height="28" viewBox="0 0 60 76" aria-hidden="true"><path d="M30 4C14.5 4 4 15.4 4 29.5C4 47 30 72 30 72C30 72 56 47 56 29.5C56 15.4 45.5 4 30 4Z" fill="#FFD700"/><rect x="20" y="20" width="20" height="20" rx="3" fill="#101010"/></svg><span>WunaGo<br><small>BACKOFFICE</small></span></div>' +
       NAV.map(function (n) { var k = c[n[0]]; return '<button class="' + (S.view === n[0] || (S.view === "courier" && n[0] === "couriers") ? "on" : "") + '" data-a="nav" data-v="' + n[0] + '">' + n[1] + (k ? '<span class="count">' + k + '</span>' : '') + '</button>'; }).join("") +
-      '<div class="foot"><span class="mono" style="font-size:10px;opacity:.6">Version 20 · 18/11/2026</span><span>' + esc(S.me.name || "Administrateur") + '<br><span class="mono">' + esc(phone(S.me.phone)) + '</span></span><button class="btn btn-sm btn-ghost" style="background:rgba(255,255,255,.1);color:#fff" data-a="logout">Se déconnecter</button></div>' +
+      '<div class="foot"><span class="mono" style="font-size:10px;opacity:.6">Version 21 · 18/11/2026</span><span>' + esc(S.me.name || "Administrateur") + '<br><span class="mono">' + esc(phone(S.me.phone)) + '</span></span><button class="btn btn-sm btn-ghost" style="background:rgba(255,255,255,.1);color:#fff" data-a="logout">Se déconnecter</button></div>' +
       '</nav><main>' + lateBanner() + inner + '</main></div>';
   }
   function kpi(label, value, dark) { return '<div class="card kpi' + (dark ? " dark" : "") + '"><span class="lbl">' + label + '</span><b>' + value + '</b></div>'; }

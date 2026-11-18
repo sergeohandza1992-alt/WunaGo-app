@@ -9,7 +9,7 @@
   var SUPPORT_PHONE = "+237600000000", SUPPORT_PHONE_LABEL = "+237 6 00 00 00 00";
   var STORE_KEY = "wunago.client.v1";
   /* Version affichée dans Réglages : à changer avec CACHE dans sw.js à chaque mise en ligne */
-  var APP_VERSION = "20 · 18/11/2026";
+  var APP_VERSION = "21 · 18/11/2026";
   var deferredInstall = null;
   var lastScreenKey = "";
   var installDismissed = false;
@@ -604,7 +604,7 @@
       var f = service === "errand" ? "dropoff" : "pickup";
       dr[f] = home.text; dr[f + "Geo"] = home.geo;
     }
-    if (DEMO && !home) { /* exemple pré-rempli en démonstration */
+    if (DEMO && !home && !srv()) { /* exemple pré-rempli en démonstration (mode local uniquement) */
       dr.pickup = service === "errand" ? "Marché Central, Douala" : "Bonamoussadi, rue 4.212";
       dr.pickupGeo = service === "errand" ? { lat: 4.0482, lng: 9.7066 } : geoOf("Bonamoussadi");
       if (service !== "laundry") { dr.dropoff = "Akwa, av. du Général de Gaulle"; dr.dropoffGeo = geoOf("Akwa"); }
@@ -1428,7 +1428,12 @@
     },
     switchTab: function (el, arg) { switchTab(arg); },
     popScreen: function () { popScreen(); },
-    pickService: function (el, arg) { state.draft = newDraft(arg); state.suggest = null; push("order"); },
+    pickService: function (el, arg) {
+      /* colis et trajet : un seul écran ; pressing et courses gardent le formulaire détaillé */
+      if (arg === "parcel" && srv() && !window.WG_CLASSIC_FORM) { openSend(); return; }
+      if (arg === "ride" && srv() && !window.WG_CLASSIC_FORM) { openRide(); return; }
+      state.draft = newDraft(arg); state.suggest = null; push("order");
+    },
     setWhen: function (el, arg) { state.draft.when = arg; render(); },
     laundryItem: function (el, arg) { var p = arg.split("|"), L = state.draft.laundry; L.items[p[0]] = Math.max(0, (L.items[p[0]] || 0) + Number(p[1])); render(); },
     laundryKg: function (el, arg) { var L = state.draft.laundry, k = L.kg || 0, up = Number(arg.split("|")[1]) > 0; L.kg = Math.max(0, up ? k + (k < 10 ? 0.5 : 1) : k - (k <= 10 ? 0.5 : 1)); render(); },
@@ -1721,6 +1726,27 @@
     else if (bind === "draft.note") state.draft.note = el.value;
     else if (bind === "quickCode") { state.quick.value = el.value.toUpperCase(); el.value = state.quick.value; return; }
     else if (bind === "rcvCode") { state.rcvCode = el.value.replace(/\D/g, "").slice(0, 4); el.value = state.rcvCode; return; }
+    else if (bind === "sendTo") {
+      var L0 = state.linkForm; if (!L0) return;
+      L0.toText = el.value;
+      var raw = el.value.trim().toUpperCase(), cd = /[A-Z]/.test(raw) ? (codeFromText(raw) || (/^[0-9A-Z]{4}$/.test(raw) ? "WG-" + raw : null)) : null;
+      if (cd && raw.replace(/[^0-9A-Z]/g, "").replace(/^WG/, "").length === 4) { actions.flashTo(null, cd, "parcel"); return; }
+      var ph0 = phoneFromText(el.value);
+      if (ph0) { L0.phone = ph0; L0.mode = "phone"; render(); var nx = document.querySelector('[data-bind="linkName"]'); if (nx) nx.focus(); }
+      return;
+    }
+    else if (bind === "sendArea") { if (state.linkForm) { state.linkForm.area = el.value; render(); } return; }
+    else if (bind === "sendPlace") { if (state.linkForm) state.linkForm.place = el.value.slice(0, 80); return; }
+    else if (bind === "sendHint") { if (state.linkForm) state.linkForm.hint = el.value.slice(0, 120); return; }
+    else if (bind === "sendPhone") { if (state.linkForm) { var was = !!phoneFromText(state.linkForm.rphone || ""); state.linkForm.rphone = el.value; if (was !== !!phoneFromText(el.value)) render(); } return; }
+    else if (bind === "rideCode") {
+      var F0 = state.flash; if (!F0) return; F0.toText = el.value;
+      var c2 = codeFromText(el.value);
+      if (c2 && el.value.replace(/[^0-9A-Z]/gi, "").length >= 6) WAPI.get("/codes/" + encodeURIComponent(c2)).then(function (r) { F0.to = r.place; F0.toText = ""; render(); }).catch(errToast);
+      return;
+    }
+    else if (bind === "rideArea") { if (state.flash) { state.flash.area = el.value; setRideTo(); render(); } return; }
+    else if (bind === "ridePlace") { if (state.flash) { state.flash.place = el.value.slice(0, 80); setRideTo(); } return; }
     else if (bind === "linkName") { if (state.linkForm) state.linkForm.name = el.value.slice(0, 60); return; }
     else if (bind === "linkNote") { if (state.linkForm) state.linkForm.note = el.value.slice(0, 300); return; }
     else if (bind === "flashRename") { if (state.flash) state.flash.rename = el.value; return; }
@@ -2068,7 +2094,7 @@
       state.places = r.places;
       /* écran ouvert avant le chargement des codes : on remplace la position automatique par mon code */
       var L = state.linkForm, p = r.places[0];
-      if (L && L.mineAuto && p) { L.mineAuto = false; L.locating = false; L.mine = { type: "code", code: p.code, text: p.address }; }
+      if (L && L.mineAuto && p) { L.mineAuto = false; L.locating = false; L.mine = { type: "code", code: p.code, text: p.address, geo: p.geo }; }
       var F = state.flash;
       if (F && F.fromAuto && F.service === "parcel") { var q = r.places.filter(function (x) { return x.code !== F.to.code; })[0]; if (q) { F.fromAuto = false; F.locating = false; F.from = { type: "code", code: q.code, text: q.address, geo: q.geo, label: q.label }; } }
       render();
@@ -2309,14 +2335,41 @@
     state.flash.from = { type: "code", code: p.code, text: p.address, geo: p.geo, label: p.label }; render();
   };
   function flashQuote(F) {
-    if (!F || !F.from || !window.WPricing) return null;
+    if (!F || !F.from || !F.to || !F.to.geo || !window.WPricing) return null;
+    var z = sizeOf(F.size);
     return WPricing.quote({ service: F.service, pickup: F.from.text, dropoff: F.to.address, pickupGeo: F.from.geo, dropoffGeo: F.to.geo,
-      vehicle: F.service === "ride" ? F.vehicle : "bike", weightKg: 2, ride: { passengers: F.passengers } }, Date.now());
+      vehicle: F.service === "ride" ? F.vehicle : z[2], weightKg: z[1], ride: { passengers: F.passengers }, scheduledAt: whenAt(F.when) }, Date.now());
   }
+  /* « Me déplacer » : un seul écran, la destination se choisit ici (code ou quartier) */
+  function openRide() {
+    var pay = state.defaultPay && state.defaultPay !== "wallet" ? state.defaultPay : "cash";
+    state.flash = { service: "ride", to: null, from: null, vehicle: "bike", passengers: 1, pay: pay, when: "now", area: "", place: "", toText: "", rename: "" };
+    state.activeTab = "home"; state.tabStacks.home = [{ screen: "home" }, { screen: "flash" }];
+    try { history.pushState({ wg: 2 }, ""); } catch (e) {}
+    render(); actions.flashMyPos(null, null, true);
+  }
+  function setRideTo() {
+    var F = state.flash; if (!F || !F.area) return;
+    var pl = String(F.place || "").trim();
+    F.to = { code: null, kind: "addr", name: F.area, address: (pl ? pl + ", " : "") + F.area + ", Douala", geo: geoOf(F.area), hint: pl };
+  }
+  actions.rideClearTo = function () { var F = state.flash; F.to = null; F.area = ""; F.place = ""; F.toText = ""; render(); };
+  actions.flashSize = function (el, k) { state.flash.size = k; render(); };
+  actions.flashWhen = function (el, k) { state.flash.when = k; render(); };
+  actions.flashPassengers = function (el, n) { state.flash.passengers = Number(n); render(); };
   function screenFlash() {
     var f = tf(), F = state.flash, d = t();
     if (!F) return page3(hdr("—"));
-    var ride = F.service === "ride", q = flashQuote(F), to = F.to;
+    var ride = F.service === "ride", q = flashQuote(F), to = F.to || { code: "", address: "" }, noTo = !F.to, addrTo = !!(F.to && !F.to.code);
+    var labS = function (txt) { return '<span class="mono" style="font-size:9.5px;letter-spacing:.08em;color:rgba(16,16,16,.55)">' + esc(txt) + '</span>'; };
+    var en = state.lang === "en";
+    var areas = (window.WGeo ? WGeo.QUARTIERS.map(function (x) { return x.name; }) : QUARTIERS).slice().sort(function (a, b) { return a.localeCompare(b, "fr"); });
+    var picker = '<div class="col" style="gap:8px">' + labS(en ? "WHERE ARE YOU GOING?" : "OÙ ALLEZ-VOUS ?") +
+      '<input data-bind="rideCode" autocomplete="off" autocapitalize="characters" aria-label="' + esc(en ? "WunaGo code of the place" : "Code WunaGo du lieu") + '" placeholder="' + esc(en ? "WunaGo code (WG-…)" : "Code WunaGo (WG-…)") + '" value="' + esc(F.toText || "") + '" style="' + card + ';height:50px;padding:0 14px;font-weight:700;font-size:15px;font-family:var(--mono);letter-spacing:.06em" />' +
+      '<span style="font-size:11.5px;color:rgba(16,16,16,.6)">' + esc(en ? "or choose the neighbourhood:" : "ou choisissez le quartier :") + '</span>' +
+      '<select data-bind="rideArea" aria-label="' + esc(en ? "Neighbourhood" : "Quartier") + '" style="' + card + ';height:48px;padding:0 12px;font-weight:700;font-size:13.5px;color:#101010"><option value="">' + esc(en ? "Choose…" : "Choisir le quartier…") + '</option>' +
+        areas.map(function (a) { return '<option' + (a === F.area ? " selected" : "") + '>' + esc(a) + '</option>'; }).join("") + '</select>' +
+      (false ? '<input data-bind="ridePlace" aria-label="' + esc(en ? "Exact place" : "Lieu précis") + '" placeholder="' + esc(en ? "Exact place (optional): church, hotel, crossroads…" : "Lieu précis (facultatif) : église, hôtel, carrefour…") + '" value="' + esc(F.place || "") + '" style="' + card + ';height:48px;padding:0 13px;font-weight:600;font-size:13.5px" />' : '') + '</div>';
     var chipS = function (on, action, arg, label) { return '<button class="btn" data-action="' + action + '" data-arg="' + esc(arg) + '" aria-pressed="' + on + '" style="height:auto;min-height:38px;border-radius:99px;padding:7px 12px;font-weight:700;font-size:11.5px;border:1px solid ' + (on ? "#101010" : "rgba(16,16,16,.12)") + ';background:' + (on ? "#101010" : "#fff") + ';color:' + (on ? "#FFD700" : "#101010") + '">' + esc(label) + '</button>'; };
     var fromChips = (state.places || []).filter(function (p) { return p.code !== to.code; }).map(function (p) { return chipS(F.from && F.from.code === p.code, "flashFrom", p.code, "🏠 " + p.label + " · " + p.code); }).join("") +
       chipS(F.from && F.from.type === "gps", "flashMyPos", "", F.locating ? f.locating : "📍 " + f.myPos);
@@ -2324,28 +2377,33 @@
     var err = q && q.errors.length ? (q.closed ? t4().errs.closed : q.errors.indexOf("distance") >= 0 ? t4().errs.distance : null) : null;
     return '<div class="scroll"><div class="col" style="padding:calc(18px + var(--sat)) 20px 20px;gap:14px">' +
       '<div class="fx ac" style="gap:11px"><button class="backbtn" aria-label="Retour" data-action="popScreen">←</button><h1 style="margin:0;font-weight:800;font-size:19px;letter-spacing:-.4px;flex:1">' + esc(ride ? f.ride.slice(3) : f.parcel.slice(3)) + '</h1></div>' +
-      /* destinataire comme une fiche contact */
+      (noTo ? picker : addrTo ? '<div class="fx ac" style="gap:12px;background:#101010;color:#fff;border-radius:18px;padding:14px"><span class="fx ac jc" style="width:52px;height:52px;flex:none;border-radius:99px;background:#FFD700;color:#101010;font-size:20px">📍</span>' +
+        '<span class="col" style="gap:2px;flex:1;min-width:0"><span class="mono" style="font-size:9.5px;letter-spacing:.08em;color:rgba(255,255,255,.6)">' + esc(en ? "DESTINATION" : "DESTINATION") + '</span><span style="font-weight:800;font-size:16px">' + esc(to.address.replace(/, Douala$/, "")) + '</span></span>' +
+        '<button class="btn" data-action="rideClearTo" aria-label="' + esc(en ? "Change" : "Changer") + '" style="width:44px;height:44px;flex:none;border-radius:12px;background:rgba(255,255,255,.12);color:#fff;padding:0;font-size:16px">✕</button></div>' +
+        '<input data-bind="ridePlace" aria-label="' + esc(en ? "Exact place" : "Lieu précis") + '" placeholder="' + esc(ride ? (en ? "Exact place (optional): church, hotel, crossroads…" : "Lieu précis (facultatif) : église, hôtel, carrefour…") : "") + '" value="' + esc(F.place || "") + '" style="' + card + ';height:48px;padding:0 13px;font-weight:600;font-size:13.5px" />' : (
       '<div class="fx ac" style="gap:12px;background:#101010;color:#fff;border-radius:18px;padding:14px">' +
         '<span class="fx ac jc" style="width:52px;height:52px;flex:none;border-radius:99px;background:#FFD700;color:#101010;font-weight:800;font-size:16px">' + esc(to.mine ? "🏠" : initials2(F.rename || to.name)) + '</span>' +
         '<span class="col" style="gap:2px;flex:1;min-width:0"><span class="mono" style="font-size:9.5px;letter-spacing:.08em;color:rgba(255,255,255,.6)">' + f.to + ' · ' + esc(to.code) + '</span>' +
         '<span style="font-weight:800;font-size:16px">' + esc(to.mine ? f.me + " · " + to.label : (F.rename || to.name || to.code)) + '</span>' +
         '<span style="font-size:12px;color:rgba(255,255,255,.75)">' + esc(to.address) + (to.hint ? ' · ' + esc(to.hint) : '') + '</span></span>' +
         (to.phone && !to.mine ? '<a class="btn" href="tel:+237' + esc(to.phone) + '" aria-label="' + esc(f.call) + '" style="width:44px;height:44px;flex:none;border-radius:12px;background:#FFD700;padding:0;text-decoration:none">' + ICON_PHONE.replace(/#FFD700/g, "#101010") + '</a>' : '') + '</div>' +
-      (to.mine ? '' : '<input data-bind="flashRename" aria-label="' + esc(f.rename) + '" placeholder="' + esc(f.rename) + '" value="' + esc(F.rename) + '" style="' + card + ';height:44px;padding:0 13px;font-weight:600;font-size:13px" />') +
+      (to.mine ? '' : '<input data-bind="flashRename" aria-label="' + esc(f.rename) + '" placeholder="' + esc(f.rename) + '" value="' + esc(F.rename) + '" style="' + card + ';height:44px;padding:0 13px;font-weight:600;font-size:13px" />')
+      )) +
       '<div class="col" style="gap:7px"><span class="mono" style="font-size:9.5px;letter-spacing:.08em;color:rgba(16,16,16,.55)">' + f.from + (F.from ? ' · ' + esc(F.from.text) : '') + '</span><div class="fx wrap" style="gap:6px">' + fromChips + '</div></div>' +
-      (ride ? '<div class="fx" style="gap:6px">' + chipS(F.vehicle === "bike", "flashVehicle", "bike", f.moto) + chipS(F.vehicle === "car", "flashVehicle", "car", f.car) + '</div>'
-        : '<div class="fx ac" style="gap:8px;font-size:12.5px;font-weight:600"><span style="width:8px;height:8px;border-radius:99px;background:#101010"></span>' + esc(f.size) + '</div>' +
-          '<button class="btn" data-action="flashFull" style="height:36px;align-self:flex-start;padding:0;background:transparent;font-weight:700;font-size:12px;text-decoration:underline">' + esc(f.heavy) + '</button>') +
+      (ride ? '<div class="fx" style="gap:6px">' + chipS(F.vehicle === "bike", "flashVehicle", "bike", f.moto) + chipS(F.vehicle === "car", "flashVehicle", "car", f.car) + '</div>' +
+          (F.vehicle === "car" ? '<div class="col" style="gap:7px">' + labS(en ? "PASSENGERS" : "PASSAGERS") + '<div class="fx" style="gap:6px">' + [1, 2, 3, 4].map(function (n) { return chipS(F.passengers === n, "flashPassengers", String(n), String(n)); }).join("") + '</div></div>' : '')
+        : '<div class="col" style="gap:7px">' + labS(tl().size) + sizeChips(F.size || "small", "flashSize") + '</div>') +
+      '<div class="col" style="gap:7px">' + labS(ts().when) + whenChips(F.when, "flashWhen") + '</div>' +
       (!ride && !to.mine ? '<div class="col" style="gap:7px"><span class="mono" style="font-size:9.5px;letter-spacing:.08em;color:rgba(16,16,16,.55)">' + esc(tl().payer) + '</span><div class="fx wrap" style="gap:6px">' +
         chipS(F.payer !== "them", "flashPayer", "me", tl().me) + chipS(F.payer === "them", "flashPayer", "them", state.lang === "en" ? "The recipient, to the courier" : "Le destinataire, au livreur") + '</div></div>' : '') +
       (F.payer === "them" && !ride ? '' : '<div class="col" style="gap:7px"><span class="mono" style="font-size:9.5px;letter-spacing:.08em;color:rgba(16,16,16,.55)">' + f.pay + '</span><div class="fx wrap" style="gap:6px">' +
-        payOpts.map(function (k) { return chipS(F.pay === k, "flashPay", k, d.paymentNames[k]); }).join("") + '</div></div>') +
+        payOpts.map(function (k) { return chipS(F.pay === k, "flashPay", k, ride && k === "cash" ? (en ? "Cash to the driver" : "Espèces au chauffeur") : d.paymentNames[k]); }).join("") + '</div></div>') +
       (err ? '<div role="alert" style="background:rgba(255,215,0,.25);border-radius:12px;padding:10px 12px;font-size:12px;font-weight:600">' + esc(err) + '</div>' : '') +
     '</div></div>' +
     '<div style="padding:12px 20px 20px"><button class="btn btn-yellow" data-action="flashConfirm" style="width:100%;height:56px;font-size:16px"' + (!q || err || F.busy ? " disabled" : "") + '>' +
       esc(F.busy ? "…" : (ride ? f.book2 : f.send)) + (q && !err ? ' · ' + fmtFcfa(q.net) : '') + '</button></div>';
   }
-  actions.flashVehicle = function (el, arg) { state.flash.vehicle = arg; render(); };
+  actions.flashVehicle = function (el, arg) { state.flash.vehicle = arg; if (arg === "bike") state.flash.passengers = 1; render(); };
   actions.flashPay = function (el, arg) { state.flash.pay = arg; render(); };
   actions.flashPayer = function (el, arg) { state.flash.payer = arg; render(); };
   actions.flashFull = function () {
@@ -2356,11 +2414,14 @@
   actions.flashConfirm = function () {
     var F = state.flash; if (!F || F.busy) return;
     if (!F.from) { toast(tf().noFrom); return; }
+    if (!F.to) { toast(state.lang === "en" ? "Choose where you're going." : "Choisissez la destination."); return; }
     var q = flashQuote(F); if (!q || q.errors.length) return;
     F.busy = true; render();
-    var body = { service: F.service, pickup: F.from.text, dropoff: F.to.code, pickupGeo: F.from.geo, dropoffGeo: F.to.geo, dropoffCode: F.to.code,
-      pickupCode: F.from.type === "code" ? F.from.code : undefined, vehicle: F.service === "ride" ? F.vehicle : "bike", weightKg: 2,
-      ride: { passengers: F.passengers }, paymentMethod: F.pay, note: "" };
+    var z = sizeOf(F.size);
+    var body = { service: F.service, pickup: F.from.text, dropoff: F.to.code || F.to.address, pickupGeo: F.from.geo, dropoffGeo: F.to.geo, dropoffCode: F.to.code || undefined,
+      pickupCode: F.from.type === "code" ? F.from.code : undefined, vehicle: F.service === "ride" ? F.vehicle : z[2], weightKg: F.service === "ride" ? 0 : z[1],
+      ride: { passengers: F.passengers }, paymentMethod: F.pay, note: "", scheduledAt: whenAt(F.when),
+      hints: F.to.code ? undefined : { pickup: "", dropoff: F.to.hint || "" } };
     if (F.payer === "them" && F.service === "parcel" && !F.to.mine) { body.paymentMethod = "cash"; body.payBy = { role: "recipient", other: true }; }
     WAPI.post("/orders", body).then(function (r) {
       F.busy = false; state.wallet.balance = r.wallet.balance; replaceOrder(r.order);
@@ -2437,7 +2498,8 @@
   }
   function openLinkForm(phone, name) {
     var mineFirst = (state.places || [])[0];
-    state.linkForm = { direction: "send", phone: phone, name: name || "", mine: mineFirst ? { type: "code", code: mineFirst.code, text: mineFirst.address } : null,
+    state.linkForm = { direction: "send", phone: phone, name: name || "", mode: phone ? "phone" : null, toText: "", when: "now",
+      mine: mineFirst ? { type: "code", code: mineFirst.code, text: mineFirst.address, geo: mineFirst.geo } : null,
       size: "small", payer: "me", pay: state.defaultPay && state.defaultPay !== "wallet" ? state.defaultPay : "cash", note: "" };
     state.quick.value = ""; state.activeTab = "home"; state.tabStacks.home = [{ screen: "home" }, { screen: "linkNew" }];
     try { history.pushState({ wg: 3 }, ""); } catch (e) {}
@@ -2464,7 +2526,7 @@
       L.mine = { type: "gps", geo: g, text: tf().myPos + " (" + nearestQuartier(g) + ")" }; render();
     }, function () { L.locating = false; render(); if (!silent) toast(tw().gpsOff); }, { enableHighAccuracy: true, timeout: 15000, maximumAge: 30000 });
   };
-  actions.linkMine = function (el, arg) { var p = (state.places || []).filter(function (x) { return x.code === arg; })[0]; if (p) { state.linkForm.mineAuto = false; state.linkForm.mine = { type: "code", code: p.code, text: p.address }; render(); } };
+  actions.linkMine = function (el, arg) { var p = (state.places || []).filter(function (x) { return x.code === arg; })[0]; if (p) { state.linkForm.mineAuto = false; state.linkForm.mine = { type: "code", code: p.code, text: p.address, geo: p.geo }; render(); } };
   actions.linkSet = function (el, arg) { var p = arg.split("|"); state.linkForm[p[0]] = p[1]; render(); };
   actions.linkFull = function () {
     var L = state.linkForm; state.draft = newDraft("parcel");
@@ -2472,38 +2534,125 @@
     state.draft.recipient = { self: false, name: L.name, phone: L.phone };
     state.tabStacks.home = [{ screen: "home" }, { screen: "order" }]; render();
   };
+  /* tailles de colis : une seule question au lieu du poids + véhicule */
+  var SIZES = [["small", 2, "bike"], ["medium", 15, "bike"], ["large", 80, "tricycle"], ["xl", 400, "van"]];
+  var SIZE_TXT = { fr: { small: ["Petit", "≤ 5 kg · moto"], medium: ["Moyen", "≤ 15 kg · moto"], large: ["Gros", "≤ 300 kg · tricycle"], xl: ["Très gros", "≤ 1,2 t · camionnette"] },
+    en: { small: ["Small", "≤ 5 kg · motorbike"], medium: ["Medium", "≤ 15 kg · motorbike"], large: ["Large", "≤ 300 kg · tricycle"], xl: ["Extra large", "≤ 1.2 t · van"] } };
+  function sizeOf(k) { return SIZES.filter(function (x) { return x[0] === k; })[0] || SIZES[0]; }
+  var SEND_TXT = {
+    fr: { who: "À QUI ?", whoPh: "Son numéro ou son Code WunaGo", whoHelp: "Il/elle reçoit un lien WhatsApp et choisit le lieu de livraison. Pas de numéro ? Indiquez l'adresse.",
+      knowAddr: "📍 J'ai l'adresse", byPhone: "📱 Par son numéro", area: "QUARTIER", areaPh: "Choisir le quartier…", place: "Lieu précis (rue, immeuble…)", hint: "Point de repère (ex. portail bleu après la pharmacie)",
+      rname: "Nom de la personne qui reçoit", rphone: "Son numéro (le livreur l'appellera)", when: "QUAND ?", send: "Envoyer", needWho: "Indiquez à qui envoyer", needAddr: "Quartier et numéro du destinataire requis",
+      them: "Le destinataire, au livreur" },
+    en: { who: "TO WHOM?", whoPh: "Their number or WunaGo code", whoHelp: "They get a WhatsApp link and choose where to receive it. No number? Enter the address.",
+      knowAddr: "📍 I have the address", byPhone: "📱 By their number", area: "NEIGHBOURHOOD", areaPh: "Choose the neighbourhood…", place: "Exact place (street, building…)", hint: "Landmark (e.g. blue gate after the pharmacy)",
+      rname: "Name of the person receiving", rphone: "Their number (the courier will call)", when: "WHEN?", send: "Send", needWho: "Say who it's for", needAddr: "Neighbourhood and recipient's number needed",
+      them: "The recipient, to the courier" }
+  };
+  function ts() { return SEND_TXT[state.lang] || SEND_TXT.fr; }
+  function sizeChips(cur, action) {
+    var T = SIZE_TXT[state.lang] || SIZE_TXT.fr;
+    return '<div class="fx wrap" style="gap:6px">' + SIZES.map(function (z) {
+      var on = cur === z[0];
+      return '<button class="btn" data-action="' + action + '" data-arg="' + z[0] + '" aria-pressed="' + on + '" style="flex:1 1 40%;height:auto;min-height:52px;border-radius:14px;padding:8px 10px;flex-direction:column;align-items:flex-start;gap:1px;border:1px solid ' + (on ? "#101010" : "rgba(16,16,16,.12)") + ';background:' + (on ? "#101010" : "#fff") + ';color:' + (on ? "#FFD700" : "#101010") + '">' +
+        '<span style="font-weight:800;font-size:13px">' + esc(T[z[0]][0]) + '</span><span class="mono" style="font-size:9.5px;opacity:.75">' + esc(T[z[0]][1]) + '</span></button>';
+    }).join("") + '</div>';
+  }
+  function whenChips(cur, action) {
+    var W = state.lang === "en" ? [["now", "Now"], ["1h", "In 1 h"], ["evening", "Tonight 6 pm"], ["tomorrow", "Tomorrow 8 am"]] : [["now", "Maintenant"], ["1h", "Dans 1 h"], ["evening", "Ce soir 18 h"], ["tomorrow", "Demain 8 h"]];
+    return '<div class="fx wrap" style="gap:6px">' + W.map(function (w) { var on = (cur || "now") === w[0];
+      return '<button class="btn" data-action="' + action + '" data-arg="' + w[0] + '" aria-pressed="' + on + '" style="height:auto;min-height:40px;border-radius:99px;padding:7px 12px;font-weight:700;font-size:11.5px;border:1px solid ' + (on ? "#101010" : "rgba(16,16,16,.12)") + ';background:' + (on ? "#101010" : "#fff") + ';color:' + (on ? "#FFD700" : "#101010") + '">' + esc(w[1]) + '</button>'; }).join("") + '</div>';
+  }
+  /* prix d'un envoi à une adresse (mode « J'ai l'adresse ») */
+  function sendQuote(L) {
+    if (!L || L.mode !== "addr" || !L.mine || !L.area || !window.WPricing) return null;
+    var g = geoOf(L.area); if (!g) return null;
+    var z = sizeOf(L.size);
+    return WPricing.quote({ service: "parcel", pickup: L.mine.text, dropoff: L.area + ", Douala", pickupGeo: L.mine.geo || null, dropoffGeo: g, vehicle: z[2], weightKg: z[1], scheduledAt: whenAt(L.when) }, Date.now());
+  }
   function screenLinkNew() {
-    var f = tl(), F = tf(), L = state.linkForm, d = t();
+    var f = tl(), F = tf(), S = ts(), L = state.linkForm, d = t();
     if (!L) return page3(hdr("—"));
-    var send = L.direction === "send", nm = String(L.name || "").trim() || "+237 " + prettyPhone(L.phone);
+    var send = L.direction === "send", phoneMode = L.mode === "phone", addr = L.mode === "addr";
+    var nm = String(L.name || "").trim() || (L.phone ? "+237 " + prettyPhone(L.phone) : "");
     var chipS = function (on, action, arg, label) { return '<button class="btn" data-action="' + action + '" data-arg="' + esc(arg) + '" aria-pressed="' + on + '" style="height:auto;min-height:40px;border-radius:99px;padding:7px 12px;font-weight:700;font-size:11.5px;border:1px solid ' + (on ? "#101010" : "rgba(16,16,16,.12)") + ';background:' + (on ? "#101010" : "#fff") + ';color:' + (on ? "#FFD700" : "#101010") + '">' + esc(label) + '</button>'; };
     var lab = function (txt) { return '<span class="mono" style="font-size:9.5px;letter-spacing:.08em;color:rgba(16,16,16,.55)">' + esc(txt) + '</span>'; };
+    var inp = function (bind, ph, val, extra) { return '<input data-bind="' + bind + '" aria-label="' + esc(ph) + '" placeholder="' + esc(ph) + '" value="' + esc(val || "") + '"' + (extra || "") + ' style="' + card + ';height:48px;padding:0 13px;font-weight:600;font-size:13.5px;width:100%" />'; };
     var mineChips = (state.places || []).map(function (p) { return chipS(L.mine && L.mine.code === p.code, "linkMine", p.code, "🏠 " + p.label + " · " + p.code); }).join("") +
       chipS(L.mine && L.mine.type === "gps", "linkMyPos", "", L.locating ? F.locating : "📍 " + F.myPos);
-    var payOpts = ["cash", "orange_money", "mtn_momo"].concat(state.wallet.balance > 0 ? ["wallet"] : []);
+    var q = sendQuote(L);
+    var payOpts = ["cash", "orange_money", "mtn_momo"].concat(state.wallet.balance > (q ? q.net : 0) ? ["wallet"] : []);
     var seg = function (k, label) { var on = L.direction === k; return '<button class="btn" data-action="linkSet" data-arg="direction|' + k + '" aria-pressed="' + on + '" style="flex:1;height:44px;border-radius:99px;font-weight:800;font-size:12.5px;background:' + (on ? "#101010" : "#fff") + ';color:' + (on ? "#FFD700" : "#101010") + ';border:1px solid ' + (on ? "#101010" : "rgba(16,16,16,.12)") + '">' + esc(label) + '</button>'; };
-    return '<div class="scroll"><div class="col" style="padding:calc(18px + var(--sat)) 20px 20px;gap:14px">' +
-      '<div class="fx ac" style="gap:11px"><button class="backbtn" aria-label="Retour" data-action="popScreen">←</button><h1 style="margin:0;font-weight:800;font-size:19px;letter-spacing:-.4px;flex:1">' + esc(f.title) + '</h1></div>' +
-      '<div class="fx" style="gap:6px">' + seg("send", f.send) + seg("receive", f.receive) + '</div>' +
-      '<div class="fx ac" style="gap:12px;background:#101010;color:#fff;border-radius:18px;padding:14px">' +
+    var areas = (window.WGeo ? WGeo.QUARTIERS.map(function (x) { return x.name; }) : QUARTIERS).slice().sort(function (a, b) { return a.localeCompare(b, "fr"); });
+    var toBlock;
+    if (addr) toBlock = '<div class="col" style="gap:8px">' + lab(S.area) +
+        '<select data-bind="sendArea" aria-label="' + esc(S.area) + '" style="' + card + ';height:48px;padding:0 12px;font-weight:700;font-size:13.5px;width:100%;color:#101010"><option value="">' + esc(S.areaPh) + '</option>' +
+          areas.map(function (a) { return '<option' + (a === L.area ? " selected" : "") + '>' + esc(a) + '</option>'; }).join("") + '</select>' +
+        inp("sendPlace", S.place, L.place) + inp("sendHint", S.hint, L.hint) +
+        lab(state.lang === "en" ? "WHO RECEIVES IT?" : "QUI REÇOIT LE COLIS ?") + inp("linkName", S.rname, L.name) + inp("sendPhone", S.rphone, L.rphone, ' inputmode="tel"') +
+        '<button class="btn" data-action="sendMode" data-arg="phone" style="height:40px;align-self:flex-start;padding:0;background:transparent;font-weight:700;font-size:12px;text-decoration:underline">' + esc(S.byPhone) + '</button></div>';
+    else toBlock = (phoneMode && L.phone ? '<div class="fx ac" style="gap:12px;background:#101010;color:#fff;border-radius:18px;padding:14px">' +
         '<span class="fx ac jc" style="width:52px;height:52px;flex:none;border-radius:99px;background:#FFD700;color:#101010;font-weight:800;font-size:16px">' + esc(L.name ? initials2(L.name) : "☎") + '</span>' +
         '<span class="col" style="gap:2px;flex:1;min-width:0"><span class="mono" style="font-size:9.5px;letter-spacing:.08em;color:rgba(255,255,255,.6)">' + f.to + ' · +237 ' + esc(prettyPhone(L.phone)) + '</span>' +
         '<span style="font-weight:800;font-size:16px">' + esc(nm) + '</span>' +
-        '<span style="font-size:12px;color:rgba(255,255,255,.75)">' + esc((send ? f.howSend : f.howRecv).replace("{n}", String(L.name || "").split(" ")[0] || (state.lang === "en" ? "They" : "La personne"))) + '</span></span></div>' +
-      '<input data-bind="linkName" aria-label="' + esc(f.name) + '" placeholder="' + esc(f.name) + '" value="' + esc(L.name) + '" style="' + card + ';height:44px;padding:0 13px;font-weight:600;font-size:13px" />' +
+        '<span style="font-size:12px;color:rgba(255,255,255,.75)">' + esc((send ? f.howSend : f.howRecv).replace("{n}", String(L.name || "").split(" ")[0] || (state.lang === "en" ? "They" : "La personne"))) + '</span></span>' +
+        '<button class="btn" data-action="sendClear" aria-label="' + esc(state.lang === "en" ? "Change" : "Changer") + '" style="width:44px;height:44px;flex:none;border-radius:12px;background:rgba(255,255,255,.12);color:#fff;padding:0;font-size:16px">✕</button></div>' + inp("linkName", f.name, L.name)
+      : '<div class="col" style="gap:8px">' + lab(send ? S.who : (state.lang === "en" ? "FROM WHOM?" : "DE QUI ?")) + '<div class="fx" style="gap:8px">' +
+          '<input data-bind="sendTo" inputmode="text" autocomplete="off" aria-label="' + esc(S.whoPh) + '" placeholder="' + esc(S.whoPh) + '" value="' + esc(L.toText || "") + '" style="' + card + ';height:52px;padding:0 14px;font-weight:700;font-size:15px;flex:1;min-width:0" />' +
+          (canPickContact() ? '<button class="btn" data-action="quickContact" aria-label="' + esc(f.contacts) + '" style="width:52px;height:52px;flex:none;border-radius:14px;background:#fff;border:1px solid var(--hair);padding:0;font-size:19px">👤</button>' : '') + '</div>' +
+          '<span style="font-size:12px;line-height:1.45;color:rgba(16,16,16,.65)">' + esc(S.whoHelp) + '</span>' +
+          (send ? '<button class="btn" data-action="sendMode" data-arg="addr" style="height:44px;align-self:flex-start;padding:0 14px;border-radius:99px;background:rgba(16,16,16,.06);font-weight:700;font-size:12.5px">' + esc(S.knowAddr) + '</button>' : '') + '</div>');
+    var ready = addr ? !!(L.area && L.mine && phoneFromText(L.rphone || "")) : !!(phoneMode && L.phone && L.mine);
+    var label = addr ? (q && !q.errors.length ? S.send + " · " + fmtFcfa(q.net) : S.needAddr) : (L.phone ? "💬 " + f.go : S.needWho);
+    var qErr = q && q.errors.length ? (q.closed ? t4().errs.closed : t4().errs.distance) : null;
+    return '<div class="scroll"><div class="col" style="padding:calc(18px + var(--sat)) 20px 20px;gap:14px">' +
+      '<div class="fx ac" style="gap:11px"><button class="backbtn" aria-label="Retour" data-action="popScreen">←</button><h1 style="margin:0;font-weight:800;font-size:19px;letter-spacing:-.4px;flex:1">' + esc(f.title) + '</h1></div>' +
+      (addr ? '' : '<div class="fx" style="gap:6px">' + seg("send", f.send) + seg("receive", f.receive) + '</div>') +
+      toBlock +
       '<div class="col" style="gap:7px">' + lab((send ? f.mineSend : f.mineRecv) + (L.mine ? " · " + L.mine.text : "")) + '<div class="fx wrap" style="gap:6px">' + mineChips + '</div></div>' +
-      '<div class="col" style="gap:7px">' + lab(f.size) + '<div class="fx wrap" style="gap:6px">' + chipS(L.size === "small", "linkSet", "size|small", f.small) + chipS(L.size === "medium", "linkSet", "size|medium", f.medium) + '</div>' +
-        '<button class="btn" data-action="linkFull" style="height:36px;align-self:flex-start;padding:0;background:transparent;font-weight:700;font-size:12px;text-decoration:underline">' + esc(f.bigger) + '</button></div>' +
-      '<div class="col" style="gap:7px">' + lab(f.payer) + '<div class="fx wrap" style="gap:6px">' + chipS(L.payer === "me", "linkSet", "payer|me", f.me) + chipS(L.payer === "them", "linkSet", "payer|them", f.them) + '</div></div>' +
+      '<div class="col" style="gap:7px">' + lab(f.size) + sizeChips(L.size, "sendSize") + '</div>' +
+      '<div class="col" style="gap:7px">' + lab(f.payer) + '<div class="fx wrap" style="gap:6px">' + chipS(L.payer === "me", "linkSet", "payer|me", f.me) + chipS(L.payer === "them", "linkSet", "payer|them", addr ? S.them : f.them) + '</div></div>' +
       (L.payer === "me" ? '<div class="col" style="gap:7px">' + lab(f.pay) + '<div class="fx wrap" style="gap:6px">' + payOpts.map(function (k) { return chipS(L.pay === k, "linkSet", "pay|" + k, d.paymentNames[k]); }).join("") + '</div></div>' : '') +
-      '<input data-bind="linkNote" aria-label="' + esc(f.note) + '" placeholder="' + esc(f.note) + '" value="' + esc(L.note) + '" style="' + card + ';height:44px;padding:0 13px;font-weight:600;font-size:13px" />' +
-      '<div style="background:rgba(255,215,0,.25);border-radius:12px;padding:10px 12px;font-size:12px;line-height:1.45;font-weight:600">' + esc(L.payer === "me" ? f.confMe : f.confThem) + '</div>' +
+      (addr ? '<div class="col" style="gap:7px">' + lab(S.when) + whenChips(L.when, "sendWhen") + '</div>' : '') +
+      inp("linkNote", f.note, L.note) +
+      (phoneMode && L.phone ? '<div style="background:rgba(255,215,0,.25);border-radius:12px;padding:10px 12px;font-size:12px;line-height:1.45;font-weight:600">' + esc(L.payer === "me" ? f.confMe : f.confThem) + '</div>' : '') +
+      (qErr ? '<div role="alert" style="background:rgba(255,215,0,.25);border-radius:12px;padding:10px 12px;font-size:12px;font-weight:600">' + esc(qErr) + '</div>' : '') +
     '</div></div>' +
-    '<div style="padding:12px 20px 20px"><button class="btn btn-yellow" data-action="linkCreate" style="width:100%;height:56px;font-size:15px"' + (L.busy ? " disabled" : "") + '>' + esc(L.busy ? "…" : "💬 " + f.go) + '</button></div>';
+    '<div style="padding:12px 20px 20px"><button class="btn btn-yellow" data-action="' + (addr ? "sendAddr" : "linkCreate") + '" style="width:100%;height:56px;font-size:15px"' + (!ready || L.busy || qErr ? " disabled" : "") + '>' + esc(L.busy ? "…" : label) + '</button></div>';
   }
+  /* ouvrir l'écran « Envoyer un colis » depuis la tuile, vide */
+  function openSend() {
+    openLinkForm("", "");
+    state.linkForm.mode = null;
+  }
+  actions.sendMode = function (el, m) {
+    var L = state.linkForm; L.mode = m;
+    if (m === "addr") { L.direction = "send"; if (L.phone && !L.rphone) L.rphone = prettyPhone(L.phone); }
+    render();
+  };
+  actions.sendClear = function () { var L = state.linkForm; L.phone = ""; L.name = ""; L.toText = ""; L.mode = null; render(); var x = document.querySelector('[data-bind="sendTo"]'); if (x) x.focus(); };
+  actions.sendSize = function (el, k) { state.linkForm.size = k; render(); };
+  actions.sendWhen = function (el, k) { state.linkForm.when = k; render(); };
+  actions.sendAddr = function () {
+    var L = state.linkForm; if (!L || L.busy) return;
+    var q = sendQuote(L), rp = phoneFromText(L.rphone || "");
+    if (!q || q.errors.length || !rp) { toast(ts().needAddr); return; }
+    var z = sizeOf(L.size), place = String(L.place || "").trim();
+    var body = { service: "parcel", pickup: L.mine.text, pickupGeo: L.mine.geo || null, pickupCode: L.mine.code || undefined,
+      dropoff: (place ? place + ", " : "") + L.area + ", Douala", dropoffGeo: geoOf(L.area), vehicle: z[2], weightKg: z[1], scheduledAt: whenAt(L.when),
+      hints: { pickup: "", dropoff: String(L.hint || "").trim() }, recipient: { self: false, name: String(L.name || "").trim(), phone: rp },
+      paymentMethod: L.payer === "me" ? L.pay : "cash", note: L.note || "" };
+    if (L.payer === "them") body.payBy = { role: "recipient", other: true };
+    L.busy = true; render();
+    WAPI.post("/orders", body).then(function (r) {
+      state.wallet.balance = r.wallet.balance; replaceOrder(r.order); state.linkForm = null;
+      state.tabStacks.home = [{ screen: "home" }, { screen: "track", orderId: r.order.id }]; render();
+    }).catch(function (e) { L.busy = false; render(); errToast(e); });
+  };
   actions.linkCreate = function () {
     var L = state.linkForm; if (!L || L.busy) return;
     if (!L.mine) { toast(tl().noMine); return; }
+    if (!L.phone) { toast(ts().needWho); return; }
     L.busy = true; render();
     var b = { direction: L.direction, phone: L.phone, name: L.name, payer: L.payer, paymentMethod: L.pay, size: L.size, note: L.note };
     if (L.mine.code) b.mineCode = L.mine.code; else b.mineGeo = L.mine.geo;
@@ -2604,7 +2753,7 @@
     state.payAccounts = []; state.defaultPay = "orange_money"; state.notifPrefs = { orders: true, sms: true, push: false, promos: true };
     state.tabStacks = { home: [{ screen: "home" }], orders: [{ screen: "history" }], wallet: [{ screen: "wallet" }], support: [{ screen: srv() ? "inbox" : "chat" }],
       courses: [{ screen: "courierHome" }], account: [{ screen: "courierAccount" }] };
-    state.activeTab = "home"; state.convs = []; state.convMsgs = {}; state.places = []; state.codeEntry = null; state.flash = null; state.codebook = []; state.links = []; state.linkForm = null; state.courierData = { offers: [], orders: [] }; state.proofForm = null;
+    state.activeTab = "home"; state.convs = []; state.convMsgs = {}; state.places = []; state.codeEntry = null; state.flash = null; state.codebook = []; state.links = []; state.linkForm = null; state.courierData = { offers: [], orders: [] }; state.courierToday = null; state.courierTodayAt = 0; state.proofForm = null;
     if (typeof stopGps === "function") stopGps();
   }
   function forceLogin() {
@@ -2912,7 +3061,7 @@
         '<div class="col" style="gap:2px;flex:1"><span style="font-weight:700;font-size:14px">Marcel K.</span><span class="mono" style="font-size:10.5px;color:rgba(16,16,16,.55)">4.9 · CE 812 AB · démo</span></div>' +
         '<button class="btn" data-action="go" data-arg="chat|' + orderId + '" aria-label="' + esc(m.write) + '" style="width:44px;height:44px;border-radius:11px;background:rgba(16,16,16,.07);font-weight:700;font-size:11px;padding:0">SMS</button></div>';
       return '<div class="fx ac" style="gap:11px"><span class="spinner" style="width:22px;height:22px;border-color:rgba(16,16,16,.15);border-top-color:#101010"></span>' +
-        '<div class="col" style="gap:2px;flex:1"><span style="font-weight:700;font-size:14px">' + esc(m.searching) + '</span><span style="font-size:11.5px;color:rgba(16,16,16,.6)">' + esc(m.searchingSub) + '</span></div></div>';
+        '<div class="col" style="gap:2px;flex:1"><span style="font-weight:700;font-size:14px">' + esc(o.service === "ride" ? (state.lang === "en" ? "Finding a driver…" : "Recherche d'un chauffeur…") : m.searching) + '</span><span style="font-size:11.5px;color:rgba(16,16,16,.6)">' + esc(o.service === "ride" ? (state.lang === "en" ? "Nearby WunaGo drivers have been notified." : "Les chauffeurs WunaGo à proximité sont prévenus.") : m.searchingSub) + '</span></div></div>';
     }
     var veh = (o.service === "ride" ? { bike: "Moto-taxi", car: "Voiture" }[c.vehicle] : d.vehNames[c.vehicle]) || "";
     return '<div class="fx ac" style="gap:11px">' + avatar(c.name) +
@@ -2958,6 +3107,12 @@
       state.courierLoaded = true;
       state.courierData = { offers: r[0].offers, orders: r[1].orders };
       if (before !== JSON.stringify(state.courierData)) render();
+      /* bilan du jour (rafraîchi toutes les 2 minutes au plus) */
+      if (!state.courierTodayAt || Date.now() - state.courierTodayAt > 120000 || before !== JSON.stringify(state.courierData)) {
+        state.courierTodayAt = Date.now();
+        var day = new Date(Date.now() + 3600000).toISOString().slice(0, 10);
+        WAPI.get("/courier/history?from=" + day + "&to=" + day + "&limit=1").then(function (h) { var b2 = JSON.stringify(state.courierToday); state.courierToday = h.summary; if (b2 !== JSON.stringify(h.summary)) render(); }).catch(function () {});
+      }
     }).catch(function (e) { if (e.status === 401) forceLogin(); });
   }
   function courierGain(o) { return WPricing.courierShare(o.priceLines); }
@@ -2980,8 +3135,9 @@
       '<span class="fx ac jb" style="gap:8px"><span class="mono" style="font-size:10px;color:rgba(16,16,16,.6)">' + o.code + ' · ' + esc(svcName(o.service)) + '</span>' +
         (mine ? '<span class="mono" style="border-radius:99px;padding:4px 9px;background:#FFD700;font-weight:700;font-size:9.5px">' + esc(statusLabel(o.status)) + '</span>' : (o.fromMeKm != null ? '<span class="mono" style="font-size:10px;font-weight:700">' + fmtKm(o.fromMeKm) + ' ' + esc(c.fromMe) + '</span>' : '')) + '</span>' +
       '<span style="font-weight:700;font-size:13.5px">' + esc(o.pickup) + (o.dropoff !== o.pickup ? ' → ' + esc(o.dropoff) : '') + '</span>' +
-      '<span style="font-size:12px;color:rgba(16,16,16,.7)">' + esc(detailsSummary(o)) + '</span>' +
-      '<span class="fx ac jb"><span class="mono" style="font-size:10.5px;color:rgba(16,16,16,.6)">' + esc(payInfo) + (o.scheduledAt ? ' · ' + fmtTime(o.scheduledAt) : '') + '</span><span style="font-weight:800;font-size:14px">' + esc(c.gain) + ' ' + fmtFcfa(courierGain(o)) + '</span></span>' +
+      '<span style="font-size:12px;color:rgba(16,16,16,.7)">' + esc([o.distanceKm ? (state.lang === "en" ? "trip " : "trajet ") + fmtKm(o.distanceKm) : "", detailsSummary(o)].filter(Boolean).join(" · ")) + '</span>' +
+      '<span class="fx ac jb" style="gap:10px;align-items:flex-end"><span class="mono" style="font-size:10.5px;line-height:1.4;color:rgba(16,16,16,.6);flex:1">' + esc(payInfo) + (o.scheduledAt ? ' · ' + fmtTime(o.scheduledAt) : '') + '</span>' +
+        '<span class="col" style="gap:0;align-items:flex-end;flex:none"><span class="mono" style="font-size:9.5px;color:rgba(16,16,16,.55)">' + esc(c.gain.toUpperCase()) + '</span><span style="font-weight:800;font-size:18px;white-space:nowrap">' + fmtFcfa(courierGain(o)) + '</span></span></span>' +
       (mine ? '' : '<span class="btn btn-yellow" data-action="acceptCourse" data-arg="' + o.id + '" role="button" style="height:44px">' + esc(c.accept) + '</span>') + '</button>';
   }
   function screenCourierHome() {
@@ -2990,9 +3146,16 @@
     return page3('<div class="fx ac jb"><div class="col" style="gap:2px"><span style="font-size:12px;color:rgba(16,16,16,.65)">' + esc(t().greeting) + '</span><h1 style="margin:0;font-weight:800;font-size:21px;letter-spacing:-.5px">' + esc(state.user.name) + '</h1></div>' +
         '<span class="mono" style="border-radius:99px;padding:6px 11px;font-weight:700;font-size:10.5px;background:' + (online ? "#101010" : "rgba(16,16,16,.08)") + ';color:' + (online ? "#FFD700" : "rgba(16,16,16,.7)") + '">● ' + esc(online ? c.online : c.offline) + '</span></div>' +
       '<button class="btn ' + (online ? "btn-outline" : "btn-yellow") + '" data-action="toggleOnline" style="color:#101010">' + esc(online ? c.goOffline : c.goOnline) + '</button>' +
-      (online ? '' : '<p style="margin:0;font-size:12.5px;line-height:1.5;color:rgba(16,16,16,.65)">' + esc(c.offlineSub) + '</p>') +
+      (online ? '' : '<p style="margin:0;font-size:12.5px;line-height:1.5;color:rgba(16,16,16,.65)">' + esc(c.offlineSub) + '</p>') + courierTodayCard() +
       (mine.length ? sectionTitle(c.mine) + mine.map(function (o) { return offerCard(o, true); }).join("") : '') +
       (online ? sectionTitle(c.offers) + (cd.offers.length ? cd.offers.map(function (o) { return offerCard(o, false); }).join("") : '<p style="margin:0;font-size:12.5px;line-height:1.5;color:rgba(16,16,16,.6)">' + esc(c.noOffers) + '</p>') : ''));
+  }
+  /* bilan du jour en un coup d'œil */
+  function courierTodayCard() {
+    var T = state.courierToday, en = state.lang === "en"; if (!T) return "";
+    var cell = function (label, val) { return '<span class="col" style="gap:2px;flex:1;min-width:0"><span class="mono" style="font-size:9px;letter-spacing:.06em;color:rgba(255,255,255,.6)">' + esc(label) + '</span><span style="font-weight:800;font-size:16px;color:#fff;white-space:nowrap">' + val + '</span></span>'; };
+    return '<div class="col" style="gap:10px;background:#101010;border-radius:18px;padding:14px 15px"><span class="mono" style="font-size:9.5px;letter-spacing:.08em;color:#FFD700">' + esc(en ? "TODAY" : "AUJOURD'HUI") + '</span>' +
+      '<div class="fx" style="gap:10px">' + cell(en ? "DELIVERED" : "COURSES", String(T.delivered)) + cell(en ? "EARNED" : "GAGNÉ", fmtFcfa(T.earned)) + cell(en ? "CASH IN HAND" : "ESPÈCES REÇUES", fmtFcfa(T.cash)) + '</div></div>';
   }
   /* ce que le livreur encaisse, et auprès de qui */
   function coursePay(o) {
@@ -3067,7 +3230,8 @@
         (o.dropoff !== o.pickup ? '<div class="fx" style="gap:10px"><span style="width:9px;height:9px;margin-top:5px;flex:none;background:#101010"></span><span style="font-weight:700;font-size:13.5px">' + esc(o.dropoff) + '</span></div>' : '') +
         courseExtras(o) +
         '<div style="font-size:12.5px;line-height:1.5;color:rgba(16,16,16,.75)">' + esc(detailsSummary(o)) + (o.note ? '<br>« ' + esc(o.note) + ' »' : '') + '</div>' +
-        '<div class="fx ac jb"><span class="mono" style="font-size:10.5px;color:rgba(16,16,16,.6)">' + esc(coursePay(o)) + '</span><span style="font-weight:800">' + esc(c.gain) + ' ' + fmtFcfa(courierGain(o)) + '</span></div></div>' +
+        '<div class="fx ac jb" style="gap:10px;align-items:flex-end"><span class="mono" style="font-size:10.5px;line-height:1.4;color:rgba(16,16,16,.6);flex:1">' + esc(coursePay(o)) + '</span>' +
+          '<span class="col" style="gap:0;align-items:flex-end;flex:none"><span class="mono" style="font-size:9.5px;color:rgba(16,16,16,.55)">' + esc(c.gain.toUpperCase()) + '</span><span style="font-weight:800;font-size:18px;white-space:nowrap">' + fmtFcfa(courierGain(o)) + '</span></span></div></div>' +
       (mine && client.phone ? '<div class="fx ac" style="gap:11px;' + card + ';padding:12px 14px">' + avatar(client.name) + '<div class="col" style="gap:2px;flex:1"><span class="mono" style="font-size:9.5px;color:rgba(16,16,16,.55)">' + esc(c.client.toUpperCase()) + '</span><span style="font-weight:700">' + esc(client.name) + '</span></div>' +
         '<button class="btn" data-action="openOrderChat" data-arg="' + o.id + '" aria-label="' + esc(tm().write) + '" style="width:44px;height:44px;border-radius:11px;background:rgba(16,16,16,.07);padding:0">' + ICON_CHAT + '</button>' +
         '<a class="btn btn-ink" href="tel:+237' + esc(client.phone) + '" aria-label="' + esc(tm().call) + '" style="width:44px;height:44px;border-radius:11px;padding:0;text-decoration:none">' + ICON_PHONE + '</a></div>' : '') +
