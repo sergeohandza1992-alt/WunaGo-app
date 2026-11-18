@@ -4,9 +4,9 @@
   "use strict";
   var root = document.getElementById("admin");
   var S = {
-    me: null, view: "dash", login: { phone: "", code: "", step: "phone", demoCode: null },
+    me: null, view: location.hash === "#candidatures" ? "apps" : "dash", login: { phone: "", code: "", step: "phone", demoCode: null },
     stats: null, orders: [], orderFilter: "", orderQ: "", couriers: [], disputes: [], clients: [], clientQ: "",
-    convs: [], convId: null, msgs: {}, draft: "", drawer: null, toast: null
+    convs: [], convId: null, msgs: {}, draft: "", drawer: null, toast: null, apps: [], appCounts: {}, appFilter: "submitted", appDetail: null, appImgs: {}
   };
   var SVC = { parcel: "Colis", laundry: "Pressing", errand: "Courses", ride: "Déplacement" };
   var STATUS = { received: "Reçue", picked_up: "Prise en charge", en_route: "En route", delivered: "Livrée", cancelled: "Annulée" };
@@ -52,10 +52,10 @@
   }
 
   /* ---------- vues ---------- */
-  var NAV = [["dash", "Tableau de bord"], ["orders", "Commandes"], ["couriers", "Livreurs"], ["disputes", "Réclamations"], ["messages", "Messages"], ["clients", "Clients"]];
+  var NAV = [["dash", "Tableau de bord"], ["orders", "Commandes"], ["couriers", "Livreurs"], ["apps", "Candidatures"], ["disputes", "Réclamations"], ["messages", "Messages"], ["clients", "Clients"]];
   function counts() {
     var st = S.stats || {};
-    return { orders: st.unassigned || 0, disputes: st.open_disputes || 0, couriers: st.couriers_online || 0,
+    return { orders: st.unassigned || 0, disputes: st.open_disputes || 0, couriers: st.couriers_online || 0, apps: Number(st.apps_pending || 0),
       messages: S.convs.reduce(function (s, c) { return s + (c.unread || 0); }, 0) };
   }
   function lateBanner() {
@@ -70,7 +70,7 @@
     return '<div class="shell"><nav class="side" aria-label="Sections">' +
       '<div class="brand"><svg width="22" height="28" viewBox="0 0 60 76" aria-hidden="true"><path d="M30 4C14.5 4 4 15.4 4 29.5C4 47 30 72 30 72C30 72 56 47 56 29.5C56 15.4 45.5 4 30 4Z" fill="#FFD700"/><rect x="20" y="20" width="20" height="20" rx="3" fill="#101010"/></svg><span>WunaGo<br><small>BACKOFFICE</small></span></div>' +
       NAV.map(function (n) { var k = c[n[0]]; return '<button class="' + (S.view === n[0] || (S.view === "courier" && n[0] === "couriers") ? "on" : "") + '" data-a="nav" data-v="' + n[0] + '">' + n[1] + (k ? '<span class="count">' + k + '</span>' : '') + '</button>'; }).join("") +
-      '<div class="foot"><span class="mono" style="font-size:10px;opacity:.6">Version 21 · 18/11/2026</span><span>' + esc(S.me.name || "Administrateur") + '<br><span class="mono">' + esc(phone(S.me.phone)) + '</span></span><button class="btn btn-sm btn-ghost" style="background:rgba(255,255,255,.1);color:#fff" data-a="logout">Se déconnecter</button></div>' +
+      '<div class="foot"><span class="mono" style="font-size:10px;opacity:.6">Version 22 · 18/11/2026</span><span>' + esc(S.me.name || "Administrateur") + '<br><span class="mono">' + esc(phone(S.me.phone)) + '</span></span><button class="btn btn-sm btn-ghost" style="background:rgba(255,255,255,.1);color:#fff" data-a="logout">Se déconnecter</button></div>' +
       '</nav><main>' + lateBanner() + inner + '</main></div>';
   }
   function kpi(label, value, dark) { return '<div class="card kpi' + (dark ? " dark" : "") + '"><span class="lbl">' + label + '</span><b>' + value + '</b></div>'; }
@@ -405,7 +405,7 @@
   function viewCouriers() {
     var rows = S.couriers.map(function (c) {
       return '<tr class="click" data-a="openCourier" data-v="' + c.id + '"><td><b>' + esc(c.name) + '</b><br><span class="mono" style="font-size:11px">' + esc(phone(c.phone)) + '</span></td><td>' + esc(VEH[c.vehicle] || c.vehicle) + (c.plate ? '<br><span class="mono" style="font-size:11px">' + esc(c.plate) + '</span>' : '') + '</td>' +
-        '<td>' + (c.online ? '<span class="pill k">● EN LIGNE</span>' : '<span class="pill">HORS LIGNE</span>') + '</td><td class="mono">' + (c.pos ? ago(c.pos.at) : "—") + '</td>' +
+        '<td>' + (c.online ? '<span class="pill k">● EN LIGNE</span>' : '<span class="pill">HORS LIGNE</span>') + (c.basic ? '<br><span class="pill y" title="Pas d\'application : attribuez et appelez">☎ TÉL. SIMPLE</span>' : '') + (c.pin ? '<br><span class="mono" style="font-size:10.5px">Code badge ' + esc(c.pin) + '</span>' : '') + '</td><td class="mono">' + (c.pos ? ago(c.pos.at) : "—") + '</td>' +
         '<td class="mono">' + c.active + '</td><td class="mono">' + c.delivered + '</td><td class="mono">' + (c.rating ? c.rating + " ★" : "—") + '</td>' +
         '<td><button class="btn btn-sm btn-ghost" data-a="deactivate" data-v="' + c.id + '">Retirer</button></td></tr>';
     }).join("");
@@ -428,6 +428,48 @@
       var icon = L.divIcon({ className: "", iconSize: [30, 30], html: '<div style="width:30px;height:30px;border-radius:99px;background:' + (c.online ? "#FFD700" : "#ccc") + ';border:3px solid #101010;font:800 10px Manrope,sans-serif;display:flex;align-items:center;justify-content:center">' + esc((c.name || "?").split(" ").map(function (x) { return x[0]; }).join("").slice(0, 2)) + '</div>' });
       markers.push(L.marker([c.pos.lat, c.pos.lng], { icon: icon }).addTo(map).bindPopup("<b>" + esc(c.name) + "</b><br>" + (c.online ? "En ligne" : "Hors ligne") + " · " + ago(c.pos.at)));
     });
+  }
+  /* ---------- candidatures des livreurs ---------- */
+  var APP_ST = { draft: ["Brouillon", ""], submitted: ["À valider", "y"], approved: ["Validé", "k"], rejected: ["À corriger", "r"] };
+  function appPill(st) { var x = APP_ST[st] || [st, ""]; return '<span class="pill ' + x[1] + '">' + x[0] + '</span>'; }
+  function viewApps() {
+    var c = S.appCounts || {}, list = S.apps || [];
+    var chip = function (k, l) { return '<button class="btn btn-sm ' + ((S.appFilter || "") === k ? "btn-ink" : "btn-ghost") + '" data-a="appFilter" data-v="' + k + '">' + l + (k && c[k] ? ' · ' + c[k] : '') + '</button>'; };
+    return shell('<div style="display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap"><h1>Candidatures livreurs</h1><button class="btn btn-yellow" data-a="newApp">Inscrire un livreur en agence</button></div>' +
+      '<p class="note">Dossiers envoyés depuis la page « Devenir livreur » (<span class="mono">/livreur.html</span>) ou ouverts en agence. Validez après contrôle des pièces originales.</p>' +
+      '<div style="display:flex;gap:6px;flex-wrap:wrap;margin:10px 0">' + chip("submitted", "À valider") + chip("draft", "Brouillons") + chip("rejected", "À corriger") + chip("approved", "Validés") + chip("", "Tous") + '</div>' +
+      (list.length ? '<div class="card" style="overflow:auto"><table><thead><tr><th class="lbl">Livreur</th><th class="lbl">Téléphone</th><th class="lbl">Véhicule</th><th class="lbl">Domicile</th><th class="lbl">Pièces</th><th class="lbl">Statut</th><th class="lbl">Envoyé le</th><th class="lbl">Ouvert par</th></tr></thead><tbody>' +
+        list.map(function (a) { return '<tr class="click" data-a="openApp" data-v="' + a.id + '"><td><b>' + esc(a.name || "—") + '</b></td><td class="mono">' + esc(phone(a.phone)) + '</td><td>' + esc(VEH[a.vehicle] || "—") + '</td><td>' + esc(a.area || "—") + '</td><td class="mono">' + a.docs + ' / 6</td><td>' + appPill(a.status) + '</td><td class="mono">' + (a.submittedAt ? when(a.submittedAt) : "—") + '</td><td>' + esc(a.agent || "Lui-même") + '</td></tr>'; }).join("") +
+        '</tbody></table></div>' : '<div class="card empty">Aucun dossier dans cette liste.</div>'));
+  }
+  function appDrawer(d) {
+    var a = S.appDetail; if (!a || a.id !== d.id) return '<p>Chargement…</p>';
+    var x = a.data || {}, g = x.guarantor || {}, imgs = S.appImgs || {};
+    var row = function (l, v) { return '<tr><th class="lbl" style="text-align:left;padding:6px 10px 6px 0;width:42%">' + l + '</th><td>' + (v || '<span style="opacity:.5">—</span>') + '</td></tr>'; };
+    var dt = function (v) { return v ? esc(new Date(v + "T12:00:00Z").toLocaleDateString("fr-FR")) : ""; };
+    var pre = function (k, v) { return v ? esc(v) + ((x.prefilled || []).indexOf(k) >= 0 ? ' <span class="mono" style="font-size:10px;opacity:.6">(lu sur la pièce)</span>' : '') : ""; };
+    var DOCL = [["photo", "Photo 4×4"], ["cni_recto", "CNI recto"], ["cni_verso", "CNI verso"], ["permis", "Permis"], ["domicile", "Domicile"], ["garant_cni", "CNI du garant"]];
+    var has = function (k) { return (a.docs || []).some(function (z) { return z.kind === k; }); };
+    return '<h1 style="margin:0">' + esc([x.firstNames, x.lastName].filter(Boolean).join(" ") || phone(a.phone)) + ' ' + appPill(a.status) + '</h1>' +
+      '<div style="display:flex;gap:8px;flex-wrap:wrap">' + DOCL.map(function (k) { return '<figure style="margin:0;width:31%;min-width:120px"><div class="lbl">' + k[1] + '</div>' +
+        (has(k[0]) ? (imgs[k[0]] ? '<a href="' + imgs[k[0]] + '" target="_blank" rel="noopener"><img alt="' + k[1] + '" src="' + imgs[k[0]] + '" style="width:100%;height:110px;object-fit:cover;border-radius:10px;border:1px solid rgba(16,16,16,.1)"></a>' : '<div class="card empty" style="height:110px">…</div>')
+          : '<div class="card empty" style="height:110px;font-size:11px">Non fournie</div>') + '</figure>'; }).join("") + '</div>' +
+      '<div class="card" style="padding:6px 14px"><table style="width:100%">' +
+        row("Nom", pre("lastName", x.lastName)) + row("Prénoms", pre("firstNames", x.firstNames)) + row("Né(e) le", dt(x.birthDate) + (x.birthPlace ? " à " + esc(x.birthPlace) : "")) + row("Sexe", x.sex === "M" ? "Masculin" : x.sex === "F" ? "Féminin" : "") +
+        row("Téléphone", '<span class="mono">' + esc(phone(a.phone)) + '</span>') + row("N° CNI", pre("cniNumber", x.cniNumber)) + row("CNI délivrée / expire", [dt(x.cniIssued), dt(x.cniExpiry)].filter(Boolean).join(" → ")) +
+        row("N° de permis", pre("licenseNumber", x.licenseNumber)) + row("Catégories · validité", [esc(x.licenseCategories || ""), dt(x.licenseExpiry)].filter(Boolean).join(" · ")) +
+        row("Véhicule", esc(VEH[x.vehicle] || "") + (x.plate ? " · " + esc(x.plate) : "")) +
+        row("Domicile", esc(x.homeArea || "") + (x.homeAddress ? "<br>" + esc(x.homeAddress) : "") + (x.homeGeo ? '<br><a href="https://www.google.com/maps?q=' + x.homeGeo.lat + ',' + x.homeGeo.lng + '" target="_blank" rel="noopener">📍 Voir sur la carte</a>' : "")) +
+        row("Garant", g.name ? esc(g.name) + (g.relation ? " (" + esc(g.relation) + ")" : "") + "<br>" + esc(phone(g.phone)) + (g.cniNumber ? " · CNI " + esc(g.cniNumber) : "") + (g.address ? "<br>" + esc(g.address) : "") : "") +
+        row("Contrat", a.acceptedAt ? "Version " + esc(a.contractVersion) + " acceptée le " + when(a.acceptedAt) + (a.acceptedVia === "agent" ? " en agence (" + esc(a.acceptedAgent || "agent") + ")" : " sur son téléphone") : "Pas encore accepté") +
+        (a.reviewedAt ? row(a.status === "approved" ? "Validé par" : "Revu par", esc(a.reviewedBy || "") + " · " + when(a.reviewedAt)) : "") +
+        (a.reviewNote ? row("Correction demandée", esc(a.reviewNote)) : "") + '</table></div>' +
+      (a.missing && a.missing.length && a.status !== "approved" ? '<p class="note">Manque : ' + esc(a.missing.join(", ")) + '</p>' : '') +
+      (a.status === "submitted" ? '<div class="card"><p class="note">Avant de valider : comparez les photos aux pièces originales et appelez le garant.</p>' +
+          '<button class="btn btn-yellow" data-a="approveApp" data-v="' + a.id + '">Valider : il peut commencer</button>' +
+          '<label class="lbl" for="rj">Ou demander une correction</label><textarea class="f" id="rj" data-k="drawer.note" placeholder="Ex. photo du permis floue, garant injoignable">' + esc(d.note || "") + '</textarea>' +
+          '<button class="btn btn-ghost" data-a="rejectApp" data-v="' + a.id + '">Renvoyer pour correction</button></div>' : '') +
+      (a.status === "draft" || a.status === "rejected" ? '<a class="btn btn-ink" href="/livreur.html?app=' + a.id + '" target="_blank" rel="noopener" style="text-decoration:none">Compléter le dossier en agence</a>' : '');
   }
   function viewDisputes() {
     if (!S.disputes.length) return shell('<h1>Réclamations</h1><div class="card empty">Aucune réclamation.</div>');
@@ -465,6 +507,11 @@
   function drawer() {
     var d = S.drawer; if (!d) return "";
     var body = "";
+    if (d.kind === "app") body = appDrawer(d);
+    if (d.kind === "newApp") body = '<h1 style="margin:0">Inscrire un livreur en agence</h1><p class="note">Le livreur est présent avec ses pièces. Le dossier s\'ouvre dans un nouvel onglet : prenez les photos, vérifiez, faites-lui cocher le contrat.</p>' +
+      '<label class="lbl" for="na-ph">Téléphone du livreur</label><input class="f mono" id="na-ph" data-k="drawer.phone" inputmode="numeric" placeholder="6 99 12 34 56" value="' + esc(d.phone || "") + '">' +
+      '<label class="lbl" for="na-nm">Nom (facultatif)</label><input class="f" id="na-nm" data-k="drawer.name" value="' + esc(d.name || "") + '">' +
+      '<button class="btn btn-yellow" data-a="createApp">Ouvrir le dossier</button>';
     if (d.kind === "order") {
       var o = S.orders.filter(function (x) { return x.id === d.id; })[0]; if (!o) return "";
       var far = function (c) { return c.pos && o.pickupGeo ? geoKm(c.pos, o.pickupGeo) : 999; };
@@ -485,7 +532,7 @@
         (o.note ? '<div class="card" style="padding:12px 14px">« ' + esc(o.note) + ' »</div>' : '') +
         (o.proofPhoto ? '<img src="' + o.proofPhoto + '" alt="Preuve de livraison" style="width:100%;border-radius:16px">' : '') +
         (o.status !== "delivered" && o.status !== "cancelled" ? '<div class="card" style="padding:14px;display:flex;flex-direction:column;gap:10px"><span class="lbl">Assigner un livreur</span>' +
-          (online.length ? '<select class="f" id="assign-sel">' + online.map(function (c) { return '<option value="' + c.id + '"' + (o.courier && o.courier.id === c.id ? " selected" : "") + '>' + esc(c.name) + ' · ' + esc(VEH[c.vehicle]) + (c.online ? " · en ligne" : " · hors ligne") + (far(c) < 999 ? " · à " + far(c).toFixed(1).replace(".", ",") + " km" : "") + (c.active ? " · " + c.active + " course(s) en cours" : "") + '</option>'; }).join("") + '</select>' +
+          (online.length ? '<select class="f" id="assign-sel">' + online.map(function (c) { return '<option value="' + c.id + '"' + (o.courier && o.courier.id === c.id ? " selected" : "") + '>' + esc(c.name) + ' · ' + esc(VEH[c.vehicle]) + (c.basic ? " · ☎ tél. simple : appelez-le " + phone(c.phone) : c.online ? " · en ligne" : " · hors ligne") + (far(c) < 999 ? " · à " + far(c).toFixed(1).replace(".", ",") + " km" : "") + (c.active ? " · " + c.active + " course(s) en cours" : "") + '</option>'; }).join("") + '</select>' +
             '<button class="btn btn-yellow" data-a="assign" data-v="' + o.id + '">' + (o.courier ? "Changer de livreur" : "Assigner ce livreur") + '</button><span class="note" style="margin:0">Le livreur est prévenu sur son téléphone et la course apparaît dans son espace « Courses ». Un livreur hors ligne la verra à sa prochaine connexion.</span>'
             : '<span style="color:rgba(16,16,16,.6)">Aucun livreur. Ajoutez-en un dans la section « Livreurs ».</span>') + '</div>' +
           '<div class="card" style="padding:14px;display:flex;flex-direction:column;gap:10px"><span class="lbl">Changer le statut</span><div style="display:flex;gap:8px;flex-wrap:wrap">' +
@@ -516,6 +563,8 @@
         '<label class="lbl" for="cp">Téléphone</label><input class="f mono" id="cp" data-k="drawer.phone" inputmode="numeric" placeholder="6 77 12 34 56" value="' + esc(d.phone || "") + '">' +
         '<label class="lbl" for="cv">Véhicule</label><select class="f" id="cv" data-k="drawer.vehicle">' + Object.keys(VEH).map(function (k) { return '<option value="' + k + '"' + ((d.vehicle || "bike") === k ? " selected" : "") + '>' + VEH[k] + '</option>'; }).join("") + '</select>' +
         '<label class="lbl" for="cpl">Plaque</label><input class="f mono" id="cpl" data-k="drawer.plate" value="' + esc(d.plate || "") + '">' +
+        '<label class="lbl" for="cbt">Son téléphone</label><select class="f" id="cbt" data-k="drawer.basic"><option value="">Smartphone (application WunaGo)</option><option value="1"' + (d.basic ? " selected" : "") + '>Téléphone simple ou sans données</option></select>' +
+        '<p class="note">Téléphone simple : vous lui attribuez les courses et l\'appelez. L\'expéditeur confirme la remise du colis, le destinataire tape le code inscrit sur son badge. Version légère pour téléphones à touches : <span class="mono">/l</span></p>' +
         '<button class="btn btn-ink" data-a="saveCourier">Ajouter le livreur</button>';
     }
     return '<div class="drawer-bg" data-a="closeDrawer"></div><aside class="drawer" role="dialog" aria-modal="true"><button class="btn btn-sm btn-ghost" style="align-self:flex-end" data-a="closeDrawer">Fermer ✕</button>' + body + '</aside>';
@@ -529,7 +578,7 @@
     var html;
     if (!S.me) html = viewLogin();
     else if (S.me.role !== "admin") html = viewDenied();
-    else html = ({ dash: viewDash, orders: viewOrders, courier: viewCourier, couriers: viewCouriers, disputes: viewDisputes, messages: viewMessages, clients: viewClients }[S.view])() + drawer();
+    else html = ({ dash: viewDash, orders: viewOrders, courier: viewCourier, couriers: viewCouriers, apps: viewApps, disputes: viewDisputes, messages: viewMessages, clients: viewClients }[S.view])() + drawer();
     if (S.toast) html += '<div class="toast">' + esc(S.toast) + '</div>';
     if (map && S.view !== "couriers") { map.remove(); map = null; }
     var mapEl = map && map.getContainer();
@@ -551,6 +600,7 @@
     if (v === "dash") jobs.push(WAPI.get("/admin/orders?status=active&limit=100").then(function (r) { S.orders = r.orders; }));
     if (v === "orders") jobs.push(loadHist(Math.max(50, S.orders.length)));
     if (v === "couriers" || v === "orders" || v === "dash" || S.drawer) jobs.push(WAPI.get("/admin/couriers").then(function (r) { S.couriers = r.couriers; }));
+    if (v === "apps") jobs.push(WAPI.get("/admin/applications" + (S.appFilter ? "?status=" + S.appFilter : "")).then(function (r) { S.apps = r.applications; S.appCounts = r.counts; }));
     if (v === "disputes") jobs.push(WAPI.get("/admin/disputes").then(function (r) { S.disputes = r.disputes; }));
     if (v === "clients") jobs.push(WAPI.get("/admin/clients?q=" + encodeURIComponent(S.clientQ)).then(function (r) { S.clients = r.clients; }));
     if (v === "messages" && S.convId) jobs.push(loadMsgs());
@@ -594,6 +644,32 @@
     pToday: function (v) { S[v].ref = todayD(); reloadP(v); },
     pRef: function (v) { if (S[v].ref) reloadP(v); },
     pApply: function (v) { var H = S[v]; if (!H.from || !H.to || H.from > H.to) { toast("Choisissez une date de début avant la date de fin."); return; } reloadP(v); },
+    appFilter: function (v) { S.appFilter = v; S.apps = []; render(); load(); },
+    newApp: function () { S.drawer = { kind: "newApp" }; render(); },
+    createApp: function () {
+      var d = S.drawer;
+      WAPI.post("/admin/applications", { phone: d.phone, name: d.name }).then(function (r) {
+        S.drawer = null; var w = window.open("/livreur.html?app=" + r.application.id, "_blank");
+        if (!w) location.href = "/livreur.html?app=" + r.application.id;
+        S.appFilter = "draft"; render(); load();
+      }).catch(err);
+    },
+    openApp: function (id) {
+      S.drawer = { kind: "app", id: id }; S.appDetail = null; S.appImgs = {}; render();
+      WAPI.get("/admin/applications/" + id).then(function (r) {
+        S.appDetail = r.application; render();
+        (r.application.docs || []).forEach(function (doc) {
+          fetch("/api/admin/applications/" + id + "/docs/" + doc.kind, { headers: { authorization: "Bearer " + WAPI.token() } }).then(function (x) { return x.ok ? x.blob() : null; })
+            .then(function (b) { if (b && S.drawer && S.drawer.id === id) { S.appImgs[doc.kind] = URL.createObjectURL(b); render(); } });
+        });
+      }).catch(err);
+    },
+    approveApp: function (id) {
+      WAPI.post("/admin/applications/" + id + "/approve", {}).then(function () { toast("Dossier validé : le livreur peut commencer ✓"); S.drawer = null; load(); }).catch(err);
+    },
+    rejectApp: function (id) {
+      WAPI.post("/admin/applications/" + id + "/reject", { note: (S.drawer || {}).note || "" }).then(function () { toast("Correction demandée au livreur."); S.drawer = null; load(); }).catch(err);
+    },
     newOrder: function () { S.drawer = { kind: "newOrder", service: "parcel", pay: "cash", weight: "1", passengers: "1", rideVehicle: "bike" }; render(); },
     noSet: function (v) { var p = v.split("|"); S.drawer[p[0]] = p[1]; render(); },
     noPreview: function () { render(); },
@@ -662,7 +738,7 @@
     addCourier: function () { S.drawer = { kind: "courier", vehicle: "bike" }; render(); },
     saveCourier: function () {
       var d = S.drawer;
-      WAPI.post("/admin/couriers", { name: d.name, phone: String(d.phone || "").replace(/\D/g, ""), vehicle: d.vehicle || "bike", plate: d.plate }).then(function () { S.drawer = null; toast("Livreur ajouté."); load(); }).catch(err);
+      WAPI.post("/admin/couriers", { name: d.name, phone: String(d.phone || "").replace(/\D/g, ""), vehicle: d.vehicle || "bike", plate: d.plate, basic: !!d.basic }).then(function () { S.drawer = null; toast("Livreur ajouté."); load(); }).catch(err);
     },
     deactivate: function (id) {
       var c = S.couriers.filter(function (x) { return x.id === id; })[0];

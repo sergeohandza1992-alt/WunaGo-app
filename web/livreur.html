@@ -1,0 +1,312 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <meta name="theme-color" content="#FFD700" />
+  <title>Devenir livreur — WunaGo</title>
+  <link rel="icon" href="icons/icon-192.png" />
+  <style>
+    @font-face { font-family: "Manrope"; src: url("fonts/Manrope-200-800.woff2") format("woff2"); font-weight: 200 800; font-display: swap; }
+    @font-face { font-family: "IBM Plex Mono"; src: url("fonts/IBMPlexMono-500.woff2") format("woff2"); font-weight: 400 600; font-display: swap; }
+    :root { --y: #FFD700; --k: #101010; --bg: #FBFAF7; --hair: rgba(16,16,16,.08); --mono: "IBM Plex Mono", ui-monospace, monospace; }
+    * { box-sizing: border-box; }
+    body { margin: 0; background: var(--bg); color: var(--k); font-family: "Manrope", system-ui, sans-serif; -webkit-font-smoothing: antialiased; }
+    .wrap { max-width: 520px; margin: 0 auto; min-height: 100vh; }
+    header { background: var(--y); padding: calc(16px + env(safe-area-inset-top, 0px)) 20px 20px; display: flex; flex-direction: column; gap: 10px; }
+    .brand { display: flex; align-items: center; gap: 9px; } .brand b { font-weight: 800; font-size: 19px; }
+    h1 { margin: 0; font-weight: 800; font-size: 25px; line-height: 1.15; letter-spacing: -.6px; }
+    header p { margin: 0; font-size: 13px; line-height: 1.5; color: rgba(16,16,16,.75); }
+    main { padding: 16px 20px 40px; display: flex; flex-direction: column; gap: 14px; }
+    h2 { margin: 6px 0 0; font-weight: 800; font-size: 17px; letter-spacing: -.3px; display: flex; align-items: center; gap: 8px; }
+    h2 .n { width: 26px; height: 26px; border-radius: 99px; background: var(--k); color: var(--y); font-size: 12px; display: inline-flex; align-items: center; justify-content: center; flex: none; }
+    .lbl { font-family: var(--mono); font-size: 10px; letter-spacing: .07em; text-transform: uppercase; color: rgba(16,16,16,.55); }
+    .card { background: #fff; border: 1px solid var(--hair); border-radius: 16px; padding: 14px; display: flex; flex-direction: column; gap: 10px; }
+    .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+    .f { display: flex; flex-direction: column; gap: 5px; }
+    .f.full { grid-column: 1 / -1; }
+    input, select, textarea { width: 100%; min-height: 46px; border-radius: 12px; border: 1.5px solid rgba(16,16,16,.12); background: #fff; padding: 0 12px; font: inherit; font-size: 14.5px; font-weight: 600; color: var(--k); }
+    textarea { padding: 10px 12px; min-height: 70px; resize: vertical; }
+    input:focus, select:focus, textarea:focus { outline: 2px solid var(--k); outline-offset: 1px; }
+    input.pre, select.pre { background: rgba(255,215,0,.22); border-color: #c9a800; }
+    .btn { min-height: 52px; border-radius: 17px; border: 0; display: inline-flex; align-items: center; justify-content: center; gap: 8px; font: inherit; font-weight: 800; font-size: 15px; padding: 0 18px; cursor: pointer; width: 100%; text-decoration: none; }
+    .btn[disabled] { opacity: .45; cursor: default; }
+    .ink { background: var(--k); color: var(--y); } .yel { background: var(--y); color: var(--k); } .out { background: #fff; color: var(--k); border: 1.5px solid rgba(16,16,16,.14); }
+    .docs { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+    .doc { position: relative; border: 1.5px dashed rgba(16,16,16,.25); border-radius: 14px; min-height: 120px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 6px; text-align: center; padding: 8px; cursor: pointer; background: #fff; overflow: hidden; }
+    .doc.ok { border-style: solid; border-color: var(--k); }
+    .doc img { width: 100%; height: 86px; object-fit: cover; border-radius: 9px; }
+    .doc b { font-size: 12.5px; } .doc small { font-size: 11px; color: rgba(16,16,16,.6); }
+    .doc input { position: absolute; inset: 0; opacity: 0; cursor: pointer; min-height: 0; }
+    .muted { font-size: 12.5px; line-height: 1.5; color: rgba(16,16,16,.7); margin: 0; }
+    .note { background: rgba(255,215,0,.25); border-radius: 12px; padding: 10px 12px; font-size: 12.5px; font-weight: 600; line-height: 1.45; }
+    .dark { background: var(--k); color: #fff; border: 0; } .dark .muted { color: rgba(255,255,255,.75); } .dark .lbl { color: var(--y); }
+    .contract { max-height: 280px; overflow: auto; font-size: 12.5px; line-height: 1.55; border: 1px solid var(--hair); border-radius: 12px; padding: 12px; background: #fdfcf8; }
+    .contract p { margin: 0 0 8px; } .contract b { display: block; margin-top: 4px; }
+    .check { display: flex; gap: 10px; align-items: flex-start; font-weight: 700; font-size: 13.5px; line-height: 1.4; cursor: pointer; }
+    .check input { width: 26px; height: 26px; min-height: 26px; flex: none; accent-color: #101010; margin: 0; }
+    .row { display: flex; gap: 8px; align-items: center; }
+    .bar { height: 6px; border-radius: 9px; background: rgba(16,16,16,.1); overflow: hidden; } .bar i { display: block; height: 100%; background: var(--k); width: 0; transition: width .3s; }
+    .hidden { display: none !important; }
+  </style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <div class="brand"><svg width="20" height="26" viewBox="0 0 60 76" aria-hidden="true"><path d="M30 4C14.5 4 4 15.4 4 29.5C4 47 30 72 30 72C30 72 56 47 56 29.5C56 15.4 45.5 4 30 4Z" fill="#101010"/><rect x="20" y="20" width="20" height="20" rx="3" fill="#FFD700"/></svg><b>WunaGo</b></div>
+    <h1 id="title">Devenir livreur WunaGo</h1>
+    <p id="sub">Vous choisissez vos horaires, vous gardez 80 % des frais de transport. Inscription en 10 minutes : prenez vos pièces en photo, nous remplissons le reste.</p>
+  </header>
+  <main id="main"><p class="muted">Chargement…</p></main>
+</div>
+<script>
+(function () {
+  "use strict";
+  var TOKEN_KEY = "wunago.token";
+  var qs = new URLSearchParams(location.search), APP = qs.get("app"); /* mode agent : dossier ouvert par l'équipe */
+  var main = document.getElementById("main");
+  var S = { app: null, step: "login", phone: "", code: "", demo: "", busy: false, err: "", local: {}, ocr: null, saveT: null, accept: false };
+  function tok() { try { return localStorage.getItem(TOKEN_KEY); } catch (e) { return null; } }
+  function setTok(t) { try { localStorage.setItem(TOKEN_KEY, t); } catch (e) {} }
+  function esc(s) { return String(s == null ? "" : s).replace(/[&<>"']/g, function (c) { return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]; }); }
+  function q(p) { return p + (APP ? (p.indexOf("?") < 0 ? "?" : "&") + "app=" + encodeURIComponent(APP) : ""); }
+  function api(path, method, body) {
+    var h = { "content-type": "application/json" }, t = tok(); if (t) h.authorization = "Bearer " + t;
+    return fetch("/api" + path, { method: method || "GET", headers: h, body: body ? JSON.stringify(body) : undefined })
+      .then(function (r) { return r.json().catch(function () { return {}; }).then(function (j) { if (!r.ok) { var e = new Error(j.error || "Erreur réseau."); e.status = r.status; throw e; } return j; }); });
+  }
+  var D = function () { return S.app.data || {}; };
+  var DOCS = [["cni_recto", "CNI — recto", "Face avec la photo"], ["cni_verso", "CNI — verso", "Face arrière"], ["permis", "Permis de conduire", "Face avec le numéro"], ["photo", "Photo 4×4", "Visage de face, fond clair"]];
+  var DOCS_OPT = [["domicile", "Photo du domicile", "Facultatif : portail, façade"], ["garant_cni", "CNI du garant", "Facultatif"]];
+  var VEH = [["bike", "Moto"], ["tricycle", "Tricycle"], ["car", "Voiture"], ["van", "Camionnette"]];
+  var AREAS = ["Akwa", "Bali", "Bassa", "Bepanda", "Bonabéri", "Bonamoussadi", "Bonanjo", "Bonapriso", "Cité des Palmiers", "Deïdo", "Kotto", "Logbaba", "Logpom", "Makepe", "Ndogbong", "Ndokoti", "New Bell", "Nyalla", "PK8", "PK10", "PK12", "PK14", "Village", "Yassa", "Autre"];
+
+  /* ---------- connexion par code ---------- */
+  function loginView() {
+    return '<div class="card"><span class="lbl">Votre numéro de téléphone</span>' +
+      (S.step === "login" ? '<input id="ph" inputmode="tel" placeholder="6 XX XX XX XX" value="' + esc(S.phone) + '" aria-label="Numéro de téléphone"><button class="btn ink" id="send">Recevoir mon code</button>'
+        : '<p class="muted">Code envoyé au ' + esc(S.phone) + (S.demo ? ' (démo : <b>' + esc(S.demo) + '</b>)' : '') + '</p><input id="otp" inputmode="numeric" maxlength="6" placeholder="Code reçu" aria-label="Code reçu"><button class="btn ink" id="verify">Valider</button>') +
+      (S.err ? '<div class="note" role="alert">' + esc(S.err) + '</div>' : '') + '</div>' +
+      '<div class="card"><span class="lbl">Ce qu\'il vous faut</span><p class="muted">Votre CNI (recto et verso), votre permis, une photo d\'identité, votre domicile (vous y serez ou vous le décrivez) et un garant (nom et numéro).</p></div>';
+  }
+  /* ---------- dossier ---------- */
+  function fld(id, label, val, attrs, full) {
+    var pre = (D().prefilled || []).indexOf(id) >= 0 && !S.touched[id];
+    return '<label class="f' + (full ? " full" : "") + '"><span class="lbl">' + esc(label) + (pre ? ' · lu sur la pièce, vérifiez' : '') + '</span><input data-k="' + id + '" value="' + esc(val || "") + '"' + (attrs || "") + (pre ? ' class="pre"' : '') + '></label>';
+  }
+  function sel(id, label, opts, val, full) {
+    return '<label class="f' + (full ? " full" : "") + '"><span class="lbl">' + esc(label) + '</span><select data-k="' + id + '"><option value="">Choisir…</option>' +
+      opts.map(function (o) { var v = Array.isArray(o) ? o[0] : o, l = Array.isArray(o) ? o[1] : o; return '<option value="' + esc(v) + '"' + (v === val ? " selected" : "") + '>' + esc(l) + '</option>'; }).join("") + '</select></label>';
+  }
+  function docTile(d) {
+    var has = (S.app.docs || []).some(function (x) { return x.kind === d[0]; }), src = S.local[d[0]] || (has ? "/api/courier-app/docs/" + d[0] : null);
+    return '<label class="doc' + (has ? " ok" : "") + '">' + (has && S.local[d[0]] ? '<img alt="" src="' + S.local[d[0]] + '">' : has ? '<span style="font-size:24px">✅</span>' : '<span style="font-size:26px">📷</span>') +
+      '<b>' + esc(d[1]) + '</b><small>' + esc(has ? "Reprendre la photo" : d[2]) + '</small>' +
+      '<input type="file" accept="image/*" ' + (d[0] === "photo" ? 'capture="user"' : 'capture="environment"') + ' data-doc="' + d[0] + '" aria-label="' + esc(d[1]) + '"></label>';
+  }
+  function statusView() {
+    var a = S.app;
+    if (a.status === "approved") return '<div class="card dark"><span class="lbl">Dossier validé ✓</span><div style="font-weight:800;font-size:22px">Ok ! Go 🛵</div><p class="muted">Bienvenue chez WunaGo. Ouvrez l\'application, passez en ligne et acceptez vos premières courses.</p><a class="btn yel" href="/#courses">Ouvrir WunaGo</a></div>';
+    if (a.status === "submitted") return '<div class="card dark"><span class="lbl">Dossier envoyé</span><div style="font-weight:800;font-size:19px">Vérification en cours</div><p class="muted">L\'équipe WunaGo vérifie vos pièces. Vous recevrez une notification dès la validation. Contrat accepté le ' + new Date(a.acceptedAt).toLocaleString("fr-FR") + '.</p></div>';
+    if (a.status === "rejected") return '<div class="note" role="alert"><b>À compléter :</b> ' + esc(a.reviewNote || "") + '<br>Corrigez puis renvoyez votre dossier.</div>';
+    return "";
+  }
+  function formView() {
+    var a = S.app, d = D(), g = d.guarantor || {}, locked = a.status === "submitted" || a.status === "approved";
+    var hasCni = (a.docs || []).some(function (x) { return x.kind === "cni_recto"; });
+    if (locked) return statusView();
+    var miss = a.missing || [];
+    return statusView() +
+      (APP ? '<div class="note">Mode agent : vous remplissez le dossier de ' + esc(a.phone) + ', en sa présence.</div>' : '') +
+      '<h2><span class="n">1</span>Vos pièces en photo</h2><p class="muted">Posez la pièce à plat, bien éclairée, sans reflet. Nous lisons les informations pour vous.</p>' +
+      '<div class="docs">' + DOCS.map(docTile).join("") + '</div>' +
+      '<button class="btn yel" id="ocr"' + (hasCni && !S.ocr ? "" : " disabled") + '>' + (S.ocr ? esc(S.ocr.msg) : "✨ Remplir automatiquement à partir des photos") + '</button>' +
+      (S.ocr && S.ocr.pct != null ? '<div class="bar"><i style="width:' + Math.round(S.ocr.pct * 100) + '%"></i></div>' : '') +
+      (S.ocrDone ? '<div class="note" role="status">' + esc(S.ocrDone) + '</div>' : '') +
+      '<h2><span class="n">2</span>Identité</h2><div class="card"><div class="grid">' +
+        fld("lastName", "Nom", d.lastName, ' autocapitalize="characters"') + fld("firstNames", "Prénoms", d.firstNames) +
+        fld("birthDate", "Date de naissance", d.birthDate, ' type="date"') + fld("birthPlace", "Lieu de naissance", d.birthPlace) +
+        sel("sex", "Sexe", [["M", "Masculin"], ["F", "Féminin"]], d.sex) + fld("cniNumber", "N° de CNI", d.cniNumber) +
+        fld("cniIssued", "CNI délivrée le", d.cniIssued, ' type="date"') + fld("cniExpiry", "CNI expire le", d.cniExpiry, ' type="date"') + '</div></div>' +
+      '<h2><span class="n">3</span>Permis et véhicule</h2><div class="card"><div class="grid">' +
+        fld("licenseNumber", "N° de permis", d.licenseNumber) + fld("licenseCategories", "Catégories (A, B…)", d.licenseCategories) +
+        fld("licenseExpiry", "Permis valable jusqu\'au", d.licenseExpiry, ' type="date"') + sel("vehicle", "Véhicule", VEH, d.vehicle) +
+        fld("plate", "Immatriculation (si vous en avez une)", d.plate, ' autocapitalize="characters"') +
+        sel("phoneType", "Votre téléphone", [["smart", "Smartphone (application)"], ["basic", "Téléphone simple / sans données"]], d.phoneType || "smart") + '</div>' +
+        (d.phoneType === "basic" ? '<p class="muted">Pas de souci : l\'équipe vous attribue les courses par appel, et vous recevrez un <b>code livreur</b> à montrer aux clients.</p>' : '') + '</div>' +
+      '<h2><span class="n">4</span>Domicile (plan de localisation)</h2><div class="card">' +
+        sel("homeArea", "Quartier", AREAS, d.homeArea, true) +
+        '<button class="btn out" id="gps">' + (d.homeGeo ? "📍 Position du domicile enregistrée ✓ (refaire)" : "📍 Je suis chez moi : enregistrer ma position") + '</button>' +
+        '<label class="f"><span class="lbl">Comment trouver votre domicile</span><textarea data-k="homeAddress" placeholder="Ex. après la pharmacie du Carrefour, 2e rue à droite, portail vert">' + esc(d.homeAddress || "") + '</textarea></label>' +
+        '<div class="docs">' + docTile(DOCS_OPT[0]) + '</div></div>' +
+      '<h2><span class="n">5</span>Votre garant</h2><div class="card"><p class="muted">Une personne de confiance qui se porte garante de vous (parent, tuteur, employeur…). Elle sera contactée par WunaGo.</p><div class="grid">' +
+        '<label class="f full"><span class="lbl">Nom et prénoms du garant</span><input data-g="name" value="' + esc(g.name || "") + '"></label>' +
+        '<label class="f"><span class="lbl">Son téléphone</span><input data-g="phone" inputmode="tel" value="' + esc(g.phone || "") + '"></label>' +
+        '<label class="f"><span class="lbl">Lien avec vous</span><input data-g="relation" placeholder="Oncle, tutrice…" value="' + esc(g.relation || "") + '"></label>' +
+        '<label class="f"><span class="lbl">N° CNI du garant</span><input data-g="cniNumber" value="' + esc(g.cniNumber || "") + '"></label>' +
+        '<label class="f"><span class="lbl">Son quartier / adresse</span><input data-g="address" value="' + esc(g.address || "") + '"></label></div>' +
+        '<div class="docs">' + docTile(DOCS_OPT[1]) + '</div></div>' +
+      '<h2><span class="n">6</span>Contrat et conditions d\'usage</h2><div class="card"><div class="contract" tabindex="0" aria-label="Contrat">' +
+        '<p><b>' + esc(a.contract.title) + '</b><span class="lbl">Version ' + esc(a.contract.version) + '</span></p>' +
+        a.contract.articles.map(function (x) { return '<p><b>' + esc(x.t) + '</b>' + esc(x.p) + '</p>'; }).join("") + '</div>' +
+        '<label class="check"><input type="checkbox" id="accept"' + (S.accept ? " checked" : "") + '><span>' + (APP ? "Le livreur, présent, déclare avoir" : "J'ai") + ' pris acte du contrat et j\'accepte les conditions d\'usage de WunaGo.</span></label>' +
+        (miss.length ? '<div class="note">Il manque encore : ' + esc(miss.join(", ")) + '.</div>' : '') +
+        (S.err ? '<div class="note" role="alert">' + esc(S.err) + '</div>' : '') +
+        '<button class="btn ink" id="submit"' + (miss.length || !S.accept || S.busy ? " disabled" : "") + '>' + (S.busy ? "…" : "Envoyer mon dossier") + '</button></div>';
+  }
+  function render() {
+    var a = document.activeElement, keep = a && (a.getAttribute("data-k") || a.getAttribute("data-g")), kAttr = a && a.getAttribute("data-k") ? "data-k" : "data-g";
+    if (!S.app) main.innerHTML = loginView(); else main.innerHTML = formView();
+    if (keep) { var el = main.querySelector("[" + kAttr + '="' + keep + '"]'); if (el) { el.focus(); try { el.setSelectionRange(el.value.length, el.value.length); } catch (e) {} } }
+  }
+  S.touched = {};
+  function load() {
+    return api(q("/courier-app")).then(function (j) { S.app = j.application; render(); })
+      .catch(function (e) { if (e.status === 401) { S.app = null; S.step = "login"; render(); } else { main.innerHTML = '<div class="note">' + esc(e.message) + '</div>'; } });
+  }
+  /* ---------- enregistrement automatique ---------- */
+  var pending = {};
+  function save(patch) {
+    Object.keys(patch).forEach(function (k) { pending[k] = patch[k]; });
+    clearTimeout(S.saveT);
+    S.saveT = setTimeout(flush, 600);
+  }
+  function flush() {
+    var p = pending; pending = {};
+    if (!Object.keys(p).length) return Promise.resolve();
+    return api(q("/courier-app"), "PATCH", p).then(function (j) { var c = S.app.contract; S.app = j.application; S.app.contract = c; refreshMissing(); }).catch(function (e) { S.err = e.message; render(); });
+  }
+  function refreshMissing() {
+    var box = main.querySelector("#submit"); if (!box) return;
+    var miss = S.app.missing || [];
+    var parent = box.parentNode, n = parent.querySelector(".note:not([role])");
+    if (miss.length) { if (!n) { n = document.createElement("div"); n.className = "note"; parent.insertBefore(n, box); } n.textContent = "Il manque encore : " + miss.join(", ") + "."; }
+    else if (n) n.remove();
+    box.disabled = !!(miss.length || !S.accept || S.busy);
+  }
+  main.addEventListener("input", function (e) {
+    var el = e.target, k = el.getAttribute("data-k"), g = el.getAttribute("data-g");
+    if (k) { S.touched[k] = true; el.classList.remove("pre"); S.app.data[k] = el.value; var p = {}; p[k] = el.value; save(p); }
+    if (g) { var G = Object.assign({}, D().guarantor || {}); G[g] = el.value; S.app.data.guarantor = G; save({ guarantor: G }); }
+  });
+  main.addEventListener("change", function (e) {
+    var el = e.target;
+    if (el.id === "accept") { S.accept = el.checked; refreshMissing(); return; }
+    if (el.tagName === "SELECT" && el.getAttribute("data-k")) { var k = el.getAttribute("data-k"), p = {}; p[k] = el.value; S.app.data[k] = el.value; save(p); return; }
+    var kind = el.getAttribute("data-doc");
+    if (kind && el.files && el.files[0]) upload(kind, el.files[0]);
+  });
+  /* ---------- photos : compression puis envoi ---------- */
+  function compress(file, max) {
+    return new Promise(function (res, rej) {
+      var img = new Image(), url = URL.createObjectURL(file);
+      img.onload = function () {
+        var s = Math.min(1, max / Math.max(img.width, img.height)), c = document.createElement("canvas");
+        c.width = Math.round(img.width * s); c.height = Math.round(img.height * s);
+        c.getContext("2d").drawImage(img, 0, 0, c.width, c.height); URL.revokeObjectURL(url);
+        res(c.toDataURL("image/jpeg", .78));
+      };
+      img.onerror = function () { rej(new Error("Photo illisible.")); };
+      img.src = url;
+    });
+  }
+  function upload(kind, file) {
+    S.err = "";
+    compress(file, kind === "photo" ? 700 : 1600).then(function (data) {
+      S.local[kind] = data; render();
+      return flush().then(function () { return api(q("/courier-app/docs/" + kind), "PUT", { image: data }); });
+    }).then(function () { return api(q("/courier-app")); }).then(function (j) { S.app = j.application; render(); })
+      .catch(function (e) { S.err = e.message; render(); });
+  }
+  /* ---------- lecture des pièces (OCR dans le téléphone, rien n'est envoyé ailleurs) ---------- */
+  function loadScript(src) { return new Promise(function (res, rej) { if (window.Tesseract) return res(); var s = document.createElement("script"); s.src = src; s.onload = res; s.onerror = function () { rej(new Error("Lecture automatique indisponible : remplissez les champs.")); }; document.head.appendChild(s); }); }
+  function imageOf(kind) {
+    if (S.local[kind]) return Promise.resolve(S.local[kind]);
+    var h = {}, t = tok(); if (t) h.authorization = "Bearer " + t;
+    return fetch("/api" + q("/courier-app/docs/" + kind), { headers: h }).then(function (r) { if (!r.ok) return null; return r.blob(); })
+      .then(function (b) { if (!b) return null; return new Promise(function (res) { var fr = new FileReader(); fr.onload = function () { res(fr.result); }; fr.readAsDataURL(b); }); });
+  }
+  function runOcr() {
+    var kinds = ["cni_recto", "cni_verso", "permis"].filter(function (k) { return S.local[k] || (S.app.docs || []).some(function (x) { return x.kind === k; }); });
+    S.ocr = { msg: "Préparation de la lecture…", pct: 0 }; S.ocrDone = ""; render();
+    var texts = {}, worker;
+    loadScript("vendor/tesseract/tesseract.min.js").then(function () {
+      return Tesseract.createWorker("fra", 1, { workerPath: "vendor/tesseract/worker.min.js", corePath: "vendor/tesseract/", langPath: "vendor/tesseract/",
+        logger: function (m) { if (m && typeof m.progress === "number" && S.ocr) { S.ocr.pct = m.progress; var b = main.querySelector(".bar i"); if (b) b.style.width = Math.round(m.progress * 100) + "%"; } } });
+    }).then(function (w) {
+      worker = w;
+      return kinds.reduce(function (p, k, i) {
+        return p.then(function () { S.ocr.msg = "Lecture de la pièce " + (i + 1) + " sur " + kinds.length + "…"; render(); return imageOf(k); })
+          .then(function (img) { return img ? worker.recognize(img) : null; }).then(function (r) { texts[k] = r ? r.data.text : ""; });
+      }, Promise.resolve());
+    }).then(function () { return worker.terminate(); }).then(function () {
+      var got = parseDocs(texts), keys = Object.keys(got).filter(function (k) { return got[k] && !S.touched[k] && !(D()[k]); });
+      keys.forEach(function (k) { S.app.data[k] = got[k]; });
+      S.app.data.prefilled = keys; S.ocr = null;
+      S.ocrDone = keys.length ? keys.length + " information(s) remplie(s) à partir des photos. Vérifiez les champs en jaune." : "Aucune information lisible : reprenez les photos (plus de lumière) ou remplissez les champs.";
+      var p = { prefilled: keys }; keys.forEach(function (k) { p[k] = got[k]; });
+      return api(q("/courier-app"), "PATCH", p).then(function (j) { var c = S.app.contract; S.app = j.application; S.app.contract = c; render(); });
+    }).catch(function (e) { S.ocr = null; S.ocrDone = e.message || "Lecture impossible : remplissez les champs."; render(); });
+  }
+  /* analyse du texte lu : zone MRZ (lignes « <<< ») puis repères « NOM », « NAISSANCE », etc. */
+  function iso(d, m, y) { y = String(y); if (y.length === 2) y = (+y > 40 ? "19" : "20") + y; return y + "-" + ("0" + m).slice(-2) + "-" + ("0" + d).slice(-2); }
+  function dates(s) { var out = [], re = /(\d{1,2})\s*[\/.\- ]\s*(\d{1,2})\s*[\/.\- ]\s*(\d{4})/g, m; while ((m = re.exec(s))) if (+m[2] >= 1 && +m[2] <= 12 && +m[1] >= 1 && +m[1] <= 31) out.push(iso(m[1], m[2], m[3])); return out; }
+  function after(lines, re) { for (var i = 0; i < lines.length; i++) if (re.test(lines[i])) { var rest = lines[i].replace(re, "").replace(/^[\s:/.\-]+/, "").trim(); return rest.length > 1 ? rest : (lines[i + 1] || "").trim(); } return ""; }
+  function clean(v) { return String(v || "").replace(/[^A-Za-zÀ-ÿ' \-]/g, " ").replace(/\s+/g, " ").trim(); }
+  function parseDocs(t) {
+    var r = {}, all = [t.cni_recto, t.cni_verso].join("\n");
+    /* MRZ (carte d'identité au format TD1 : 3 lignes de 30 caractères) */
+    var mrz = all.toUpperCase().replace(/[«‹]/g, "<").split(/\n/).map(function (l) { return l.replace(/\s/g, ""); }).filter(function (l) { return /^[A-Z0-9<]{24,}$/.test(l) && l.indexOf("<") >= 0; });
+    if (mrz.length >= 2) {
+      var l1 = mrz.filter(function (l) { return /^I[A-Z<]/.test(l); })[0], l2 = mrz.filter(function (l) { return /^\d{6}\d?[MF<]/.test(l) || /^\d{7}[MF<]\d{6}/.test(l); })[0], l3 = mrz.filter(function (l) { return /<<[A-Z]/.test(l) && !/^I/.test(l); })[0];
+      if (l1) { var num = l1.slice(5, 14).replace(/</g, ""); if (num.length >= 6) r.cniNumber = num; }
+      if (l2) { var b = l2.match(/^(\d{2})(\d{2})(\d{2})\d([MF<])(\d{2})(\d{2})(\d{2})/); if (b) { r.birthDate = iso(b[3], b[2], b[1]); if (b[4] !== "<") r.sex = b[4]; r.cniExpiry = iso(b[7], b[6], (+b[5] > 60 ? "19" : "20") + b[5]); } }
+      if (l3) { var nm = l3.split("<<"); r.lastName = clean(nm[0].replace(/</g, " ")).toUpperCase(); if (nm[1]) r.firstNames = clean(nm.slice(1).join(" ").replace(/</g, " ")); }
+    }
+    var L = (t.cni_recto || "").split(/\n/).concat((t.cni_verso || "").split(/\n/)).map(function (l) { return l.trim(); }).filter(Boolean);
+    if (!r.lastName) { var n1 = clean(after(L, /^(NOM|SURNAME)\b[^:]*:?/i)); if (n1.length > 1) r.lastName = n1.toUpperCase(); }
+    if (!r.firstNames) { var n2 = clean(after(L, /PR[EÉ]NOMS?|GIVEN\s*NAMES?/i)); if (n2.length > 1) r.firstNames = n2; }
+    if (!r.birthDate) { var bd = dates(after(L, /NAISSANCE|DATE\s*OF\s*BIRTH/i)); if (bd[0]) r.birthDate = bd[0]; }
+    var bp = clean(after(L, /LIEU\s*DE\s*NAISSANCE|PLACE\s*OF\s*BIRTH/i)); if (bp.length > 1) r.birthPlace = bp.toUpperCase();
+    var di = dates(after(L, /D[EÉ]LIVRANCE|ISSUE/i)); if (di[0]) r.cniIssued = di[0];
+    if (!r.cniExpiry) { var de = dates(after(L, /EXPIRATION|EXPIRY|VALIDIT/i)); if (de[0]) r.cniExpiry = de[0]; }
+    if (!r.cniNumber) { var idm = all.replace(/\s/g, " ").match(/\b(\d{9,17})\b/); if (idm) r.cniNumber = idm[1]; }
+    if (!r.sex) { var sx = after(L, /^SEXE|SEX\b/i).toUpperCase(); if (/^M/.test(sx)) r.sex = "M"; else if (/^F/.test(sx)) r.sex = "F"; }
+    /* permis : rubriques numérotées (4b validité, 5 numéro, 9 catégories) ou libellés */
+    var P = (t.permis || "").split(/\n/).map(function (l) { return l.trim(); }).filter(Boolean);
+    var pn = after(P, /^5[.)]|PERMIS\s*N|N[°O]\s*DU\s*PERMIS|LICEN[CS]E\s*N/i).replace(/[^A-Z0-9\/\-]/gi, ""); if (pn.length >= 5) r.licenseNumber = pn.toUpperCase();
+    var pe = dates(after(P, /^4b[.)]|EXPIRATION|VALABLE|VALID/i)); if (pe[0]) r.licenseExpiry = pe[0];
+    var pc = after(P, /^9[.)]|CAT[EÉ]GORIES?/i).toUpperCase().match(/\b(A1|A|B|C|D|E|BE|CE|DE)\b/g); if (pc) r.licenseCategories = pc.filter(function (x, i, a) { return a.indexOf(x) === i; }).join(", ");
+    return r;
+  }
+  /* ---------- actions ---------- */
+  main.addEventListener("click", function (e) {
+    var b = e.target.closest("button"); if (!b) return;
+    if (b.id === "send") {
+      S.phone = (main.querySelector("#ph") || {}).value || ""; S.err = "";
+      api("/auth/request", "POST", { phone: S.phone }).then(function (j) { S.demo = j.demoCode || ""; S.step = "otp"; render(); }).catch(function (x) { S.err = x.message; render(); });
+    }
+    if (b.id === "verify") {
+      var code = (main.querySelector("#otp") || {}).value || ""; S.err = "";
+      api("/auth/verify", "POST", { phone: S.phone, code: code }).then(function (j) { setTok(j.token); return load(); }).catch(function (x) { S.err = x.message; render(); });
+    }
+    if (b.id === "ocr") runOcr();
+    if (b.id === "gps") {
+      if (!navigator.geolocation) { S.err = "Votre téléphone ne donne pas la position : décrivez le chemin."; render(); return; }
+      b.textContent = "Recherche de la position…";
+      navigator.geolocation.getCurrentPosition(function (p) { var g = { lat: p.coords.latitude, lng: p.coords.longitude }; S.app.data.homeGeo = g; save({ homeGeo: g }); flush().then(render); },
+        function () { S.err = "Position indisponible : autorisez la localisation ou décrivez le chemin."; render(); }, { enableHighAccuracy: true, timeout: 20000 });
+    }
+    if (b.id === "submit") {
+      S.busy = true; S.err = ""; render();
+      flush().then(function () { return api(q("/courier-app/submit"), "POST", { accept: true, version: S.app.contract.version }); })
+        .then(function (j) { S.busy = false; S.app = j.application; render(); window.scrollTo(0, 0); })
+        .catch(function (x) { S.busy = false; S.err = x.message; render(); });
+    }
+  });
+  main.addEventListener("keydown", function (e) { if (e.key === "Enter" && (e.target.id === "ph" || e.target.id === "otp")) main.querySelector(e.target.id === "ph" ? "#send" : "#verify").click(); });
+  if (tok()) load(); else render();
+})();
+</script>
+</body>
+</html>
