@@ -1,6 +1,6 @@
 // Règles métier WunaGo côté serveur. La grille tarifaire est partagée avec l'app (web/pricing.mjs).
 
-export { quote, TARIFS, distanceKm, courierShare, QUARTIERS } from "../../web/pricing.mjs";
+export { quote, TARIFS, distanceKm, courierShare, QUARTIERS } from "../web/pricing.mjs";
 
 export const SERVICES = ["parcel", "laundry", "errand", "ride"] as const;
 export const VEHICLES = ["bike", "tricycle", "van", "car"] as const;

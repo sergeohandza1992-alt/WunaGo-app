@@ -14,20 +14,22 @@ Porteur du projet : Serge-Venant OHANDZA. Langue de travail et de l'interface : 
   - `config.js` : généré par Netlify (`scripts/write-config.mjs`) depuis la variable `GOOGLE_MAPS_KEY`.
   - `sw.js` : service worker hors ligne — **incrémenter `CACHE`** à chaque modification de fichier.
   - `api.js` : client de l'API. Si `/api/health` ne répond pas, l'app reste en mode local (démo).
-- `netlify/functions/api.mts` : API (routes `/api/*`) — connexion par code, compte, commandes, portefeuille, réclamations.
-  `netlify/lib/rules.mts` : règles de prix (le serveur fait foi). Variables : `SMS_MODE` (`demo` par défaut : code renvoyé
+- `server/api.mts` : API (routes `/api/*`) — connexion par code, compte, commandes, portefeuille, réclamations.
+  `server/rules.mts` : règles de prix (le serveur fait foi). `server/platform.mts` : base et variables fournies par le point d'entrée
+  (`worker/index.mts` sur Cloudflare avec Neon via `server/db-neon.mts` ; `netlify/functions/api.mts` pour les tests locaux). Variables : `SMS_MODE` (`demo` par défaut : code renvoyé
   à l'app, aucun SMS), `DEMO_ACTIONS` (`on` par défaut : recharge et avancement de livraison simulés).
-- `netlify/database/migrations/` : schéma Postgres (Netlify Database). Ne jamais modifier une migration déjà appliquée.
+- `netlify/database/migrations/` : schéma Postgres. Ne jamais modifier une migration déjà appliquée. Sur Cloudflare, appliquées automatiquement
+  au premier appel (`server/migrate.mts`, table `schema_migrations`) : **ajouter chaque nouvelle migration à la liste de `worker/index.mts`**.
 - Rôles : `client`, `courier` (ajouté depuis le backoffice), `admin` (numéros listés dans la variable `ADMIN_PHONES`, séparés par des virgules).
   Même app pour client et livreur (l'espace livreur s'affiche selon le rôle). Backoffice : `web/admin.html` + `admin.js`.
-  Notifications : `netlify/lib/push.mts` (Web Push, variables `VAPID_PUBLIC_KEY` / `VAPID_PRIVATE_KEY`, `WG_PUSH_DRY=1` en test). Part livreur : `TARIFS.partLivreur` × lignes de transport (`TARIFS.lignesTransport`, fonction `courierShare`) — jamais sur les articles ni les prestations pressing.
+  Notifications : `server/push.mts` + `server/webpush.mts` (Web Push en WebCrypto ; clés VAPID générées au premier démarrage et gardées dans `app_settings`, ou variables `VAPID_PUBLIC_KEY` / `VAPID_PRIVATE_KEY` ; `WG_PUSH_DRY=1` en test). Part livreur : `TARIFS.partLivreur` × lignes de transport (`TARIFS.lignesTransport`, fonction `courierShare`) — jamais sur les articles ni les prestations pressing.
   Rapports du backoffice : `GET /api/admin/reports?from&to` (dates de Douala) et export CSV `GET /api/admin/export`.
   Historique : `GET /api/admin/orders` (filtres status, from, to, service, pay, courier, q, limit, offset + totaux) ; courses et gains d'un livreur :
   `GET /api/admin/couriers/:id/history` (backoffice) et `GET /api/courier/history` (app livreur, onglet Compte) ; dépenses du client : `GET /api/orders?from&to` (onglet Commandes, par période).
 - Expérience : point de repère et destinataire (`details.hints`, `details.recipient`), code de remise à 4 chiffres (`orders.delivery_code`,
   obligatoire pour livrer, sinon nom + photo), lien de suivi public `web/suivi.html?c=<track_token>` (`GET /api/suivi/:token`), bouton « Recommander ».
   Courses proposées d'abord aux 3 livreurs les plus proches (8 km), puis à tous après 3 min ; alerte au backoffice après 10 min sans livreur :
-  fonction planifiée `netlify/functions/alertes.mts` (toutes les 2 min, `netlify/lib/alerts.mts`). Versements des livreurs : table `courier_payments`.
+  déclencheur Cloudflare toutes les 2 min (`[triggers]` de `wrangler.toml`, `server/alerts.mts`). Versements des livreurs : table `courier_payments`.
   « Je suis arrivé » (étape `arrived`, `orders.arrived_at`) ; commande saisie par l'équipe pour un client (`POST /api/admin/orders`, `orders.created_by`, colis ou déplacement).
   Le destinataire peut envoyer sa position exacte depuis le lien de suivi (`POST /api/suivi/:token/position`, 2,5 km max de l'adresse, prix inchangé) ;
   trajets récents sur l'accueil ; destinataire depuis les contacts (Android) ; « Combien ça coûte ? » sans compte (écran de connexion).
@@ -39,10 +41,9 @@ Porteur du projet : Serge-Venant OHANDZA. Langue de travail et de l'interface : 
   Version affichée : `APP_VERSION` (app.js) et pied du menu (admin.js), à changer avec `CACHE` (sw.js).
 - Tests : `livraison2` (multi-acteurs : backoffice, livreur, clients, messagerie, notifications), `tarifs` (grille, sans navigateur), `services` (parcours dédiés, profil), `parcours` (mode local), `google-maps` (API Google simulée), `ecrans-compte` (étape 3), `serveur` (API + Postgres local
   via `tests/dev-server.mjs`). Les tests décalent l'heure à midi la nuit (`tests/horloge.mjs`). Lancer : `npm install && npx playwright install chromium && npm test`. Serveur local : `npm run dev`.
-- Mise en ligne : Netlify (projet `wunago-app` → https://wunago-app.netlify.app).
-  **Crédits Netlify épuisés (nov. 2026) : production en pause.** Version en ligne provisoire = deploy preview de la PR permanente
-  `live` → `main` (ne jamais fusionner). Pour publier : fusionner la PR de l'étape dans `main`, puis fusionner `main` dans `live` et pousser `live`.
-  Les fonctions planifiées ne tournent pas en preview : `maybeAlerts()` relance les alertes depuis /admin/stats et /courier/offers.
+- Mise en ligne : **Cloudflare Workers** (offre gratuite, `wrangler.toml`) relié au dépôt GitHub : chaque fusion dans `main` publie
+  automatiquement. Base : **Neon** (Postgres gratuit). Secrets Cloudflare : `DATABASE_URL`, `ADMIN_PHONES`. Netlify (crédits épuisés en nov. 2026) abandonné ;
+  la PR permanente `live` peut être fermée.
   GitHub Actions est bloqué tant que le compte GitHub a un problème de facturation (ticket ouvert).
 
 ## Identité visuelle (à respecter strictement)
