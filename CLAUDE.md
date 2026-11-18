@@ -52,8 +52,17 @@ Porteur du projet : Serge-Venant OHANDZA. Langue de travail et de l'interface : 
   quartier + repère + destinataire), tailles Petit / Moyen / Gros (tricycle) / Très gros (camionnette) ; tuile « Déplacement » → écran éclair trajet
   (« Où allez-vous ? » : code ou quartier + lieu précis, moto / voiture + passagers, « Quand ? »). Formulaire détaillé conservé pour pressing / courses
   (tests : `window.WG_CLASSIC_FORM`). Plus d'adresses fictives pré-remplies en mode serveur. Livreur : bilan du jour, gain estimé mis en avant.
+  **Inscription des livreurs** (`web/livreur.html`, tables `courier_applications` + `courier_documents`) : connexion par code, photos CNI recto/verso,
+  permis, photo 4×4 (compressées, stockées en base64, accès admin seul), lecture automatique dans le navigateur (`web/vendor/tesseract/`, Apache-2.0,
+  modèle `fra` ; MRZ + libellés), identité, permis, véhicule, type de téléphone, domicile (GPS + description), garant, contrat versionné
+  (`server/contract.mts`, ÉBAUCHE à faire valider par un juriste ; changer `CONTRACT_VERSION` à chaque modification) accepté par case à cocher.
+  Inscription en agence : backoffice › Candidatures › « Inscrire un livreur en agence » → `livreur.html?app=<id>` (agent admin, `accepted_via = "agent"`).
+  Validation : `POST /api/admin/applications/:id/approve|reject` → rôle livreur. Données personnelles : loi n° 2024/017 (base hébergée hors Cameroun : démarche APDP).
+  **Livreurs sans smartphone / sans données** : profil `courier.basic` + code badge fixe `courier.pin` (devient `handover_code` à l'attribution) ;
+  l'équipe attribue et appelle ; l'expéditeur confirme « J'ai remis le colis » (`POST /api/orders/:id/handed`, ou `/api/suivi/:token/handed` pour la
+  personne au départ) ; le destinataire tape le code du badge. Page ultra-légère sans JavaScript : `/l` → `/api/lite` (`server/lite.mts`, cookie `wgl`).
   Version affichée : `APP_VERSION` (app.js) et pied du menu (admin.js), à changer avec `CACHE` (sw.js).
-- Tests : `parcours-simple` (colis et trajet en un écran, bilan livreur), `envoi-lien` (envoi par lien, remise contrôlée, accueil recentré), `livraison2` (multi-acteurs : backoffice, livreur, clients, messagerie, notifications), `tarifs` (grille, sans navigateur), `services` (parcours dédiés, profil), `parcours` (mode local), `google-maps` (API Google simulée), `ecrans-compte` (étape 3), `serveur` (API + Postgres local
+- Tests : `inscription-livreur` (dossier, lecture des pièces, contrat, validation, agence), `sans-donnees` (badge, remise, page légère), `parcours-simple` (colis et trajet en un écran, bilan livreur), `envoi-lien` (envoi par lien, remise contrôlée, accueil recentré), `livraison2` (multi-acteurs : backoffice, livreur, clients, messagerie, notifications), `tarifs` (grille, sans navigateur), `services` (parcours dédiés, profil), `parcours` (mode local), `google-maps` (API Google simulée), `ecrans-compte` (étape 3), `serveur` (API + Postgres local
   via `tests/dev-server.mjs`). Les tests décalent l'heure à midi la nuit (`tests/horloge.mjs`). Lancer : `npm install && npx playwright install chromium && npm test`. Serveur local : `npm run dev`.
 - Mise en ligne : **Cloudflare Workers** (offre gratuite, `wrangler.toml`) relié au dépôt GitHub : chaque fusion dans `main` publie
   automatiquement. Base : **Neon** (Postgres gratuit). Secrets Cloudflare : `DATABASE_URL`, `ADMIN_PHONES`. Netlify (crédits épuisés en nov. 2026) abandonné ;

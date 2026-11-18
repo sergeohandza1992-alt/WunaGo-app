@@ -107,7 +107,8 @@
         '<li' + (d.stage > 0 ? ' style="opacity:.5"' : '') + '>' + esc(cn) + ' récupère le colis' + (d.sender ? ' chez ' + esc(d.sender) : '') + '.</li>' +
         '<li' + (d.arrivedAt ? ' style="opacity:.5"' : '') + '>Il vous appelle en arrivant.</li>' +
         '<li><b>Vous tapez le code affiché sur son téléphone</b> : la remise est confirmée.</li></ol></div>' : '';
-      var pickupMsg = !done && !cancelled && parcelLike && c && d.stage === 0 ? '<div class="flash" role="status">🛵 ' + esc(cn) + ' vient récupérer le colis' + (d.sender ? ' chez ' + esc(d.sender) : '') + '.</div>' : '';
+      var pickupMsg = !done && !cancelled && parcelLike && c && d.stage === 0 ? '<div class="flash" role="status">🛵 ' + esc(cn) + ' vient récupérer le colis' + (d.sender ? ' chez ' + esc(d.sender) : '') + '.' +
+        (d.canHandOver ? '<button class="btn" id="handed" style="margin-top:10px;background:#101010;color:#FFD700">J\'ai remis le colis au livreur</button>' : '') + '</div>' : '';
       var retMsg = d.returned && !done ? '<div class="flash" role="status">↩ Colis non remis : il retourne à l\'expéditeur.</div>' : '';
       main.innerHTML =
         '<div><div class="lbl">' + (d.recipient && d.recipient.name ? "Pour " + esc(d.recipient.name) : "Suivi de livraison") + '</div><h1>' + esc(title) + '</h1></div>' +
@@ -127,6 +128,8 @@
       drawMap(d);
       var sb = document.getElementById("share-pos");
       if (sb) sb.onclick = sharePos;
+      var hb = document.getElementById("handed");
+      if (hb) hb.onclick = function () { hb.disabled = true; fetch("/api/suivi/" + encodeURIComponent(token) + "/handed", { method: "POST" }).then(function () { load(); }); };
       var rg = document.getElementById("rcv-go");
       if (rg) rg.onclick = confirmReceipt;
       return !done && !cancelled;

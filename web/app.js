@@ -9,7 +9,7 @@
   var SUPPORT_PHONE = "+237600000000", SUPPORT_PHONE_LABEL = "+237 6 00 00 00 00";
   var STORE_KEY = "wunago.client.v1";
   /* Version affichée dans Réglages : à changer avec CACHE dans sw.js à chaque mise en ligne */
-  var APP_VERSION = "21 · 18/11/2026";
+  var APP_VERSION = "22 · 18/11/2026";
   var deferredInstall = null;
   var lastScreenKey = "";
   var installDismissed = false;
@@ -414,6 +414,7 @@
           '<button class="btn btn-ink" data-action="requestOtp" ' + (canGo ? "" : "disabled") + '>' + esc(d.continue) + '</button>' +
           '<div style="font-size:11px;line-height:1.5;color:rgba(16,16,16,.6);text-align:center">' + esc(d.terms) + '</div>' +
           '<button class="btn" data-action="openPrice" style="height:44px;background:transparent;font-weight:800;font-size:13.5px;text-decoration:underline">' + esc(te().seePrice) + '</button>' +
+          '<a href="livreur.html" style="display:flex;align-items:center;justify-content:center;min-height:44px;color:#101010;font-weight:700;font-size:12.5px">' + esc(state.lang === "en" ? "Courier? Join WunaGo →" : "Vous êtes livreur ? Rejoignez WunaGo →") + '</a>' +
         '</div>' +
       '</div>'
     );
@@ -1943,9 +1944,16 @@
   function pickupBanner(o) {
     if (o.stage !== 0 || !o.courier || o.service === "ride" || o.status === "cancelled" || iAmRecipient(o) && (o.details || {}).pickupContact) return "";
     var en = state.lang === "en", cn = String(o.courier.name).split(" ")[0];
-    return '<div role="status" style="background:#FFD700;border-radius:14px;padding:11px 13px;font-size:12.5px;line-height:1.45;font-weight:700">🛵 ' +
-      esc(en ? cn + " is coming to pick up the parcel: hand it over to them." : cn + " vient récupérer le colis : remettez-le-lui.") + '</div>';
+    return '<div role="status" class="col" style="gap:9px;background:#FFD700;border-radius:14px;padding:11px 13px;font-size:12.5px;line-height:1.45;font-weight:700">🛵 ' +
+      esc(en ? cn + " is coming to pick up the parcel: hand it over to them." : cn + " vient récupérer le colis : remettez-le-lui.") +
+      '<button class="btn btn-ink" data-action="handedOver" data-arg="' + o.id + '" style="height:46px"' + (state.busy ? " disabled" : "") + '>' + esc(en ? "I've handed the parcel over" : "J'ai remis le colis au livreur") + '</button></div>';
   }
+  actions.handedOver = function (el, id) {
+    if (state.busy) return; state.busy = true; render();
+    WAPI.post("/orders/" + id + "/handed", {}).then(function () { return WAPI.get("/orders/" + id); })
+      .then(function (r) { state.busy = false; replaceOrder(r.order); render(); toast(state.lang === "en" ? "Noted: the parcel is on its way ✓" : "C'est noté : le colis est en route ✓"); })
+      .catch(function (e) { state.busy = false; render(); errToast(e); });
+  };
   function codeCard(o) {
     if (!o.deliveryCode || o.status === "delivered" || o.status === "cancelled" || iAmRecipient(o)) return "";
     var u = tu();
@@ -3288,6 +3296,9 @@
         '<span class="mono" style="font-size:12px;font-weight:700;text-align:right">' + (o.status === "delivered" ? fmtFcfa(o.gain) : o.status === "cancelled" ? L.cancelled : fmtFcfa(o.estimate) + '<br><span style="font-weight:500;font-size:10px;color:rgba(16,16,16,.5)">' + L.planned + '</span>') + '</span></div>';
     }).join("") + '</div>' : '<p style="margin:0;font-size:12.5px;color:rgba(16,16,16,.6);text-align:center">' + L.none + '</p>') : '';
     return page3('<div class="fx ac" style="gap:12px">' + avatar(state.user.name) + '<div class="col" style="gap:2px"><span style="font-weight:800;font-size:17px">' + esc(state.user.name) + '</span><span class="mono" style="font-size:11px;color:rgba(16,16,16,.6)">+237 ' + esc(state.phone) + ' · ' + esc(t().vehNames[cv.vehicle] || { car: "Voiture" }[cv.vehicle] || "") + (cv.plate ? " · " + esc(cv.plate) : "") + '</span></div></div>' +
+      (cv.pin ? '<div class="fx ac jb" style="gap:10px;background:#101010;color:#fff;border-radius:16px;padding:13px 15px"><span class="col" style="gap:2px"><span class="mono" style="font-size:9.5px;letter-spacing:.08em;color:#FFD700">' + esc(state.lang === "en" ? "MY COURIER CODE (BADGE)" : "MON CODE LIVREUR (BADGE)") + '</span><span style="font-size:11.5px;color:rgba(255,255,255,.75)">' +
+        esc(state.lang === "en" ? "Without data, show it: the recipient types it to confirm." : "Sans données, montrez-le : le destinataire le tape pour confirmer.") + '</span></span><span class="mono" style="font-weight:600;font-size:26px;letter-spacing:.2em;color:#FFD700">' + esc(cv.pin) + '</span></div>' +
+        '<a href="/l" style="font-size:12px;font-weight:700;color:#101010">' + esc(state.lang === "en" ? "Light version (little data): /l" : "Version légère (peu de données) : /l") + '</a>' : '') +
       balanceCard(d) +
       sectionTitle(L.title) + modes + nav + big + cash + list + paymentsList(d) +
       '<button class="btn btn-outline" data-action="openScreen" data-arg="notifs" style="color:#101010">' + esc(t().notifs) + '</button>' +

@@ -6,7 +6,7 @@
   "type": "module",
   "scripts": {
     "start": "python3 -m http.server 8080 --directory web",
-    "test": "node tests/tarifs.test.mjs && node tests/parcours.test.mjs && node tests/google-maps.test.mjs && node tests/ecrans-compte.test.mjs && node tests/services.test.mjs && node tests/serveur.test.mjs && node tests/livraison2.test.mjs && node tests/envoi-lien.test.mjs && node tests/parcours-simple.test.mjs",
+    "test": "node tests/tarifs.test.mjs && node tests/parcours.test.mjs && node tests/google-maps.test.mjs && node tests/ecrans-compte.test.mjs && node tests/services.test.mjs && node tests/serveur.test.mjs && node tests/livraison2.test.mjs && node tests/envoi-lien.test.mjs && node tests/parcours-simple.test.mjs && node tests/inscription-livreur.test.mjs && node tests/sans-donnees.test.mjs",
     "dev": "node tests/dev-server.mjs 8080"
   },
   "devDependencies": {

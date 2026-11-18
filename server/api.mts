@@ -3,6 +3,8 @@
 // SMS_MODE=demo (par défaut) : pas de SMS envoyé, le code est renvoyé à l'app pour affichage.
 
 import { createHash, randomBytes, randomInt } from "node:crypto";
+import { CONTRACT_VERSION, contractText } from "./contract.mts";
+import { liteRoute } from "./lite.mts";
 import { SERVICES, VEHICLES, PAY_METHODS, STATUSES, quote, normalizePhone, distanceKm, courierShare, returnFee, TARIFS, QUARTIERS } from "./rules.mts";
 import { sendPush, publicKey, pushLog } from "./push.mts";
 import { runAlerts } from "./alerts.mts";
@@ -539,6 +541,189 @@ async function placesRoutes(req: Request, user: Row, path: string, m: string): P
   return null;
 }
 
+/* ---------- livreurs sans smartphone : code livreur fixe (badge) ----------
+   Le destinataire tape ce code pour confirmer la réception : le téléphone du livreur n'est pas nécessaire. */
+const courierPin = () => String(randomInt(1000, 10000));
+async function pinForAssigned(o: Row, c: Row) {
+  const cj = c.courier || {};
+  if (cj.basic && cj.pin && o.service !== "ride") await db().sql`UPDATE orders SET handover_code = ${cj.pin}, handover_tries = 0 WHERE id = ${o.id}`;
+}
+
+/* ---------- inscription des livreurs : dossier, pièces, contrat ----------
+   Le candidat remplit son dossier (ou un agent WunaGo le fait avec lui, ?app=<id>) ; l'équipe valide au backoffice. */
+const DOC_KINDS = ["cni_recto", "cni_verso", "permis", "photo", "garant_cni", "domicile"];
+const DOC_REQUIRED = ["cni_recto", "cni_verso", "permis", "photo"];
+const isoDate = (v: any) => (/^\d{4}-\d{2}-\d{2}$/.test(String(v || "")) ? String(v) : "");
+const txt = (v: any, n: number) => String(v == null ? "" : v).replace(/\s+/g, " ").trim().slice(0, n);
+function cleanAppData(prev: Row, b: Row): Row {
+  const d: Row = { ...(prev || {}) };
+  const S: [string, number][] = [["lastName", 60], ["firstNames", 80], ["birthPlace", 60], ["cniNumber", 30], ["licenseNumber", 30], ["licenseCategories", 20],
+    ["homeArea", 60], ["homeAddress", 160], ["homeHint", 160], ["plate", 20], ["fatherName", 80], ["motherName", 80], ["profession", 60]];
+  for (const [k, n] of S) if (b[k] !== undefined) d[k] = txt(b[k], n);
+  for (const k of ["birthDate", "cniIssued", "cniExpiry", "licenseExpiry"]) if (b[k] !== undefined) d[k] = isoDate(b[k]);
+  if (b.sex !== undefined) d.sex = b.sex === "M" || b.sex === "F" ? b.sex : "";
+  if (b.vehicle !== undefined) d.vehicle = ["bike", "tricycle", "van", "car"].includes(b.vehicle) ? b.vehicle : "bike";
+  if (b.phoneType !== undefined) d.phoneType = b.phoneType === "basic" ? "basic" : "smart";
+  if (b.homeGeo !== undefined) {
+    const g = b.homeGeo || {}, lat = Number(g.lat), lng = Number(g.lng);
+    d.homeGeo = Math.abs(lat) <= 90 && Math.abs(lng) <= 180 && (lat || lng) ? { lat, lng } : null;
+  }
+  if (b.guarantor !== undefined) {
+    const g = b.guarantor || {};
+    d.guarantor = { name: txt(g.name, 80), phone: normalizePhone(g.phone) || txt(g.phone, 20), relation: txt(g.relation, 40), cniNumber: txt(g.cniNumber, 30), address: txt(g.address, 160) };
+  }
+  if (Array.isArray(b.prefilled)) d.prefilled = b.prefilled.filter((x: any) => typeof x === "string").slice(0, 30);
+  return d;
+}
+function appMissing(a: Row, docs: string[], phone: string): string[] {
+  const d = a.data || {}, miss: string[] = [];
+  const need: [string, string][] = [["lastName", "nom"], ["firstNames", "prénoms"], ["birthDate", "date de naissance"], ["cniNumber", "numéro de CNI"],
+    ["licenseNumber", "numéro de permis"], ["homeArea", "quartier du domicile"], ["vehicle", "véhicule"]];
+  for (const [k, l] of need) if (!d[k]) miss.push(l);
+  if (!d.homeGeo && !d.homeAddress) miss.push("plan de localisation du domicile");
+  const g = d.guarantor || {};
+  if (!g.name) miss.push("nom du garant");
+  if (!normalizePhone(g.phone)) miss.push("numéro du garant");
+  else if (normalizePhone(g.phone) === phone) miss.push("un garant autre que vous-même");
+  const DL: Record<string, string> = { cni_recto: "photo CNI recto", cni_verso: "photo CNI verso", permis: "photo du permis", photo: "photo d'identité 4×4" };
+  for (const k of DOC_REQUIRED) if (!docs.includes(k)) miss.push(DL[k]);
+  return miss;
+}
+async function appView(a: Row, withContract = true) {
+  const u = (await db().sql`SELECT id, phone, name, role FROM users WHERE id = ${a.user_id}`)[0] || {};
+  const docs = await db().sql`SELECT kind, bytes, created_at FROM courier_documents WHERE application_id = ${a.id}`;
+  const kinds = docs.map((x) => x.kind);
+  const d = a.data || {};
+  const nm = [d.firstNames, d.lastName].filter(Boolean).join(" ");
+  return { id: a.id, status: a.status, phone: u.phone, role: u.role, data: d, docs: docs.map((x) => ({ kind: x.kind, bytes: x.bytes, at: new Date(x.created_at).getTime() })),
+    missing: appMissing(a, kinds, u.phone), contractVersion: a.contract_version, acceptedAt: a.accepted_at ? new Date(a.accepted_at).getTime() : null, acceptedVia: a.accepted_via,
+    reviewNote: a.review_note, reviewedAt: a.reviewed_at ? new Date(a.reviewed_at).getTime() : null, submittedAt: a.submitted_at ? new Date(a.submitted_at).getTime() : null,
+    contract: withContract ? contractText({ name: nm, cni: d.cniNumber, vehicle: d.vehicle }) : undefined };
+}
+async function targetApp(user: Row, url: URL, create: boolean): Promise<Row | Response> {
+  const id = url.searchParams.get("app");
+  if (id) {
+    if (user.role !== "admin") return fail(403, "Espace réservé à l'équipe WunaGo.");
+    const a = (await db().sql`SELECT * FROM courier_applications WHERE id::text = ${id}`)[0];
+    return a || fail(404, "Dossier introuvable.");
+  }
+  let a = (await db().sql`SELECT * FROM courier_applications WHERE user_id = ${user.id}`)[0];
+  if (!a && create) a = (await db().sql`INSERT INTO courier_applications (user_id) VALUES (${user.id}) ON CONFLICT (user_id) DO UPDATE SET updated_at = NOW() RETURNING *`)[0];
+  return a || fail(404, "Aucun dossier.");
+}
+async function docResponse(appId: string, kind: string) {
+  const d = (await db().sql`SELECT mime, data FROM courier_documents WHERE application_id = ${appId} AND kind = ${kind}`)[0];
+  if (!d) return fail(404, "Pièce absente.");
+  const bin = Uint8Array.from(atob(d.data), (c) => c.charCodeAt(0));
+  return new Response(bin, { headers: { "content-type": d.mime, "cache-control": "private, no-store" } });
+}
+async function applicationRoutes(req: Request, user: Row, path: string, m: string, url: URL): Promise<Response | null> {
+  if (path === "/courier-app" && m === "GET") {
+    const a = await targetApp(user, url, true); if (a instanceof Response) return a;
+    return json({ application: await appView(a) });
+  }
+  const editable = (a: Row) => a.status === "draft" || a.status === "rejected";
+  if (path === "/courier-app" && m === "PATCH") {
+    const a = await targetApp(user, url, true); if (a instanceof Response) return a;
+    if (!editable(a)) return fail(409, "Dossier déjà envoyé : il est en cours de vérification.");
+    const data = cleanAppData(a.data, await body(req));
+    const rows = await db().sql`UPDATE courier_applications SET data = ${JSON.stringify(data)}::jsonb, updated_at = NOW() WHERE id = ${a.id} RETURNING *`;
+    return json({ application: await appView(rows[0], false) });
+  }
+  const dm = path.match(/^\/courier-app\/docs\/([a-z_]+)$/);
+  if (dm) {
+    if (!DOC_KINDS.includes(dm[1])) return fail(400, "Type de pièce inconnu.");
+    const a = await targetApp(user, url, m === "PUT"); if (a instanceof Response) return a;
+    if (m === "GET") return await docResponse(a.id, dm[1]);
+    if (m === "PUT") {
+      if (!editable(a)) return fail(409, "Dossier déjà envoyé : il est en cours de vérification.");
+      const b = await body(req), mt = String(b.image || "").match(/^data:(image\/(?:jpeg|png|webp));base64,([A-Za-z0-9+/=]+)$/);
+      if (!mt) return fail(400, "Photo illisible : reprenez-la.");
+      const bytes = Math.floor(mt[2].length * 3 / 4);
+      if (bytes > 1200000) return fail(413, "Photo trop lourde : reprenez-la.");
+      await db().sql`INSERT INTO courier_documents (application_id, kind, mime, data, bytes) VALUES (${a.id}, ${dm[1]}, ${mt[1]}, ${mt[2]}, ${bytes})
+        ON CONFLICT (application_id, kind) DO UPDATE SET mime = EXCLUDED.mime, data = EXCLUDED.data, bytes = EXCLUDED.bytes, created_at = NOW()`;
+      await db().sql`UPDATE courier_applications SET updated_at = NOW() WHERE id = ${a.id}`;
+      return json({ ok: true, kind: dm[1], bytes });
+    }
+    if (m === "DELETE") {
+      if (!editable(a)) return fail(409, "Dossier déjà envoyé.");
+      await db().sql`DELETE FROM courier_documents WHERE application_id = ${a.id} AND kind = ${dm[1]}`;
+      return json({ ok: true });
+    }
+  }
+  if (path === "/courier-app/submit" && m === "POST") {
+    const a = await targetApp(user, url, false); if (a instanceof Response) return a;
+    if (!editable(a)) return fail(409, "Dossier déjà envoyé.");
+    const b = await body(req);
+    if (b.accept !== true || b.version !== CONTRACT_VERSION) return fail(400, "Cochez la case pour accepter le contrat et les conditions d'usage.");
+    const v = await appView(a, false);
+    if (v.missing.length) return fail(400, "Il manque : " + v.missing.join(", ") + ".");
+    const agent = url.searchParams.get("app") ? user.id : null;
+    const rows = await db().sql`UPDATE courier_applications SET status = 'submitted', contract_version = ${CONTRACT_VERSION}, accepted_at = NOW(),
+      accepted_via = ${agent ? "agent" : "self"}, accepted_agent = ${agent}, submitted_at = NOW(), review_note = NULL, updated_at = NOW() WHERE id = ${a.id} RETURNING *`;
+    const admins = (await db().sql`SELECT id FROM users WHERE role = 'admin'`).map((x) => x.id);
+    const d = a.data || {};
+    if (admins.length) push(admins, { title: "Nouveau dossier livreur", body: [d.firstNames, d.lastName].filter(Boolean).join(" ") + " attend la validation.", url: "/admin.html#candidatures", tag: "app-" + a.id }, "support");
+    return json({ application: await appView(rows[0]) });
+  }
+  return null;
+}
+async function adminApplicationRoutes(req: Request, user: Row, path: string, m: string, url: URL): Promise<Response | null> {
+  if (path === "/admin/applications" && m === "GET") {
+    const st = url.searchParams.get("status");
+    const rows = await db().sql`SELECT a.*, u.phone, u.name AS user_name, c.name AS agent_name,
+        (SELECT COUNT(*) FROM courier_documents d WHERE d.application_id = a.id) AS docs
+      FROM courier_applications a JOIN users u ON u.id = a.user_id LEFT JOIN users c ON c.id = a.created_by
+      WHERE (${st}::text IS NULL OR a.status = ${st}) ORDER BY COALESCE(a.submitted_at, a.updated_at) DESC LIMIT 300`;
+    const counts = await db().sql`SELECT status, COUNT(*) AS n FROM courier_applications GROUP BY status`;
+    return json({ applications: rows.map((a) => { const d = a.data || {}; return { id: a.id, status: a.status, phone: a.phone,
+        name: [d.firstNames, d.lastName].filter(Boolean).join(" ") || a.user_name || "", vehicle: d.vehicle || null, area: d.homeArea || "",
+        docs: Number(a.docs), agent: a.agent_name || null, submittedAt: a.submitted_at ? new Date(a.submitted_at).getTime() : null, updatedAt: new Date(a.updated_at).getTime() }; }),
+      counts: Object.fromEntries(counts.map((c) => [c.status, Number(c.n)])) });
+  }
+  if (path === "/admin/applications" && m === "POST") {
+    /* inscription en agence : l'agent ouvre le dossier pour le livreur présent */
+    const b = await body(req), phone = normalizePhone(b.phone);
+    if (!phone) return fail(400, "Numéro invalide : 9 chiffres commençant par 6.");
+    const name = txt(b.name, 60);
+    const u = (await db().sql`INSERT INTO users (phone, name) VALUES (${phone}, ${name || null}) ON CONFLICT (phone) DO UPDATE SET name = COALESCE(users.name, EXCLUDED.name) RETURNING *`)[0];
+    const a = (await db().sql`INSERT INTO courier_applications (user_id, created_by) VALUES (${u.id}, ${user.id}) ON CONFLICT (user_id) DO UPDATE SET updated_at = NOW() RETURNING *`)[0];
+    return json({ application: await appView(a, false) }, 201);
+  }
+  const r = path.match(/^\/admin\/applications\/([0-9a-f-]{36})(?:\/(approve|reject|docs\/([a-z_]+)))?$/);
+  if (!r) return null;
+  const a = (await db().sql`SELECT * FROM courier_applications WHERE id = ${r[1]}`)[0];
+  if (!a) return fail(404, "Dossier introuvable.");
+  if (!r[2] && m === "GET") {
+    const v: Row = await appView(a);
+    const ag = a.accepted_agent ? (await db().sql`SELECT name FROM users WHERE id = ${a.accepted_agent}`)[0] : null;
+    const rv = a.reviewed_by ? (await db().sql`SELECT name FROM users WHERE id = ${a.reviewed_by}`)[0] : null;
+    v.acceptedAgent = ag ? ag.name : null; v.reviewedBy = rv ? rv.name : null;
+    return json({ application: v });
+  }
+  if (r[3] && m === "GET") return await docResponse(a.id, r[3]);
+  if (r[2] === "approve" && m === "POST") {
+    if (a.status !== "submitted") return fail(409, "Seul un dossier envoyé peut être validé.");
+    const d = a.data || {}, name = [d.firstNames, d.lastName].filter(Boolean).join(" ").slice(0, 60);
+    const prevU = (await db().sql`SELECT courier FROM users WHERE id = ${a.user_id}`)[0] || {};
+    const courier = JSON.stringify({ vehicle: d.vehicle || "bike", plate: d.plate || "", basic: d.phoneType === "basic", pin: (prevU.courier && prevU.courier.pin) || courierPin() });
+    await db().sql`UPDATE users SET role = CASE WHEN role = 'admin' THEN 'admin' ELSE 'courier' END, name = ${name}, courier = ${courier}::jsonb WHERE id = ${a.user_id}`;
+    const rows = await db().sql`UPDATE courier_applications SET status = 'approved', reviewed_by = ${user.id}, reviewed_at = NOW(), updated_at = NOW() WHERE id = ${a.id} RETURNING *`;
+    push([a.user_id], { title: "Dossier validé ✓", body: "Bienvenue chez WunaGo ! Ouvrez l'app et passez en ligne : Ok, Go !", url: "/#courses", tag: "app-" + a.id }, "support");
+    return json({ application: await appView(rows[0], false) });
+  }
+  if (r[2] === "reject" && m === "POST") {
+    if (a.status !== "submitted") return fail(409, "Seul un dossier envoyé peut être refusé.");
+    const note = txt((await body(req)).note, 300);
+    if (note.length < 3) return fail(400, "Indiquez ce qu'il faut corriger.");
+    const rows = await db().sql`UPDATE courier_applications SET status = 'rejected', review_note = ${note}, reviewed_by = ${user.id}, reviewed_at = NOW(), updated_at = NOW() WHERE id = ${a.id} RETURNING *`;
+    push([a.user_id], { title: "Dossier à compléter", body: note, url: "/livreur.html", tag: "app-" + a.id }, "support");
+    return json({ application: await appView(rows[0], false) });
+  }
+  return null;
+}
+
 /* ---------- envoi par lien : « Envoyer à… » / « Recevoir de… » un numéro ----------
    Celui qui crée le lien indique son côté (son code ou sa position) et qui paie la livraison.
    L'autre personne ouvre le lien (WhatsApp), choisit le lieu ; la course part quand celui qui paie confirme le prix. */
@@ -720,17 +905,38 @@ async function publicTrack(token: string) {
   }
   const d = o.details || {};
   const owner = (await db().sql`SELECT name FROM users WHERE id = ${o.user_id}`)[0] || {};
+  const crw = o.courier_id ? (await db().sql`SELECT courier FROM users WHERE id = ${o.courier_id}`)[0] : null;
+  const courierBasic = !!(crw && crw.courier && crw.courier.basic);
   /* qui remet le colis au départ : la personne indiquée (« Recevoir de… »), sinon le client qui a commandé */
   const sender = (d.pickupContact && d.pickupContact.name) || owner.name || "";
   return json({ code: o.code, service: o.service, status: o.status, stage: o.stage, pickup: o.pickup, dropoff: o.dropoff, hints: d.hints || null,
     sender, returned: !!d.returned, deliveredWith: o.delivered_with || null,
-    canConfirm: live && o.service !== "ride" && o.stage === 2 && !d.returned && !!o.handover_code && (o.handover_tries || 0) < 5,
+    canConfirm: live && o.service !== "ride" && (o.stage === 2 || (!!o.courier_id && courierBasic)) && !d.returned && !!o.handover_code && (o.handover_tries || 0) < 5,
+    canHandOver: live && o.service !== "ride" && o.stage === 0 && !!o.courier_id && !!d.pickupContact,
     triesLeft: Math.max(0, 5 - (o.handover_tries || 0)),
     positionShared: !!d.dropoffShared, canSharePosition: live && o.service !== "ride" && !(o.service === "laundry" && d.laundry && d.laundry.sameReturn),
     recipient: d.recipient ? { name: d.recipient.name || "" } : null, vehicle: o.vehicle,
     pickupGeo: o.pickup_lat != null ? { lat: o.pickup_lat, lng: o.pickup_lng } : null, dropoffGeo: o.dropoff_lat != null ? { lat: o.dropoff_lat, lng: o.dropoff_lng } : null,
     createdAt: new Date(o.created_at).getTime(), deliveredAt: o.delivered_at ? new Date(o.delivered_at).getTime() : null,
     arrivedAt: o.arrived_at && o.status !== "delivered" ? new Date(o.arrived_at).getTime() : null, courier });
+}
+
+/* l'expéditeur confirme avoir remis le colis au livreur (utile quand le livreur n'a pas de données) */
+async function handOver(o: Row, who: string) {
+  if (o.status === "cancelled" || o.status === "delivered") return fail(409, "Cette livraison est terminée.");
+  if (!o.courier_id) return fail(409, "Aucun livreur n'a encore pris la course.");
+  if (o.stage > 0) return json({ ok: true });
+  const cr = (await db().sql`SELECT courier FROM users WHERE id = ${o.courier_id}`)[0] || {};
+  const basic = !!(cr.courier && cr.courier.basic);
+  /* livreur sans application : il part aussitôt vers le destinataire ; sinon il confirme « en route » lui-même */
+  const rows = basic
+    ? await db().sql`UPDATE orders SET stage = 2, status = 'en_route', en_route_at = NOW(), updated_at = NOW() WHERE id = ${o.id} AND stage = 0 RETURNING *`
+    : await db().sql`UPDATE orders SET stage = 1, status = 'picked_up', updated_at = NOW() WHERE id = ${o.id} AND stage = 0 RETURNING *`;
+  if (rows.length) {
+    push([o.courier_id], { title: "Colis remis · " + o.code, body: who + " confirme vous avoir remis le colis.", url: "/#courses", tag: o.code }, "orders");
+    push([o.user_id], { title: SVC_FR[o.service] + " · " + o.code, body: "Colis remis au livreur : il est en route.", url: "/#commande=" + o.id, tag: o.code }, "orders");
+  }
+  return json({ ok: true });
 }
 
 /* remise contrôlée : le destinataire saisit le code affiché sur le téléphone du livreur et confirme la réception */
@@ -741,7 +947,9 @@ async function confirmReceipt(token: string, b: Row) {
   if (o.status === "cancelled") return fail(409, "Cette livraison a été annulée.");
   const d = o.details || {};
   if (o.service === "ride" || d.returned || !o.handover_code) return fail(409, "Confirmation non disponible pour cette livraison.");
-  if (o.stage !== 2) return fail(409, "Le livreur n'est pas encore en route vers vous.");
+  const cr = o.courier_id ? (await db().sql`SELECT courier FROM users WHERE id = ${o.courier_id}`)[0] : null;
+  const basic = !!(cr && cr.courier && cr.courier.basic);
+  if (o.stage !== 2 && !(basic && o.stage < 3)) return fail(409, "Le livreur n'est pas encore en route vers vous.");
   if ((o.handover_tries || 0) >= 5) return fail(429, "Trop d'essais. Dictez votre code de remise au livreur : il le saisira.");
   const code = String(b.code || "").replace(/\D/g, "");
   if (code !== o.handover_code) {
@@ -838,6 +1046,7 @@ async function courierRoutes(req: Request, user: Row, path: string, m: string): 
       const o = rows[0];
       await db().sql`UPDATE users SET online = true WHERE id = ${user.id}`;
       await addOrderMember(o, user.id);
+      await pinForAssigned(o, user);
       push([o.user_id], { title: "Livreur trouvé", body: `${firstName(user)} prend en charge votre commande ${o.code}.`, url: "/#commande=" + o.id, tag: o.code }, "orders");
       return json({ order: await withClient(o, user) });
     }
@@ -1038,6 +1247,7 @@ async function messagesRoute(req: Request, user: Row, convId: string, m: string,
 async function adminRoutes(req: Request, user: Row, path: string, m: string, url: URL): Promise<Response | null> {
   if (!path.startsWith("/admin")) return null;
   if (user.role !== "admin") return fail(403, "Espace réservé à l'équipe WunaGo.");
+  const aar = await adminApplicationRoutes(req, user, path, m, url); if (aar) return aar;
   if (path === "/admin/orders" && m === "POST") {
     /* commande passée par téléphone ou WhatsApp : l'équipe la saisit pour le client (créé s'il n'existe pas) */
     const b = await body(req);
@@ -1085,7 +1295,8 @@ async function adminRoutes(req: Request, user: Row, path: string, m: string, url
         (SELECT COUNT(*) FROM users WHERE role = 'client' AND deleted_at IS NULL) AS clients,
         (SELECT COUNT(*) FROM orders WHERE status = 'received' AND courier_id IS NULL
            AND GREATEST(created_at, COALESCE(scheduled_at, created_at) - INTERVAL '1 hour') < NOW() - INTERVAL '10 minutes') AS late,
-        (SELECT COUNT(*) FROM delivery_links WHERE status IN ('waiting_place','waiting_confirm') AND expires_at > NOW()) AS links_waiting`;
+        (SELECT COUNT(*) FROM delivery_links WHERE status IN ('waiting_place','waiting_confirm') AND expires_at > NOW()) AS links_waiting,
+        (SELECT COUNT(*) FROM courier_applications WHERE status = 'submitted') AS apps_pending`;
     const x = s[0];
     return json({ stats: Object.fromEntries(Object.entries(x).map(([k, v]) => [k, Number(v)])) });
   }
@@ -1146,6 +1357,7 @@ async function adminRoutes(req: Request, user: Row, path: string, m: string, url
       if (!c.length) return fail(404, "Livreur introuvable.");
       rows = await db().sql`UPDATE orders SET courier_id = ${c[0].id}, assigned_at = NOW(), updated_at = NOW() WHERE id = ${o.id} RETURNING *`;
       await addOrderMember(o, c[0].id);
+      await pinForAssigned(o, c[0]);
       push([c[0].id], { title: "Nouvelle course assignée", body: `${SVC_FR[o.service]} · ${o.code} · ${o.pickup}`, url: "/#course=" + o.id, tag: o.code }, "offers");
       push([o.user_id], { title: "Livreur trouvé", body: `${firstName(c[0])} prend en charge votre commande ${o.code}.`, url: "/#commande=" + o.id, tag: o.code }, "orders");
     } else {
@@ -1208,6 +1420,7 @@ async function adminRoutes(req: Request, user: Row, path: string, m: string, url
         (SELECT ROUND(AVG(rating)::numeric, 1) FROM orders WHERE courier_id = u.id AND rating IS NOT NULL) AS rating
       FROM users u WHERE u.role = 'courier' ORDER BY u.online DESC, u.name`;
     return json({ couriers: rows.map((c) => ({ id: c.id, name: c.name, phone: c.phone, vehicle: (c.courier || {}).vehicle || "bike", plate: (c.courier || {}).plate || "",
+      basic: !!(c.courier || {}).basic, pin: (c.courier || {}).pin || null,
       online: c.online, active: Number(c.active), delivered: Number(c.delivered), rating: c.rating == null ? null : Number(c.rating),
       pos: c.pos_lat != null ? { lat: c.pos_lat, lng: c.pos_lng, at: new Date(c.pos_at).getTime() } : null })) });
   }
@@ -1218,7 +1431,8 @@ async function adminRoutes(req: Request, user: Row, path: string, m: string, url
     const name = String(b.name || "").trim().slice(0, 60);
     if (name.length < 2) return fail(400, "Indiquez le nom du livreur.");
     const vehicle = ["bike", "tricycle", "van", "car"].includes(b.vehicle) ? b.vehicle : "bike";
-    const courier = JSON.stringify({ vehicle, plate: String(b.plate || "").trim().slice(0, 20) });
+    const prev = (await db().sql`SELECT courier FROM users WHERE phone = ${phone}`)[0];
+    const courier = JSON.stringify({ vehicle, plate: String(b.plate || "").trim().slice(0, 20), basic: !!b.basic, pin: (prev && prev.courier && prev.courier.pin) || courierPin() });
     const rows = await db().sql`
       INSERT INTO users (phone, name, role, courier) VALUES (${phone}, ${name}, 'courier', ${courier}::jsonb)
       ON CONFLICT (phone) DO UPDATE SET role = CASE WHEN users.role = 'admin' THEN 'admin' ELSE 'courier' END, name = EXCLUDED.name, courier = EXCLUDED.courier
@@ -1359,7 +1573,7 @@ async function adminRoutes(req: Request, user: Row, path: string, m: string, url
 }
 
 /* ---------- routeur ---------- */
-export default async (req: Request, context: any) => {
+const apiHandler = async (req: Request, context: any): Promise<Response> => {
   currentContext = context;
   const url = new URL(req.url);
   const path = url.pathname.replace(/^\/api/, "").replace(/\/+$/, "") || "/";
@@ -1369,6 +1583,15 @@ export default async (req: Request, context: any) => {
       // L'app ne passe en mode serveur que si la base répond.
       try { await db().sql`SELECT 1`; } catch (e) { console.error("health db", e); return json({ ok: false }, 503); }
       return json({ ok: true, sms: SMS_MODE(), demo: DEMO_ACTIONS(), pushKey: await publicKey(db()) });
+    }
+    if (path.startsWith("/lite")) {
+      /* page livreur légère : appelle l'API elle-même avec le jeton du cookie */
+      const call = async (p: string, method = "GET", b?: any, token?: string | null) => {
+        const h: Record<string, string> = { "content-type": "application/json" }; if (token) h.authorization = "Bearer " + token;
+        const r = await apiHandler(new Request(url.origin + "/api" + p, { method, headers: h, body: b ? JSON.stringify(b) : undefined }), context);
+        let j: any = {}; try { j = await r.json(); } catch (e) {} return { status: r.status, j };
+      };
+      const lr = await liteRoute(req, url, path, call); if (lr) return lr;
     }
     if (path === "/auth/request" && m === "POST") return await authRequest(req);
     const sv = path.match(/^\/suivi\/([A-Za-z0-9_-]{10,40})$/);
@@ -1387,6 +1610,13 @@ export default async (req: Request, context: any) => {
     }
     const sp2 = path.match(/^\/suivi\/([A-Za-z0-9_-]{10,40})\/position$/);
     if (sp2 && m === "POST") return await shareDropoff(sp2[1], await body(req));
+    const hd = path.match(/^\/suivi\/([A-Za-z0-9_-]{10,40})\/handed$/);
+    if (hd && m === "POST") {
+      const o = (await db().sql`SELECT * FROM orders WHERE track_token = ${hd[1]}`)[0];
+      if (!o) return fail(404, "Lien de suivi introuvable.");
+      if (!(o.details || {}).pickupContact) return fail(403, "C'est l'expéditeur qui confirme la remise.");
+      return await handOver(o, (o.details.pickupContact.name || "L'expéditeur"));
+    }
     const rc = path.match(/^\/suivi\/([A-Za-z0-9_-]{10,40})\/receive$/);
     if (rc && m === "POST") return await confirmReceipt(rc[1], await body(req));
     if (path === "/auth/verify" && m === "POST") return await authVerify(req);
@@ -1398,6 +1628,7 @@ export default async (req: Request, context: any) => {
     if (path === "/me" && m === "GET") return json({ user: userOut(user) });
     const pr = await placesRoutes(req, user, path, m); if (pr) return pr;
     const lr = await linkRoutes(req, user, path, m); if (lr) return lr;
+    const apr = await applicationRoutes(req, user, path, m, url); if (apr) return apr;
     const cr = await courierRoutes(req, user, path, m); if (cr) return cr;
     const ad = await adminRoutes(req, user, path, m, url); if (ad) return ad;
     if (path === "/conversations" && m === "GET") return json({ conversations: await listConversations(user) });
@@ -1436,6 +1667,13 @@ export default async (req: Request, context: any) => {
     if (path === "/orders" && m === "POST") return await createOrder(req, user);
     let r = path.match(/^\/orders\/([A-Za-z0-9-]+)$/);
     if (r && m === "GET") { const o = await ownedOrder(user, r[1]); return o ? json({ order: (await enrich([o], user))[0] }) : fail(404, "Commande introuvable."); }
+    r = path.match(/^\/orders\/([A-Za-z0-9-]+)\/handed$/);
+    if (r && m === "POST") {
+      const o = (await db().sql`SELECT * FROM orders WHERE (id::text = ${r[1]} OR code = ${r[1]}) AND user_id = ${user.id}`)[0];
+      if (!o) return fail(404, "Commande introuvable.");
+      if ((o.details || {}).pickupContact) return fail(403, "C'est la personne au départ qui remet le colis.");
+      return await handOver(o, user.name || "L'expéditeur");
+    }
     r = path.match(/^\/orders\/([A-Za-z0-9-]+)\/(cancel|advance|rate)$/);
     if (r && m === "POST") {
       if (r[2] === "cancel") return await cancelOrder(req, user, r[1]);
@@ -1457,4 +1695,4 @@ export default async (req: Request, context: any) => {
     return fail(500, "Erreur du serveur. Réessayez dans un instant.");
   }
 };
-
+export default apiHandler;
