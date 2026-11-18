@@ -9,7 +9,7 @@
   var SUPPORT_PHONE = "+237600000000", SUPPORT_PHONE_LABEL = "+237 6 00 00 00 00";
   var STORE_KEY = "wunago.client.v1";
   /* Version affichée dans Réglages : à changer avec CACHE dans sw.js à chaque mise en ligne */
-  var APP_VERSION = "25 · 18/11/2026";
+  var APP_VERSION = "26 · 18/11/2026";
   var deferredInstall = null;
   var lastScreenKey = "";
   var installDismissed = false;
@@ -216,18 +216,28 @@
   function t3() { return STR3[state.lang] || STR3.fr; }
   function stack() { return state.tabStacks[state.activeTab]; }
   function cur() { var s = stack(); return s[s.length - 1]; }
-  function push(screen, extra) { stack().push(Object.assign({ screen: screen }, extra || {})); try { history.pushState({ wg: stack().length }, ""); } catch (e) {} render(); }
+  /* historique du navigateur : une entrée par écran ouvert, pour que la flèche ← de l'app et le retour du téléphone fassent la même chose */
+  var histDepth = 0, histGuard = false, exitArmedAt = 0, navDir = 0, pendingMenuAction = null, scrollMem = {}, scrollTopNext = false;
+  function hpush() { try { history.pushState({ wg: ++histDepth }, ""); } catch (e) {} }
+  function push(screen, extra) { stack().push(Object.assign({ screen: screen }, extra || {})); navDir = 1; hpush(); render(); }
   function replaceTop(screen, extra) { var s = stack(); s[s.length - 1] = Object.assign({ screen: screen }, extra || {}); render(); }
-  function popScreen() { var s = stack(); if (s.length > 1) s.pop(); render(); }
+  var ignorePop = 0;
+  function popScreen() {
+    var s = stack(); if (s.length < 2) return;
+    s.pop(); navDir = -1; render();
+    /* on consomme aussi l'entrée d'historique, sans que le retour soit traité deux fois */
+    if (histDepth > 1) { ignorePop++; try { history.back(); } catch (e) { ignorePop--; } }
+  }
   function switchTab(tab) {
     if (tab === "orders" && state.spend) { state.spend.list = null; state.spend.err = false; }
     if (tab === "orders" && window.WAPI && WAPI.status.on && WAPI.token()) WAPI.get("/orders").then(function (r) { state.orders = r.orders; render(); }).catch(function () {});
     if (tab === "account" && state.cEarn) { state.cEarn.data = null; state.cEarn.err = false; }
     /* toucher l'onglet déjà ouvert ramène à son premier écran */
-    if (state.activeTab === tab) { var s = state.tabStacks[tab]; state.tabStacks[tab] = [s[0]]; }
+    if (state.activeTab === tab) { var s = state.tabStacks[tab]; if (s.length === 1) scrollTopNext = true; state.tabStacks[tab] = [s[0]]; }
     state.activeTab = tab; state.cancelFor = null; render();
   }
-  function toast(msg) { state.toast = msg; render(); setTimeout(function () { state.toast = null; render(); }, 1800); }
+  function toast(msg) { state.toast = msg; setTimeout(function () { if (state.toast === msg) { state.toast = null; render(); } }, 1800); buzz(); render(); }
+  function buzz(ms) { try { if (navigator.vibrate) navigator.vibrate(ms || 12); } catch (e) {} }
 
   /* ============================== helpers ============================== */
 
@@ -409,9 +419,9 @@
           '<div class="fx ac" style="gap:10px;background:#fff;color:#0B1F3A;border-radius:16px;padding:0 15px;height:54px">' +
             '<span class="mono" style="font-weight:600;font-size:14px;color:rgba(11,31,58,.55)">+237</span>' +
             '<div style="width:1px;height:20px;background:rgba(11,31,58,.12)"></div>' +
-            '<input data-bind="phone" aria-label="Numéro de téléphone" autocomplete="tel-national" value="' + esc(state.phone) + '" placeholder="' + d.phonePh + '" inputmode="numeric" style="flex:1;font-weight:600;font-size:15px;height:100%" />' +
+            '<input data-bind="phone" aria-label="Numéro de téléphone" autocomplete="tel-national" enterkeyhint="go" value="' + esc(state.phone) + '" placeholder="' + d.phonePh + '" inputmode="numeric" style="flex:1;font-weight:600;font-size:15px;height:100%" />' +
           '</div>' +
-          '<button class="btn btn-accent" data-action="requestOtp" ' + (canGo ? "" : "disabled") + '>' + esc(d.continue) + '</button>' +
+          '<button class="btn btn-accent" data-primary="1" data-action="requestOtp" ' + (canGo ? "" : "disabled") + '>' + esc(d.continue) + '</button>' +
           '<div style="font-size:11px;line-height:1.5;color:rgba(234,241,247,.6);text-align:center">' + esc(d.terms) + '</div>' +
           '<button class="btn" data-action="openPrice" style="height:44px;background:transparent;color:#1FD1B2;font-weight:800;font-size:13.5px;text-decoration:underline">' + esc(te().seePrice) + '</button>' +
           '<a href="livreur.html" style="display:flex;align-items:center;justify-content:center;min-height:44px;color:#EAF1F7;font-weight:700;font-size:12.5px">' + esc(state.lang === "en" ? "Courier? Join WunaGo →" : "Vous êtes livreur ? Rejoignez WunaGo →") + '</a>' +
@@ -478,7 +488,7 @@
     return (
       '<div class="col" style="background:transparent;padding:calc(18px + var(--sat)) 20px 4px;flex:none">' +
         '<div class="fx ac jb">' +
-          '<div class="col" style="gap:1px"><span style="font-weight:500;font-size:12px;color:rgba(11,31,58,.6)">' + esc(d.greeting) + '</span><span style="font-weight:800;font-size:20px;letter-spacing:-.5px">' + esc(state.user.name) + '</span></div>' +
+          '<div class="fx ac" style="gap:12px;min-width:0">' + menuBtn() + '<div class="col" style="gap:1px;min-width:0"><span style="font-weight:500;font-size:12px;color:rgba(11,31,58,.6)">' + esc(d.greeting) + '</span><span style="font-weight:800;font-size:20px;letter-spacing:-.5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">' + esc(state.user.name) + '</span></div></div>' +
           '<button data-action="toggleLang" style="border:0;background:rgba(11,31,58,.1);border-radius:99px;padding:7px 11px;font-family:var(--mono);font-weight:700;font-size:10.5px;cursor:pointer">' + (state.lang === "en" ? "EN" : "FR") + '</button>' +
         '</div>' +
         '<button data-action="go" data-arg="wallet" style="margin-top:16px;background:#fff;border:1px solid rgba(11,31,58,.08);border-radius:16px;padding:14px 15px;display:flex;align-items:center;justify-content:space-between;cursor:pointer;text-align:left;color:#0B1F3A">' +
@@ -486,7 +496,7 @@
           '<span style="background:#0B1F3A;color:#fff;border-radius:99px;padding:9px 13px;font-weight:700;font-size:11.5px">' + esc(d.topUp) + '</span>' +
         '</button>' +
       '</div>' +
-      '<div class="scroll">' + installBanner() + quickHero() + (state.merchant ? merchantHomeCard() : "") + linksCard() + '<div style="padding:18px 20px 6px;font-weight:700;font-size:12.5px;color:rgba(11,31,58,.5)">' + esc(d.services) + '</div>' +
+      '<div class="scroll">' + installBanner() + quickHero() + resumeCard() + (state.merchant ? merchantHomeCard() : "") + linksCard() + '<div style="padding:18px 20px 6px;font-weight:700;font-size:12.5px;color:rgba(11,31,58,.5)">' + esc(d.services) + '</div>' +
       '<div style="padding:2px 20px 0">' + (state.settings.homeLayout === "tiles" ? '<div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">' + tiles + '</div>' : '<div class="col" style="gap:8px">' + listRows + '</div>') + '</div>' +
       activeCard + codeHomeCard() + (state.merchant ? "" : merchantHomeCard()) + recentBlock() +
       (srv() ? '<div style="height:24px"></div>' : '<div style="padding:20px 20px 24px"><div style="border:1px dashed rgba(11,31,58,.2);border-radius:16px;padding:14px;background:repeating-linear-gradient(135deg,rgba(31,209,178,.16) 0 8px,transparent 8px 16px)">' +
@@ -970,7 +980,7 @@
     var nav = S2.mode === "all" ? '' : '<div class="fx ac jb"><button class="btn" data-action="spendShift" data-arg="-1" aria-label="Période précédente" style="width:44px;height:44px;border-radius:12px;background:rgba(11,31,58,.06);padding:0">‹</button>' +
       '<span style="font-weight:800;font-size:15px;text-transform:capitalize">' + esc(earnLabel(S2)) + '</span>' +
       '<button class="btn" data-action="spendShift" data-arg="1" aria-label="Période suivante" style="width:44px;height:44px;border-radius:12px;background:rgba(11,31,58,.06);padding:0">›</button></div>';
-    if (!base) return '<div class="scroll"><div class="col" style="padding:calc(18px + var(--sat)) 20px 20px;gap:14px"><div style="font-weight:800;font-size:23px;letter-spacing:-.7px">' + esc(d.orders) + '</div>' +
+    if (!base) return '<div class="scroll"><div class="col" style="padding:calc(18px + var(--sat)) 20px 20px;gap:14px"><div class="fx ac" style="gap:12px">' + menuBtn() + '<div style="font-weight:800;font-size:23px;letter-spacing:-.7px">' + esc(d.orders) + '</div></div>' +
       periodChips + nav + '<p style="margin:0;text-align:center;color:rgba(11,31,58,.5);font-size:13px">' + (S2.err ? "—" : L.loading) + '</p></div></div>';
     var orders = base.filter(function (o) { return !svcFilter || o.service === svcFilter; });
     var sm = spendSummary(orders), valid = sm.n - sm.cancelled;
@@ -997,7 +1007,7 @@
       '</button>';
     }).join("") || '<div style="padding:24px 0;text-align:center;color:rgba(11,31,58,.45);font-size:13px">' + L.none + '</div>';
     return '<div class="scroll"><div class="col" style="padding:calc(18px + var(--sat)) 20px 20px;gap:14px">' +
-      '<div style="font-weight:800;font-size:23px;letter-spacing:-.7px">' + esc(d.orders) + '</div>' +
+      '<div class="fx ac" style="gap:12px">' + menuBtn() + '<div style="font-weight:800;font-size:23px;letter-spacing:-.7px">' + esc(d.orders) + '</div></div>' +
       periodChips + nav + spendCard + details +
       '<div class="fx hscroll" style="gap:7px;overflow-x:auto;margin:0 -20px;padding:0 20px 2px">' + chips + '</div>' +
       '<div>' + rows + '</div>' +
@@ -1020,27 +1030,22 @@
         '<button class="btn btn-accent" data-action="doTopUp">' + esc(d.confirm) + '</button></div>';
     } else if (panel === "send") {
       panelHtml = '<div class="col" style="gap:9px;padding-top:2px">' +
-        '<input data-bind="sendPhone" value="' + esc(state.sendPhone || "") + '" placeholder="' + d.sendTo + '" style="height:42px;border-radius:11px;background:rgba(255,255,255,.08);padding:0 13px;color:#fff;font-weight:600;font-size:13px" />' +
+        '<input data-bind="sendPhone" inputmode="tel" autocomplete="tel-national" value="' + esc(state.sendPhone || "") + '" placeholder="' + d.sendTo + '" style="height:42px;border-radius:11px;background:rgba(255,255,255,.08);padding:0 13px;color:#fff;font-weight:600;font-size:13px" />' +
         '<input data-bind="topUpAmount" value="' + esc(state.topUpAmount || "") + '" placeholder="' + d.topUpAmount + '" inputmode="numeric" style="height:42px;border-radius:11px;background:rgba(255,255,255,.08);padding:0 13px;color:#fff;font-weight:600;font-size:13px" />' +
         '<button class="btn btn-accent" data-action="doSend">' + esc(d.confirm) + '</button></div>';
     }
 
     var rows = [
-      [tp().row, "", "openProfile"],
-      [d.addresses, String((state.addresses || []).length), "openScreen", "addresses"],
-    ].concat(srv() ? [[tw().title, state.places[0] ? state.places[0].code : "", "openScreen", "codes"], [tmc().title, state.merchant ? state.merchant.name : "", "openMerchant", ""]] : []).concat([
       [d.methods, String(2 + (state.payAccounts || []).length), "openScreen", "paymethods"],
-      [d.notifs, notifSummary(), "openScreen", "notifs"],
-      [d.language, state.lang === "en" ? "English" : "Français", "openSettings"],
-      [d.help, (state.disputes || []).filter(function (x) { return x.status !== "closed"; }).length ? String((state.disputes || []).filter(function (x) { return x.status !== "closed"; }).length) : "", "openScreen", "help"]
-    ]);
+      [state.lang === "en" ? "Profile, addresses, WunaGo Code, help…" : "Profil, adresses, Code WunaGo, aide…", "☰", "openMenu"]
+    ];
     var rowsHtml = rows.map(function (r, i) {
       return '<button class="fx ac" data-action="' + (r[2] || "noop") + '"' + (r[3] ? ' data-arg="' + r[3] + '"' : '') + ' style="gap:11px;min-height:48px;text-align:left;border:0;background:transparent;padding:13px 12px;cursor:pointer;' + (i < rows.length - 1 ? "border-bottom:1px solid var(--hair)" : "") + '">' +
         '<span style="font-weight:700;font-size:13px;flex:1">' + esc(r[0]) + '</span>' + (r[1] ? '<span class="mono" style="font-size:10.5px;color:rgba(11,31,58,.45)">' + esc(r[1]) + '</span>' : "") + '<span style="color:rgba(11,31,58,.3);font-weight:600">→</span></button>';
     }).join("");
 
     return '<div class="scroll"><div class="col" style="padding:calc(18px + var(--sat)) 20px 20px;gap:15px">' +
-      '<div class="fx ac" style="gap:12px"><div class="fx ac jc" style="width:46px;height:46px;border-radius:99px;background:#1FD1B2;font-weight:800;font-size:14px">' + state.user.initials + '</div><div class="col" style="gap:2px"><span style="font-weight:800;font-size:17px;letter-spacing:-.4px">' + esc(state.user.name) + '</span><span class="mono" style="font-size:11px;color:rgba(11,31,58,.55)">+237 ' + esc(state.phone) + '</span></div></div>' +
+      '<div class="fx ac" style="gap:12px">' + menuBtn() + '<div class="fx ac jc" style="width:46px;height:46px;border-radius:99px;background:#1FD1B2;font-weight:800;font-size:14px">' + state.user.initials + '</div><div class="col" style="gap:2px"><span style="font-weight:800;font-size:17px;letter-spacing:-.4px">' + esc(state.user.name) + '</span><span class="mono" style="font-size:11px;color:rgba(11,31,58,.55)">+237 ' + esc(state.phone) + '</span></div></div>' +
       '<div class="col" style="background:#0B1F3A;border-radius:19px;padding:17px;gap:14px">' +
         '<div class="col" style="gap:2px"><span class="mono" style="font-size:10px;letter-spacing:.08em;color:rgba(255,255,255,.5)">' + esc(d.wallet) + '</span><span style="font-weight:800;font-size:29px;color:#1FD1B2;letter-spacing:-1px">' + fmtFcfa(state.wallet.balance) + '</span></div>' +
         '<div class="fx" style="gap:8px"><button class="btn" data-action="toggleWalletPanel" data-arg="topup" style="flex:1;height:44px;border-radius:12px;background:#1FD1B2;font-weight:700;font-size:12px">' + esc(d.topUp) + '</button><button class="btn" data-action="toggleWalletPanel" data-arg="send" style="flex:1;height:44px;border-radius:12px;background:transparent;border:1.5px solid rgba(255,255,255,.25);color:#fff;font-weight:700;font-size:12px">' + esc(d.send) + '</button></div>' +
@@ -1319,6 +1324,7 @@
       '</span></div>';
   }
 
+  function liveCount() { return (state.orders || []).filter(function (o) { return ["received", "picked_up", "en_route", "arrived"].indexOf(o.status) !== -1; }).length; }
   function tabbar() {
     var d = t();
     var srvOn = srv() && WAPI.token(), unread = srvOn ? totalUnread() : 0;
@@ -1328,7 +1334,8 @@
     return '<div class="tabbar">' + tabs.map(function (tb) {
       var on = state.activeTab === tb[0];
       return '<button class="tab ' + (on ? "on" : "") + '" data-action="switchTab" data-arg="' + tb[0] + '"><span class="tab-icon" style="border-radius:' + tb[2] + '"></span>' +
-        (tb[0] === "support" && unread ? '<span class="tab-badge">' + (unread > 9 ? "9+" : unread) + '</span>' : '') + '<span class="tab-label">' + esc(tb[1]) + '</span></button>';
+        (tb[0] === "support" && unread ? '<span class="tab-badge">' + (unread > 9 ? "9+" : unread) + '</span>' : '') +
+        (tb[0] === "orders" && liveCount() ? '<span class="tab-badge live" aria-label="' + liveCount() + (state.lang === "en" ? " in progress" : " en cours") + '">' + liveCount() + '</span>' : '') + '<span class="tab-label">' + esc(tb[1]) + '</span></button>';
     }).join("") + '</div>';
   }
 
@@ -1374,16 +1381,35 @@
         default: body = screenHome();
       }
       var key = state.activeTab + ":" + stack().length + ":" + c.screen + ":" + (state.draft ? state.draft.step : "") + ":" + (c.orderId || "");
-      var anim = key !== lastScreenKey ? " fade-in" : ""; lastScreenKey = key;
-      html = offlineBar() + '<div class="screen-body' + anim + '">' + body + '</div>' + tabbar();
+      var keyChanged = key !== lastScreenKey, animStyle = "";
+      var anim = keyChanged ? (navDir > 0 ? " slide-fwd" : navDir < 0 ? " slide-back" : " fade-in") : "";
+      /* un nouveau rendu pendant l'animation la poursuit au lieu de la couper */
+      if (keyChanged) { animStart = Date.now(); animCls = anim; }
+      else if (animCls && Date.now() - animStart < 260) { anim = animCls; animStyle = ' style="animation-delay:-' + (Date.now() - animStart) + 'ms"'; }
+      if (keyChanged && navDir > 0) delete scrollMem[key];
+      prevScreenKey = lastScreenKey; lastScreenKey = key;
+      html = offlineBar() + '<div class="screen-body' + anim + '"' + animStyle + '>' + body + '</div>' + tabbar();
     }
+    if (state.loggedIn && state.menuOpen && !isCourier()) html += drawer();
     if (state.loggedIn && state.cancelFor) html += cancelSheet();
     if (state.loggedIn && state.deleteAsk) html += deleteSheet();
     if (state.toast) html += '<div class="toast">' + esc(state.toast) + '</div>';
     var ae = document.activeElement, bindKey = ae && ae.getAttribute && ae.getAttribute("data-bind"), s0 = null, s1 = null;
     if (bindKey) { try { s0 = ae.selectionStart; s1 = ae.selectionEnd; } catch (e) {} }
+    var oldSc = root.querySelector(".screen-body .scroll");
+    if (oldSc && prevScreenKeyFor()) scrollMem[prevScreenKeyFor()] = oldSc.scrollTop;
     root.innerHTML = html;
     save();
+    if (state.loggedIn) {
+      if (!histGuard) { histGuard = true; hpush(); }
+      var newSc = root.querySelector(".screen-body .scroll");
+      if (newSc) {
+        if (scrollTopNext) { newSc.scrollTop = 0; scrollTopNext = false; }
+        else if (scrollMem[lastScreenKey] != null) newSc.scrollTop = scrollMem[lastScreenKey];
+      }
+      markPending(root);
+    }
+    navDir = 0;
     if (bindKey) {
       var nx = root.querySelector('[data-bind="' + bindKey + '"]');
       if (nx) { nx.focus(); if (typeof s0 === "number" && nx.setSelectionRange) { try { nx.setSelectionRange(s0, s1); } catch (e) {} } }
@@ -1395,7 +1421,76 @@
       if (sc) sc.scrollTop = sc.scrollHeight;
     }
   }
+  var prevScreenKey = "", animStart = 0, animCls = "";
+  function prevScreenKeyFor() { return state.loggedIn ? (prevScreenKey !== lastScreenKey && prevScreenKey ? prevScreenKey : lastScreenKey) : ""; }
   function c_isChat() { return state.loggedIn && cur().screen === "chat"; }
+
+  /* bouton touché pendant qu'une requête part : roue + double appui impossible */
+  var lastClick = null, pendingBtn = null, pendingCount = 0;
+  function markPending(root) {
+    if (!pendingBtn || !pendingCount) return;
+    var sel = '[data-action="' + pendingBtn.a + '"]' + (pendingBtn.arg != null ? '[data-arg="' + String(pendingBtn.arg).replace(/"/g, '\\"') + '"]' : '');
+    try { var b = root.querySelector(sel); if (b) b.setAttribute("data-loading", "1"); } catch (e) {}
+  }
+  (function wrapApi() {
+    if (!window.WAPI) return;
+    ["post", "put", "patch", "del"].forEach(function (m) {
+      var f = WAPI[m]; if (typeof f !== "function") return;
+      WAPI[m] = function () {
+        var mine = lastClick && Date.now() - lastClick.at < 700 ? lastClick : null;
+        if (mine) { pendingBtn = mine; pendingCount++; markPending(document.getElementById("app")); }
+        var pr = f.apply(WAPI, arguments);
+        var done = function () { if (mine) { pendingCount = Math.max(0, pendingCount - 1); if (!pendingCount) { pendingBtn = null; var bs = document.querySelectorAll("[data-loading]"); for (var i = 0; i < bs.length; i++) bs[i].removeAttribute("data-loading"); } } };
+        if (pr && pr.then) pr.then(done, done);
+        return pr;
+      };
+    });
+  })();
+
+  /* ============================== menu latéral ============================== */
+  function menuBtn(dark) {
+    if (!state.loggedIn || isCourier()) return "";
+    return '<button class="menu-btn' + (dark ? " dark" : "") + '" data-action="openMenu" aria-label="' + (state.lang === "en" ? "Menu" : "Menu") + '" aria-haspopup="true"><span></span><span></span><span></span></button>';
+  }
+  function drawer() {
+    var en = state.lang === "en", d = t();
+    var code = srv() && (state.places || [])[0] ? state.places[0].code : null;
+    var openDisputes = (state.disputes || []).filter(function (x) { return x.status !== "closed"; }).length;
+    var item = function (icon, label, action, arg, meta) {
+      return '<button class="drawer-item" data-action="' + action + '"' + (arg != null ? ' data-arg="' + esc(arg) + '"' : '') + '><span class="di-ic" aria-hidden="true">' + icon + '</span><span class="di-t">' + esc(label) + '</span>' +
+        (meta ? '<span class="di-m">' + esc(meta) + '</span>' : '') + '</button>';
+    };
+    var group = function (title, items) { return '<div class="drawer-group"><div class="drawer-h">' + esc(title) + '</div>' + items.join("") + '</div>'; };
+    return '<div class="drawer-backdrop" data-action="closeMenu"></div><nav class="drawer" aria-label="Menu">' +
+      '<div class="drawer-top"><div class="fx ac" style="gap:12px"><div class="fx ac jc" style="width:48px;height:48px;border-radius:99px;background:#1FD1B2;color:#0B1F3A;font-weight:800;font-size:15px;flex:none">' + esc(state.user.initials || "") + '</div>' +
+        '<div class="col" style="gap:2px;min-width:0"><span style="font-weight:800;font-size:16px;color:#fff;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">' + esc(state.user.name || "") + '</span><span class="mono" style="font-size:11px;color:rgba(234,241,247,.7)">+237 ' + esc(state.phone || "") + '</span></div>' +
+        '<button class="drawer-x" data-action="closeMenu" aria-label="' + (en ? "Close" : "Fermer") + '">×</button></div>' +
+        (code ? '<button class="drawer-code" data-action="openScreen" data-arg="codes"><span class="mono" style="font-size:9.5px;letter-spacing:.08em;color:rgba(234,241,247,.65)">' + (en ? "MY WUNAGO CODE" : "MON CODE WUNAGO") + '</span><span class="mono" style="font-weight:600;font-size:17px;color:#1FD1B2;letter-spacing:.06em">' + esc(code) + '</span></button>' : '') +
+      '</div>' +
+      group(en ? "My account" : "Mon compte", [
+        item("👤", tp().row, "openProfile"),
+        srv() ? item("📍", tw().title, "openScreen", "codes", code || "") : "",
+        item("🏠", d.addresses, "openScreen", "addresses", String((state.addresses || []).length)),
+        item("💳", d.methods, "openScreen", "paymethods")
+      ]) +
+      group(en ? "My sends" : "Mes envois", [
+        srv() ? item("🏪", tmc().title, "openMerchant", null, state.merchant ? state.merchant.name : "") : "",
+        srv() ? item("📇", en ? "Code book" : "Carnet de codes", "openScreen", "codebook", String((state.codebook || []).length || "")) : "",
+        item("🧾", d.orders, "switchTab", "orders")
+      ]) +
+      group(en ? "Preferences" : "Préférences", [
+        item("🔔", d.notifs, "openScreen", "notifs", notifSummary()),
+        item("🌐", d.language, "toggleLang", null, state.lang === "en" ? "English" : "Français"),
+        item("⚙️", d.settings, "openSettings")
+      ]) +
+      group(en ? "Help" : "Aide", [
+        item("💬", d.help, "openScreen", "help", openDisputes ? String(openDisputes) : ""),
+        '<a class="drawer-item" href="tel:' + SUPPORT_PHONE + '"><span class="di-ic" aria-hidden="true">📞</span><span class="di-t">' + (en ? "Call customer service" : "Appeler le service client") + '</span></a>',
+        '<a class="drawer-item" href="livreur.html"><span class="di-ic" aria-hidden="true">🛵</span><span class="di-t">' + (en ? "Become a courier" : "Devenir livreur") + '</span></a>'
+      ]) +
+      '<div class="drawer-foot"><span class="mono">WE MAKE IT POSSIBLE</span><span>' + (en ? "Version " : "Version ") + esc(APP_VERSION) + '</span></div>' +
+    '</nav>';
+  }
 
   /* ============================== actions ============================== */
 
@@ -1515,7 +1610,7 @@
         };
         state.orders.unshift(order);
         state.payPending = false;
-        var st0 = stack(); state.tabStacks[state.activeTab] = [st0[0], { screen: "track", orderId: id }]; try { history.pushState({ wg: 2 }, ""); } catch (e) {} render();
+        var st0 = stack(); state.tabStacks[state.activeTab] = [st0[0], { screen: "track", orderId: id }]; hpush(); render();
       };
       if (draft.payMethod === "orange_money" || draft.payMethod === "mtn_momo") {
         state.payPending = true; render();
@@ -1708,7 +1803,20 @@
     if (!el) return;
     var action = el.getAttribute("data-action");
     var arg = el.getAttribute("data-arg");
+    lastClick = { a: action, arg: arg, at: Date.now() };
+    /* une entrée du menu latéral : on ferme le menu (et son entrée d'historique), puis on lance l'action */
+    if (state.menuOpen && el.closest(".drawer") && action !== "closeMenu") {
+      state.menuOpen = false;
+      if (histDepth > 0) { pendingMenuAction = { a: action, arg: arg }; try { history.back(); return; } catch (e2) { pendingMenuAction = null; } }
+      render();
+    }
     if (actions[action]) actions[action](el, arg);
+  });
+  /* Entrée dans un champ = bouton principal de l'écran */
+  document.addEventListener("keydown", function (e) {
+    if (e.key !== "Enter" || !e.target || e.target.tagName !== "INPUT") return;
+    var body = e.target.closest(".screen-body, #app"); var b = body && body.querySelector("[data-primary]:not([disabled])");
+    if (b) { e.preventDefault(); b.click(); }
   });
 
   document.addEventListener("input", function (e) {
@@ -1829,10 +1937,34 @@
 
   /* Bouton retour Android / navigateur : dépile l'écran courant */
   window.addEventListener("popstate", function () {
+    histDepth = Math.max(0, histDepth - 1);
+    if (ignorePop > 0) { ignorePop--; return; }
     if (!state.loggedIn) { if (state.authScreen === "otp") { state.authScreen = "login"; render(); } return; }
-    if (cur().screen === "order" && state.draft && state.draft.step > 1 && state.settings.orderFlow === "stepped") { state.draft.step--; try { history.pushState({ wg: 1 }, ""); } catch (e) {} render(); return; }
-    var s = stack(); if (s.length > 1) { s.pop(); render(); }
+    if (pendingMenuAction) { var pa = pendingMenuAction; pendingMenuAction = null; render(); if (actions[pa.a]) actions[pa.a](null, pa.arg); return; }
+    /* le retour ferme d'abord ce qui est ouvert */
+    if (state.menuOpen) { state.menuOpen = false; render(); return; }
+    if (state.cancelFor || state.deleteAsk) { state.cancelFor = null; state.deleteAsk = false; hpush(); render(); return; }
+    if (state.suggest) { state.suggest = null; hpush(); render(); return; }
+    if (cur().screen === "order" && state.draft && state.draft.step > 1 && state.settings.orderFlow === "stepped") { state.draft.step--; hpush(); render(); return; }
+    var s = stack();
+    if (s.length > 1) { s.pop(); navDir = -1; render(); return; }
+    /* écran racine : on revient d'abord à l'accueil, puis « appuyez encore pour quitter » */
+    var homeTab = isCourier() ? "courses" : "home";
+    if (state.activeTab !== homeTab) { hpush(); switchTab(homeTab); return; }
+    if (Date.now() - exitArmedAt < 2500) { try { history.back(); } catch (e) {} return; }
+    exitArmedAt = Date.now(); hpush(); toast(state.lang === "en" ? "Press back again to exit" : "Appuyez encore pour quitter");
   });
+  /* glisser depuis le bord gauche pour revenir (comme sur iPhone) */
+  var swipe = null;
+  document.addEventListener("touchstart", function (e) {
+    var t0 = e.touches[0]; swipe = null;
+    if (!state.loggedIn || state.menuOpen || !t0 || t0.clientX - (document.getElementById("app").getBoundingClientRect().left) > 22 || stack().length < 2) return;
+    swipe = { x: t0.clientX, y: t0.clientY };
+  }, { passive: true });
+  document.addEventListener("touchend", function (e) {
+    if (!swipe) return; var t1 = e.changedTouches[0], dx = t1.clientX - swipe.x, dy = Math.abs(t1.clientY - swipe.y); swipe = null;
+    if (dx > 80 && dy < 70) popScreen();
+  }, { passive: true });
 
   document.addEventListener("focusin", function (e) {
     var f = e.target && e.target.getAttribute && e.target.getAttribute("data-field");
@@ -1930,8 +2062,8 @@
       '<span class="mono" style="font-size:9.5px;letter-spacing:.08em;color:#1FD1B2">' + (en ? "CONFIRM RECEIPT" : "CONFIRMER LA RÉCEPTION") + '</span>' +
       '<span style="font-weight:800;font-size:15.5px;line-height:1.3">' + esc(o.arrivedAt ? (en ? cn + " is at your door." : cn + " est devant chez vous.") : (en ? "When " + cn + " arrives:" : "Quand " + cn + " arrive :")) + '</span>' +
       '<span style="font-size:12.5px;line-height:1.45;color:rgba(255,255,255,.8)">' + esc(en ? "Check the parcel, then type the code shown on the courier's phone." : "Vérifiez le colis, puis tapez le code affiché sur le téléphone du livreur.") + '</span>' +
-      '<input data-bind="rcvCode" inputmode="numeric" maxlength="4" autocomplete="off" aria-label="' + esc(en ? "Code shown by the courier" : "Code affiché par le livreur") + '" placeholder="• • • •" value="' + esc(state.rcvCode || "") + '" style="background:#fff;color:#0B1F3A;border-radius:12px;height:56px;padding:0 13px;font-family:var(--mono);font-weight:600;font-size:26px;letter-spacing:.4em;text-align:center" />' +
-      '<button class="btn btn-accent" data-action="confirmReceipt" data-arg="' + o.id + '"' + (state.busy ? " disabled" : "") + '>' + esc(en ? "I've received my parcel" : "J'ai reçu mon colis") + '</button></div>';
+      '<input data-bind="rcvCode" inputmode="numeric" enterkeyhint="done" maxlength="4" autocomplete="off" aria-label="' + esc(en ? "Code shown by the courier" : "Code affiché par le livreur") + '" placeholder="• • • •" value="' + esc(state.rcvCode || "") + '" style="background:#fff;color:#0B1F3A;border-radius:12px;height:56px;padding:0 13px;font-family:var(--mono);font-weight:600;font-size:26px;letter-spacing:.4em;text-align:center" />' +
+      '<button class="btn btn-accent" data-primary="1" data-action="confirmReceipt" data-arg="' + o.id + '"' + (state.busy ? " disabled" : "") + '>' + esc(en ? "I've received my parcel" : "J'ai reçu mon colis") + '</button></div>';
   }
   actions.confirmReceipt = function (el, id) {
     var o = findOrder(id), code = String(state.rcvCode || "").replace(/\D/g, "");
@@ -1996,7 +2128,7 @@
     if (state.settings.orderFlow === "stepped") dr.step = 3;
     state.draft = dr; state.suggest = null;
     state.activeTab = "home"; state.tabStacks.home = [{ screen: "home" }, { screen: "order" }];
-    try { history.pushState({ wg: 2 }, ""); } catch (e) {} render();
+    hpush(); render();
   };
 
   /* ============================== faciliter l'usage : trajets récents, contacts, prix sans compte ============================== */
@@ -2282,7 +2414,7 @@
     return '<div style="padding:14px 20px 0"><div class="col" style="gap:11px;background:#0B1F3A;color:#EAF1F7;border-radius:20px;padding:14px">' +
       '<div class="fx" style="gap:6px">' + seg("parcel", f.parcel) + seg("ride", f.ride) + '</div>' +
       '<div class="fx ac" style="gap:7px"><input data-bind="quickCode" autocapitalize="characters" autocomplete="off" enterkeyhint="go" aria-label="' + esc(ride ? f.toRide : f.toParcel) + '" placeholder="' + esc((ride ? f.toRide : f.toParcel) + "  " + (ride ? f.ph : tl().phoneOrCode)) + '" value="' + esc(Q.value) + '" style="flex:1;min-width:0;height:48px;border-radius:14px;background:#fff;padding:0 14px;font-weight:700;font-size:14px" />' +
-        scan + '<button class="btn btn-accent" data-action="quickGo" aria-label="OK" style="width:48px;height:48px;border-radius:14px;padding:0;font-size:18px">→</button></div>' +
+        scan + '<button class="btn btn-accent" data-primary="1" data-action="quickGo" aria-label="OK" style="width:48px;height:48px;border-radius:14px;padding:0;font-size:18px">→</button></div>' +
       (row.length ? '<div class="fx ac jb"><span class="mono" style="font-size:9.5px;letter-spacing:.08em;color:rgba(234,241,247,.65)">' + esc(f.book.toUpperCase()) + '</span>' +
         '<button class="btn" data-action="openScreen" data-arg="codebook" style="height:30px;padding:0 6px;background:transparent;color:#1FD1B2;font-weight:700;font-size:11px;text-decoration:underline">' + esc(f.seeAll) + '</button></div>' +
         '<div class="fx hscroll" style="gap:6px;overflow-x:auto;margin:0 -14px;padding:0 14px 2px">' + row.join("").replace(/color:#0B1F3A;padding:0/g, "color:#EAF1F7;padding:0").replace(/color:rgba\(11,31,58,\.55\)/g, "color:rgba(234,241,247,.55)").replace(/border:2px solid #0B1F3A/g, "border:2px solid #1FD1B2") + '</div>'
@@ -2325,7 +2457,7 @@
       if (!p.mine) { bookAdd(p); var e = state.codebook.filter(function (x) { return x.code === p.code; })[0]; state.flash.rename = e ? e.name : ""; }
       state.quick.value = ""; state.codeEntry = null;
       state.activeTab = "home"; state.tabStacks.home = [{ screen: "home" }, { screen: "flash" }];
-      try { history.pushState({ wg: 2 }, ""); } catch (e2) {}
+      hpush();
       render();
       if (!state.flash.from || svc === "ride") { state.flash.fromAuto = !state.flash.from; actions.flashMyPos(null, null, true); }
     }).catch(errToast);
@@ -2357,7 +2489,7 @@
     var pay = state.defaultPay && state.defaultPay !== "wallet" ? state.defaultPay : "cash";
     state.flash = { service: "ride", to: null, from: null, vehicle: "bike", passengers: 1, pay: pay, when: "now", area: "", place: "", toText: "", rename: "" };
     state.activeTab = "home"; state.tabStacks.home = [{ screen: "home" }, { screen: "flash" }];
-    try { history.pushState({ wg: 2 }, ""); } catch (e) {}
+    hpush();
     render(); actions.flashMyPos(null, null, true);
   }
   function setRideTo() {
@@ -2412,7 +2544,7 @@
         payOpts.map(function (k) { return chipS(F.pay === k, "flashPay", k, ride && k === "cash" ? (en ? "Cash to the driver" : "Espèces au chauffeur") : d.paymentNames[k]); }).join("") + '</div></div>') +
       (err ? '<div role="alert" style="background:rgba(31,209,178,.25);border-radius:12px;padding:10px 12px;font-size:12px;font-weight:600">' + esc(err) + '</div>' : '') +
     '</div></div>' +
-    '<div style="padding:12px 20px 20px"><button class="btn btn-yellow" data-action="flashConfirm" style="width:100%;height:56px;font-size:16px"' + (!q || err || F.busy ? " disabled" : "") + '>' +
+    '<div style="padding:12px 20px 20px"><button class="btn btn-yellow" data-primary="1" data-action="flashConfirm" style="width:100%;height:56px;font-size:16px"' + (!q || err || F.busy ? " disabled" : "") + '>' +
       esc(F.busy ? "…" : (ride ? f.book2 : f.send)) + (q && !err ? ' · ' + fmtFcfa(q.net) : '') + '</button></div>';
   }
   actions.flashVehicle = function (el, arg) { state.flash.vehicle = arg; if (arg === "bike") state.flash.passengers = 1; render(); };
@@ -2514,7 +2646,7 @@
       mine: mineFirst ? { type: "code", code: mineFirst.code, text: mineFirst.address, geo: mineFirst.geo } : null,
       size: "small", payer: "me", pay: state.defaultPay && state.defaultPay !== "wallet" ? state.defaultPay : "cash", note: "" };
     state.quick.value = ""; state.activeTab = "home"; state.tabStacks.home = [{ screen: "home" }, { screen: "linkNew" }];
-    try { history.pushState({ wg: 3 }, ""); } catch (e) {}
+    navDir = 1; hpush();
     render();
     if (!state.linkForm.mine) { state.linkForm.mineAuto = true; actions.linkMyPos(null, null, true); }
   }
@@ -2630,7 +2762,7 @@
       (phoneMode && L.phone ? '<div style="background:rgba(31,209,178,.25);border-radius:12px;padding:10px 12px;font-size:12px;line-height:1.45;font-weight:600">' + esc(L.payer === "me" ? f.confMe : f.confThem) + '</div>' : '') +
       (qErr ? '<div role="alert" style="background:rgba(31,209,178,.25);border-radius:12px;padding:10px 12px;font-size:12px;font-weight:600">' + esc(qErr) + '</div>' : '') +
     '</div></div>' +
-    '<div style="padding:12px 20px 20px"><button class="btn btn-yellow" data-action="' + (addr ? "sendAddr" : "linkCreate") + '" style="width:100%;height:56px;font-size:15px"' + (!ready || L.busy || qErr ? " disabled" : "") + '>' + esc(L.busy ? "…" : label) + '</button></div>';
+    '<div style="padding:12px 20px 20px"><button class="btn btn-yellow" data-primary="1" data-action="' + (addr ? "sendAddr" : "linkCreate") + '" style="width:100%;height:56px;font-size:15px"' + (!ready || L.busy || qErr ? " disabled" : "") + '>' + esc(L.busy ? "…" : label) + '</button></div>';
   }
   /* ouvrir l'écran « Envoyer un colis » depuis la tuile, vide */
   function openSend() {
@@ -2784,7 +2916,7 @@
       '<h1 style="margin:10px 0 0;font-weight:800;font-size:28px;line-height:1.1;letter-spacing:-1px">' + esc(s.title) + '</h1>' +
       '<p style="margin:0;font-weight:500;font-size:14px;line-height:1.5;color:rgba(234,241,247,.75)">' + esc(s.sub) + '</p></div>' +
       '<div class="col" style="gap:11px"><input data-bind="nameInput" autocomplete="name" aria-label="' + esc(s.ph) + '" placeholder="' + esc(s.ph) + '" value="' + esc(state.nameInput || "") + '" style="background:#fff;color:#0B1F3A;border-radius:16px;padding:0 15px;height:54px;font-weight:600;font-size:15px" />' +
-      '<button class="btn btn-accent" data-action="saveName">' + esc(s.go) + '</button></div></div>';
+      '<button class="btn btn-accent" data-primary="1" data-action="saveName">' + esc(s.go) + '</button></div></div>';
   }
 
   var base = {};
@@ -2832,7 +2964,7 @@
       .then(function (r) {
         state.payPending = false; state.wallet.balance = r.wallet.balance; replaceOrder(r.order);
         var st0 = stack(); state.tabStacks[state.activeTab] = [st0[0], { screen: "track", orderId: r.order.id }];
-        try { history.pushState({ wg: 2 }, ""); } catch (e) {} render();
+        hpush(); render();
       }).catch(function (e) { state.payPending = false; render(); errToast(e); });
   };
   actions.advanceOrder = function (el, arg) {
@@ -3022,7 +3154,7 @@
           (c && c.unread ? '<span class="unread">' + c.unread + '</span>' : '') + '</span></span></button>';
     }
     var list = others.map(function (c, i) { return (i ? '<div style="height:1px;background:var(--hair);margin-left:70px"></div>' : '') + row(c, false); }).join("");
-    return page3('<div class="fx ac jb"><h1 style="margin:0;font-weight:800;font-size:23px;letter-spacing:-.7px">' + esc(m.title) + '</h1>' +
+    return page3('<div class="fx ac jb"><div class="fx ac" style="gap:12px">' + menuBtn() + '<h1 style="margin:0;font-weight:800;font-size:23px;letter-spacing:-.7px">' + esc(m.title) + '</h1></div>' +
         '<button class="btn btn-ink" data-action="openScreen" data-arg="newChat" style="height:38px;border-radius:99px;padding:0 14px;font-size:12px">+ ' + esc(m.newChat) + '</button></div>' +
       '<div style="' + card + '">' + row(support, true) + '</div>' +
       (list ? '<div style="' + card + '">' + list + '</div>' : '<p style="margin:0;font-size:12.5px;color:rgba(11,31,58,.6);text-align:center">' + esc(m.empty) + '</p>') +
@@ -3086,6 +3218,25 @@
   }
   var ICON_CHAT = '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linejoin="round" aria-hidden="true"><path d="M4 5h16v11H9l-5 4z"/></svg>';
   var ICON_PHONE = '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#1FD1B2" stroke-width="2.2" stroke-linejoin="round" aria-hidden="true"><path d="M5 4h4l2 5-2.5 1.5a11 11 0 0 0 5 5L15 13l5 2v4a2 2 0 0 1-2 2A16 16 0 0 1 3 6a2 2 0 0 1 2-2z"/></svg>';
+
+  actions.openMenu = function () { state.menuOpen = true; state.suggest = null; hpush(); render(); };
+  actions.closeMenu = function () { if (!state.menuOpen) return; if (histDepth > 0) { try { history.back(); return; } catch (e) {} } state.menuOpen = false; render(); };
+
+  /* envoi commencé puis quitté : on propose de le reprendre */
+  function draftLabel(L) { return L && (L.name || (L.phone ? "+237 " + L.phone : "") || (L.rphone ? "+237 " + L.rphone : "")); }
+  function resumeCard() {
+    var L = state.linkForm; if (!srv() || !L || cur().screen !== "home") return "";
+    var who = draftLabel(L); if (!who) return "";
+    var en = state.lang === "en";
+    return '<div style="padding:12px 20px 0"><div class="fx ac" role="status" style="gap:10px;background:#fff;border:1px solid var(--hair);border-radius:16px;padding:11px 12px">' +
+      '<span class="fx ac jc" aria-hidden="true" style="width:36px;height:36px;flex:none;border-radius:11px;background:#DDF8F2">📦</span>' +
+      '<span class="col" style="flex:1;gap:1px;min-width:0"><span class="mono" style="font-size:9.5px;letter-spacing:.07em;color:rgba(11,31,58,.55)">' + (en ? "UNFINISHED SEND" : "ENVOI NON TERMINÉ") + '</span>' +
+      '<span style="font-weight:700;font-size:13.5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">' + esc((en ? "To " : "À ") + who) + '</span></span>' +
+      '<button class="btn btn-ink" data-action="resumeDraft" style="height:40px;border-radius:12px;padding:0 13px;font-size:12px">' + (en ? "Resume" : "Reprendre") + '</button>' +
+      '<button class="btn" data-action="dropDraft" aria-label="' + (en ? "Discard" : "Effacer") + '" style="width:40px;height:40px;border-radius:12px;background:rgba(11,31,58,.06);padding:0">×</button></div></div>';
+  }
+  actions.resumeDraft = function () { if (!state.linkForm) return; push("linkNew"); };
+  actions.dropDraft = function () { state.linkForm = null; render(); };
 
   /* ---------- espace commerçants (livraison seulement : la vente et l'encaissement restent entre le commerçant et ses clients) ---------- */
   var MC = {
@@ -3165,7 +3316,7 @@
       '<div class="col" style="gap:8px">' + sectionTitle(f.start) + (places ? '<div class="fx" style="gap:6px;flex-wrap:wrap">' + places + '</div>' :
         '<div class="col" style="gap:8px;background:#DDF8F2;border-radius:16px;padding:13px 14px"><span style="font-size:12.5px;line-height:1.45">' + esc(f.noCode) + '</span><button class="btn btn-ink" data-action="openScreen" data-arg="codeForm" style="height:44px">' + esc(f.createCode) + '</button></div>') + '</div>' +
       '<div style="font-size:11.5px;line-height:1.5;color:rgba(11,31,58,.6)">' + esc(f.only) + '</div>' +
-      '<button class="btn btn-ink" data-action="saveMerchant"' + (F.busy ? " disabled" : "") + '>' + esc(f.save) + '</button>' +
+      '<button class="btn btn-ink" data-primary="1" data-action="saveMerchant"' + (F.busy ? " disabled" : "") + '>' + esc(f.save) + '</button>' +
       (state.merchant ? '<button class="btn" data-action="leaveMerchant" style="height:44px;background:transparent;font-weight:600;font-size:12px;color:rgba(11,31,58,.55)">' + esc(f.leave) + '</button>' : ''));
   }
   actions.mKind = function (el, k) { state.mForm.kind = k; render(); };
@@ -3240,7 +3391,7 @@
         '<div class="col" style="' + cardStyle + ';padding:2px 14px">' + list + '</div>' +
         '<button class="btn btn-ink" data-action="batchDone">' + esc(f.done) + '</button>');
     }
-    var inp = function (bind, val, ph, extra) { return '<input data-bind="' + bind + '" value="' + esc(val) + '" placeholder="' + esc(ph) + '" aria-label="' + esc(ph) + '" style="background:#fff;border:1px solid var(--hair);border-radius:12px;height:44px;padding:0 12px;font-weight:600;font-size:13.5px;min-width:0;' + (extra || "") + '" />'; };
+    var inp = function (bind, val, ph, extra) { return '<input data-bind="' + bind + '"' + (/\.phone$/.test(bind) ? ' inputmode="tel" autocomplete="off"' : '') + ' value="' + esc(val) + '" placeholder="' + esc(ph) + '" aria-label="' + esc(ph) + '" style="background:#fff;border:1px solid var(--hair);border-radius:12px;height:44px;padding:0 12px;font-weight:600;font-size:13.5px;min-width:0;' + (extra || "") + '" />'; };
     var rows = B.rows.map(function (r, i) {
       return '<div class="col" style="gap:6px;padding:10px;background:#F3F6F9;border-radius:14px">' +
         '<div class="fx" style="gap:6px">' + inp("m.batch." + i + ".phone", r.phone, f.phonePh, "flex:1.1;font-family:var(--mono)") + inp("m.batch." + i + ".name", r.name, f.namePh2, "flex:1") +
@@ -3694,7 +3845,7 @@
   });
 
   /* Persistance locale (cache de l'app ; en mode serveur, le serveur fait foi) */
-  var KEEP = ["lang", "loggedIn", "phone", "user", "wallet", "settings", "orders", "seq", "chatByOrder", "addresses", "payAccounts", "defaultPay", "notifPrefs", "disputes", "codebook"];
+  var KEEP = ["lang", "loggedIn", "phone", "user", "wallet", "settings", "orders", "seq", "chatByOrder", "addresses", "payAccounts", "defaultPay", "notifPrefs", "disputes", "codebook", "linkForm"];
   function save() {
     try { var o = {}; KEEP.forEach(function (k) { o[k] = state[k]; }); localStorage.setItem(STORE_KEY, JSON.stringify(o)); } catch (e) {}
     syncPrefs();

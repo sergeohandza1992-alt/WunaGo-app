@@ -152,6 +152,14 @@
 
   @media (prefers-reduced-motion: no-preference) {
     .fade-in { animation: fadeIn .28s ease both; }
+    .slide-fwd { animation: slideFwd .2s cubic-bezier(.2,.8,.2,1) both; }
+    .slide-back { animation: slideBack .2s cubic-bezier(.2,.8,.2,1) both; }
+    @keyframes slideFwd { from { opacity: .35; transform: translateX(26px); } to { opacity: 1; transform: none; } }
+    @keyframes slideBack { from { opacity: .35; transform: translateX(-26px); } to { opacity: 1; transform: none; } }
+    .drawer { animation: drawerIn .22s cubic-bezier(.2,.8,.2,1) both; }
+    .drawer-backdrop { animation: fadeOnly .2s ease both; }
+    @keyframes drawerIn { from { transform: translateX(-100%); } to { transform: none; } }
+    @keyframes fadeOnly { from { opacity: 0; } to { opacity: 1; } }
     @keyframes fadeIn { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
     @keyframes pulse { 0% { opacity: .3; transform: scale(1); } 70% { opacity: 0; transform: scale(2.2); } 100% { opacity: 0; transform: scale(2.2); } }
   }
@@ -230,3 +238,31 @@
   .btn:disabled { opacity: .45; cursor: default; }
   .hscroll::-webkit-scrollbar { display: none; }
   .hscroll { scrollbar-width: none; }
+
+  /* ---------- confort de navigation (v26) ---------- */
+  .menu-btn { width: 44px; height: 44px; flex: none; border: 0; border-radius: 14px; background: #fff; box-shadow: inset 0 0 0 1px var(--hair);
+    display: inline-flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px; cursor: pointer; padding: 0; }
+  .menu-btn span { display: block; width: 18px; height: 2px; border-radius: 2px; background: var(--ink); }
+  .menu-btn span:nth-child(2) { width: 13px; margin-right: 5px; }
+  .menu-btn.dark { background: rgba(255,255,255,.1); box-shadow: none; }
+  .menu-btn.dark span { background: #fff; }
+  .drawer-backdrop { position: absolute; inset: 0; background: rgba(11,31,58,.45); z-index: 60; }
+  .drawer { position: absolute; top: 0; bottom: 0; left: 0; width: min(86%, 330px); background: #fff; z-index: 61; overflow-y: auto;
+    box-shadow: 18px 0 40px rgba(11,31,58,.25); display: flex; flex-direction: column; padding-bottom: calc(14px + var(--sab)); }
+  .drawer-top { background: var(--ink); padding: calc(18px + var(--sat)) 18px 16px; display: flex; flex-direction: column; gap: 14px; }
+  .drawer-x { margin-left: auto; width: 40px; height: 40px; flex: none; border: 0; border-radius: 12px; background: rgba(255,255,255,.1); color: #fff; font-size: 22px; cursor: pointer; }
+  .drawer-code { display: flex; flex-direction: column; gap: 2px; text-align: left; border: 0; border-radius: 14px; background: rgba(255,255,255,.08); padding: 10px 12px; cursor: pointer; }
+  .drawer-group { padding: 10px 8px 2px; }
+  .drawer-h { font-family: var(--mono); font-size: 9.5px; letter-spacing: .1em; text-transform: uppercase; color: rgba(11,31,58,.5); padding: 6px 12px 4px; }
+  .drawer-item { display: flex; align-items: center; gap: 12px; width: 100%; min-height: 48px; padding: 0 12px; border: 0; border-radius: 12px; background: transparent;
+    color: var(--ink); text-decoration: none; text-align: left; cursor: pointer; font: inherit; }
+  .drawer-item:active, .drawer-item:hover { background: #F3F6F9; }
+  .di-ic { width: 32px; height: 32px; flex: none; border-radius: 10px; background: #F3F6F9; display: inline-flex; align-items: center; justify-content: center; font-size: 15px; }
+  .di-t { flex: 1; font-weight: 700; font-size: 14px; }
+  .di-m { font-family: var(--mono); font-size: 10.5px; color: rgba(11,31,58,.5); max-width: 40%; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .drawer-foot { margin-top: auto; padding: 18px 20px 4px; display: flex; flex-direction: column; gap: 2px; font-size: 11px; color: rgba(11,31,58,.5); }
+  .drawer-foot .mono { font-size: 9.5px; letter-spacing: .12em; color: var(--ink); }
+  button[data-loading] { pointer-events: none; opacity: .8; }
+  button[data-loading]::after { content: ""; display: inline-block; width: 13px; height: 13px; margin-left: 8px; vertical-align: -2px; border-radius: 99px;
+    border: 2px solid currentColor; border-right-color: transparent; animation: spin .7s linear infinite; }
+  .tab-badge.live { background: var(--yellow); color: var(--ink); }

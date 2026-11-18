@@ -25,7 +25,7 @@ await page.waitForSelector('text=Ariane Ngono');
 
 // ---- Mes adresses
 await page.click('[data-action="switchTab"][data-arg="wallet"]');
-await page.click('[data-action="openScreen"][data-arg="addresses"]');
+await page.click('[data-action="openMenu"]'); await page.waitForSelector('.drawer'); await page.click('.drawer [data-action="openScreen"][data-arg="addresses"]');
 ok('Écran Mes adresses (vide) affiché',await page.isVisible('text=Aucune adresse enregistrée'));
 await page.click('[data-action="newAddress"]');
 await page.click('[data-action="saveAddrForm"]');
@@ -66,7 +66,7 @@ await shot('22-moyens-paiement');
 await page.click('[data-action="popScreen"]');
 
 // ---- Notifications
-await page.click('[data-action="openScreen"][data-arg="notifs"]');
+await page.click('[data-action="openMenu"]'); await page.waitForSelector('.drawer'); await page.click('.drawer [data-action="openScreen"][data-arg="notifs"]');
 await page.click('[data-action="toggleNotif"][data-arg="promos"]');
 await page.click('[data-action="toggleNotif"][data-arg="push"]');
 await page.waitForTimeout(400);
@@ -126,7 +126,7 @@ await page.waitForTimeout(200);
 const d=(await store()).disputes[0];
 ok('Réclamation enregistrée (code LIT)',/^LIT-\d{4}-001$/.test(d.code) && d.reason==='Colis endommagé' && !!d.photo,d.code);
 await page.click('[data-action="switchTab"][data-arg="wallet"]');
-await page.click('[data-action="openScreen"][data-arg="help"]');
+await page.click('[data-action="openMenu"]'); await page.waitForSelector('.drawer'); await page.click('.drawer [data-action="openScreen"][data-arg="help"]');
 ok('Réclamation visible dans Aide et litiges',await page.isVisible(`text=${d.code}`) && await page.isVisible('text=OUVERTE'));
 await shot('27-aide-litiges');
 await page.click('[data-action="switchTab"][data-arg="orders"]');

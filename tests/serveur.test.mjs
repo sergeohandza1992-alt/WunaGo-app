@@ -39,7 +39,7 @@ await A.fill('[data-bind="topUpAmount"]','10000'); await A.click('[data-action="
 await A.waitForSelector('text=10 000 FCFA');
 ok('Recharge enregistrée sur le serveur',true);
 // adresse enregistrée (préférences serveur)
-await A.click('[data-action="openScreen"][data-arg="addresses"]');
+await A.click('[data-action="openMenu"]'); await A.waitForSelector('.drawer'); await A.click('.drawer [data-action="openScreen"][data-arg="addresses"]');
 await A.click('[data-action="newAddress"]');
 await A.fill('[data-bind="addrForm.addr"]','Akw');
 await A.click('.sg-item:has-text("Akwa, Douala")');
@@ -104,9 +104,9 @@ await B.click('[data-action="switchTab"][data-arg="orders"]');
 await B.waitForSelector('text=WUN-');
 ok('Autre téléphone : commandes retrouvées',await B.locator('text=WUN-').count()===2);
 await B.click('[data-action="switchTab"][data-arg="wallet"]');
-ok('Autre téléphone : solde et adresse retrouvés',await B.isVisible('text='+(10000-net1).toLocaleString('fr-FR').replace(/\u202f/g,' ')+' FCFA') && (await B.locator('[data-action="openScreen"][data-arg="addresses"] .mono').textContent())==='1');
+ok('Autre téléphone : solde et adresse retrouvés',await B.isVisible('text='+(10000-net1).toLocaleString('fr-FR').replace(/\u202f/g,' ')+' FCFA') && await (async()=>{await B.click('[data-action="openMenu"]'); await B.waitForSelector('.drawer'); return (await B.locator('.drawer [data-action="openScreen"][data-arg="addresses"] .di-m').textContent())==='1';})());
 // déconnexion
-await B.click('[data-action="openSettings"]');
+await B.click('.drawer [data-action="openSettings"]');
 await B.click('[data-action="logOut"]');
 await B.waitForSelector('[data-action="requestOtp"]');
 ok('Déconnexion : session supprimée',await B.evaluate(()=>!WAPI.token()));
