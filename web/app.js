@@ -9,7 +9,7 @@
   var SUPPORT_PHONE = "+237600000000", SUPPORT_PHONE_LABEL = "+237 6 00 00 00 00";
   var STORE_KEY = "wunago.client.v1";
   /* Version affichée dans Réglages : à changer avec CACHE dans sw.js à chaque mise en ligne */
-  var APP_VERSION = "23 · 18/11/2026";
+  var APP_VERSION = "24 · 18/11/2026";
   var deferredInstall = null;
   var lastScreenKey = "";
   var installDismissed = false;
@@ -486,9 +486,9 @@
           '<span style="background:#0B1F3A;color:#fff;border-radius:99px;padding:9px 13px;font-weight:700;font-size:11.5px">' + esc(d.topUp) + '</span>' +
         '</button>' +
       '</div>' +
-      '<div class="scroll">' + installBanner() + quickHero() + linksCard() + '<div style="padding:18px 20px 6px;font-weight:700;font-size:12.5px;color:rgba(11,31,58,.5)">' + esc(d.services) + '</div>' +
+      '<div class="scroll">' + installBanner() + quickHero() + (state.merchant ? merchantHomeCard() : "") + linksCard() + '<div style="padding:18px 20px 6px;font-weight:700;font-size:12.5px;color:rgba(11,31,58,.5)">' + esc(d.services) + '</div>' +
       '<div style="padding:2px 20px 0">' + (state.settings.homeLayout === "tiles" ? '<div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">' + tiles + '</div>' : '<div class="col" style="gap:8px">' + listRows + '</div>') + '</div>' +
-      activeCard + codeHomeCard() + recentBlock() +
+      activeCard + codeHomeCard() + (state.merchant ? "" : merchantHomeCard()) + recentBlock() +
       (srv() ? '<div style="height:24px"></div>' : '<div style="padding:20px 20px 24px"><div style="border:1px dashed rgba(11,31,58,.2);border-radius:16px;padding:14px;background:repeating-linear-gradient(135deg,rgba(31,209,178,.16) 0 8px,transparent 8px 16px)">' +
         '<div class="mono" style="font-size:9.5px;letter-spacing:.08em;color:rgba(11,31,58,.5)">PROMO</div><div style="font-weight:700;font-size:14px;margin-top:5px">' + esc(t4().promo) + '</div></div></div>') +
       '</div>'
@@ -871,7 +871,7 @@
       '</div>' +
       '<div class="scroll" style="background:#F5F8FA;border-radius:22px 22px 0 0;margin-top:-18px;padding:16px 20px 20px;position:relative;z-index:500"><div class="col" style="gap:16px">' +
         '<div style="width:34px;height:4px;border-radius:9px;background:rgba(11,31,58,.15);margin:0 auto"></div>' +
-        arrivedBanner(o) + receiveBox(o) + pickupBanner(o) + linkInfo(o) + courierBlock(o, orderId) + codeCard(o) + notifPrompt() +
+        arrivedBanner(o) + readyBadge(o) + receiveBox(o) + pickupBanner(o) + linkInfo(o) + courierBlock(o, orderId) + codeCard(o) + notifPrompt() +
         '<div style="height:1px;background:var(--hair)"></div>' +
         '<div class="col">' + timeline + '</div>' +
         gmapsButton(orderGeo(o).pickup, orderGeo(o).dropoff, false) +
@@ -904,7 +904,7 @@
         '<div style="background:#fff;border:1px solid var(--hair);border-radius:16px;padding:15px;display:flex;flex-direction:column;gap:11px">' +
           '<span style="font-weight:700;font-size:13.5px">' + esc(d.rate) + '</span><div class="fx" style="gap:7px">' + stars + '</div></div>' +
       '</div></div>' +
-      '<div style="padding:16px 20px 20px;display:flex;flex-direction:column;gap:8px">' + reorderButton(o) + '<button class="btn btn-ink" data-action="finishProof" style="width:100%">' + esc(d.backHome) + '</button>' +
+      '<div style="padding:16px 20px 20px;display:flex;flex-direction:column;gap:8px">' + receiptButton(o) + reorderButton(o) + '<button class="btn btn-ink" data-action="finishProof" style="width:100%">' + esc(d.backHome) + '</button>' +
       '<button class="btn" data-action="openDispute" data-arg="' + orderId + '" style="height:44px;background:transparent;font-weight:700;font-size:12.5px;text-decoration:underline">' + esc(t3().reportProblem) + '</button></div>'
     );
   }
@@ -1017,18 +1017,18 @@
           return '<button class="btn" data-action="setTopUpMethod" data-arg="' + m + '" style="flex:1;height:38px;border-radius:11px;background:' + (on ? "#1FD1B2" : "rgba(255,255,255,.1)") + ';color:' + (on ? "#0B1F3A" : "#fff") + ';font-weight:700;font-size:11.5px">' + esc(d.paymentNames[m]) + '</button>';
         }).join("") + '</div>' +
         '<input data-bind="topUpAmount" value="' + esc(state.topUpAmount || "") + '" placeholder="' + d.topUpAmount + '" inputmode="numeric" style="height:42px;border-radius:11px;background:rgba(255,255,255,.08);padding:0 13px;color:#fff;font-weight:600;font-size:13px" />' +
-        '<button class="btn btn-yellow" data-action="doTopUp">' + esc(d.confirm) + '</button></div>';
+        '<button class="btn btn-accent" data-action="doTopUp">' + esc(d.confirm) + '</button></div>';
     } else if (panel === "send") {
       panelHtml = '<div class="col" style="gap:9px;padding-top:2px">' +
         '<input data-bind="sendPhone" value="' + esc(state.sendPhone || "") + '" placeholder="' + d.sendTo + '" style="height:42px;border-radius:11px;background:rgba(255,255,255,.08);padding:0 13px;color:#fff;font-weight:600;font-size:13px" />' +
         '<input data-bind="topUpAmount" value="' + esc(state.topUpAmount || "") + '" placeholder="' + d.topUpAmount + '" inputmode="numeric" style="height:42px;border-radius:11px;background:rgba(255,255,255,.08);padding:0 13px;color:#fff;font-weight:600;font-size:13px" />' +
-        '<button class="btn btn-yellow" data-action="doSend">' + esc(d.confirm) + '</button></div>';
+        '<button class="btn btn-accent" data-action="doSend">' + esc(d.confirm) + '</button></div>';
     }
 
     var rows = [
       [tp().row, "", "openProfile"],
       [d.addresses, String((state.addresses || []).length), "openScreen", "addresses"],
-    ].concat(srv() ? [[tw().title, state.places[0] ? state.places[0].code : "", "openScreen", "codes"]] : []).concat([
+    ].concat(srv() ? [[tw().title, state.places[0] ? state.places[0].code : "", "openScreen", "codes"], [tmc().title, state.merchant ? state.merchant.name : "", "openMerchant", ""]] : []).concat([
       [d.methods, String(2 + (state.payAccounts || []).length), "openScreen", "paymethods"],
       [d.notifs, notifSummary(), "openScreen", "notifs"],
       [d.language, state.lang === "en" ? "English" : "Français", "openSettings"],
@@ -1362,6 +1362,9 @@
         case "flash": body = screenFlash(); break;
         case "linkNew": body = screenLinkNew(); break;
         case "codebook": body = screenCodebook(); break;
+        case "merchant": body = screenMerchant(); break;
+        case "merchantForm": body = screenMerchantForm(); break;
+        case "batch": body = screenBatch(); break;
         case "codeForm": body = screenCodeForm(); break;
         case "newChat": body = screenNewChat(); break;
         case "conv": body = screenConv(c.convId); break;
@@ -1716,6 +1719,7 @@
     if (bind === "phone") state.phone = el.value.replace(/[^\d ]/g, "");
     else if (bind === "nameInput") state.nameInput = el.value;
     else if (/^errand\.(name|price)\.\d+$/.test(bind)) { var bp = bind.split("."), it = state.draft.errand.list[Number(bp[2])]; if (it) it[bp[1]] = bp[1] === "price" ? el.value.replace(/\D/g, "") : el.value; }
+    else if (/^m\./.test(bind)) { setMerchantField(bind, el.value); return; }
     else if (bind === "profileName") state.profileName = el.value;
     else if (bind === "addrForm.addr") { state.addrForm.addr = el.value; state.addrForm.addrGeo = null; suggest("addr", el.value); }
     else if (bind === "addrForm.label") state.addrForm.label = el.value;
@@ -1787,7 +1791,7 @@
       '<div class="col" style="gap:2px;flex:1"><span style="font-weight:800;font-size:13.5px;color:#fff">' + esc(d.install) + '</span>' +
       '<span style="font-size:11.5px;line-height:1.4;color:rgba(255,255,255,.7)">' + esc(isIOS && !deferredInstall ? d.iosHint : d.installSub) + '</span></div>' +
       '<div class="col" style="gap:4px;flex:none">' +
-        (deferredInstall ? '<button class="btn btn-yellow" data-action="doInstall" style="height:34px;border-radius:99px;padding:0 13px;font-size:11.5px">' + esc(d.installBtn) + '</button>' : '') +
+        (deferredInstall ? '<button class="btn btn-accent" data-action="doInstall" style="height:34px;border-radius:99px;padding:0 13px;font-size:11.5px">' + esc(d.installBtn) + '</button>' : '') +
         '<button data-action="dismissInstall" style="border:0;background:none;color:rgba(255,255,255,.7);font-weight:600;font-size:11px;cursor:pointer;min-height:28px">' + esc(d.later) + '</button>' +
       '</div></div></div>';
   }
@@ -1927,7 +1931,7 @@
       '<span style="font-weight:800;font-size:15.5px;line-height:1.3">' + esc(o.arrivedAt ? (en ? cn + " is at your door." : cn + " est devant chez vous.") : (en ? "When " + cn + " arrives:" : "Quand " + cn + " arrive :")) + '</span>' +
       '<span style="font-size:12.5px;line-height:1.45;color:rgba(255,255,255,.8)">' + esc(en ? "Check the parcel, then type the code shown on the courier's phone." : "Vérifiez le colis, puis tapez le code affiché sur le téléphone du livreur.") + '</span>' +
       '<input data-bind="rcvCode" inputmode="numeric" maxlength="4" autocomplete="off" aria-label="' + esc(en ? "Code shown by the courier" : "Code affiché par le livreur") + '" placeholder="• • • •" value="' + esc(state.rcvCode || "") + '" style="background:#fff;color:#0B1F3A;border-radius:12px;height:56px;padding:0 13px;font-family:var(--mono);font-weight:600;font-size:26px;letter-spacing:.4em;text-align:center" />' +
-      '<button class="btn btn-yellow" data-action="confirmReceipt" data-arg="' + o.id + '"' + (state.busy ? " disabled" : "") + '>' + esc(en ? "I've received my parcel" : "J'ai reçu mon colis") + '</button></div>';
+      '<button class="btn btn-accent" data-action="confirmReceipt" data-arg="' + o.id + '"' + (state.busy ? " disabled" : "") + '>' + esc(en ? "I've received my parcel" : "J'ai reçu mon colis") + '</button></div>';
   }
   actions.confirmReceipt = function (el, id) {
     var o = findOrder(id), code = String(state.rcvCode || "").replace(/\D/g, "");
@@ -2120,7 +2124,7 @@
     if (p) return '<div style="padding:16px 20px 0"><button class="fx ac" data-action="openScreen" data-arg="codes" style="gap:12px;width:100%;text-align:left;background:#0B1F3A;color:#fff;border:0;border-radius:16px;padding:13px 14px;cursor:pointer">' +
       '<span class="col" style="gap:2px;flex:1"><span class="mono" style="font-size:9.5px;letter-spacing:.08em;color:rgba(255,255,255,.6)">' + esc(w.title.toUpperCase()) + '</span><span class="mono" style="font-weight:600;font-size:20px;color:#1FD1B2;letter-spacing:.06em">' + esc(p.code) + '</span></span>' +
       '<span style="font-weight:700;font-size:12px;color:#1FD1B2">' + esc(w.share) + ' →</span></button></div>';
-    return '<div style="padding:16px 20px 0"><button class="col" data-action="openScreen" data-arg="codeForm" style="gap:4px;width:100%;text-align:left;border:1.5px dashed #0B1F3A;background:#1FD1B2;border-radius:16px;padding:14px;cursor:pointer;color:#0B1F3A">' +
+    return '<div style="padding:16px 20px 0"><button class="col" data-action="openScreen" data-arg="codeForm" style="gap:4px;width:100%;text-align:left;border:1.5px dashed rgba(11,31,58,.35);background:#DDF8F2;border-radius:16px;padding:14px;cursor:pointer;color:#0B1F3A">' +
       '<span class="mono" style="font-size:9.5px;letter-spacing:.08em">NOUVEAU · ' + esc(w.short.toUpperCase()) + '</span><span style="font-weight:800;font-size:16px">' + esc(w.pitch) + '</span>' +
       '<span style="font-size:12px;line-height:1.45;color:rgba(11,31,58,.75)">' + esc(w.pitchSub) + '</span><span style="font-weight:800;font-size:13px;margin-top:4px">' + esc(w.create) + ' →</span></button></div>';
   }
@@ -2753,7 +2757,7 @@
     return Promise.all([WAPI.get("/me"), WAPI.get("/orders"), WAPI.get("/disputes")]).then(function (r) {
       applyUser(r[0].user); state.orders = r[1].orders; state.disputes = r[2].disputes;
       if (state.tabStacks.support[0].screen === "chat") state.tabStacks.support = [{ screen: "inbox" }];
-      render(); loadConvs(); loadCourier(); subscribePush(); loadPlaces(); loadLinks(); handleHash();
+      render(); loadConvs(); loadCourier(); subscribePush(); loadPlaces(); loadLinks(); loadMerchant(); handleHash();
     }).catch(function (e) { if (e.status === 401) forceLogin(); });
   }
   function resetAccountState() {
@@ -2761,7 +2765,7 @@
     state.payAccounts = []; state.defaultPay = "orange_money"; state.notifPrefs = { orders: true, sms: true, push: false, promos: true };
     state.tabStacks = { home: [{ screen: "home" }], orders: [{ screen: "history" }], wallet: [{ screen: "wallet" }], support: [{ screen: srv() ? "inbox" : "chat" }],
       courses: [{ screen: "courierHome" }], account: [{ screen: "courierAccount" }] };
-    state.activeTab = "home"; state.convs = []; state.convMsgs = {}; state.places = []; state.codeEntry = null; state.flash = null; state.codebook = []; state.links = []; state.linkForm = null; state.courierData = { offers: [], orders: [] }; state.courierToday = null; state.courierTodayAt = 0; state.proofForm = null;
+    state.activeTab = "home"; state.convs = []; state.convMsgs = {}; state.places = []; state.codeEntry = null; state.flash = null; state.codebook = []; state.links = []; state.linkForm = null; state.merchant = null; state.merchantStats = null; state.merchantLoaded = false; state.batch = null; state.courierData = { offers: [], orders: [] }; state.courierToday = null; state.courierTodayAt = 0; state.proofForm = null;
     if (typeof stopGps === "function") stopGps();
   }
   function forceLogin() {
@@ -3072,14 +3076,256 @@
         '<div class="col" style="gap:2px;flex:1"><span style="font-weight:700;font-size:14px">' + esc(o.service === "ride" ? (state.lang === "en" ? "Finding a driver…" : "Recherche d'un chauffeur…") : m.searching) + '</span><span style="font-size:11.5px;color:rgba(11,31,58,.6)">' + esc(o.service === "ride" ? (state.lang === "en" ? "Nearby WunaGo drivers have been notified." : "Les chauffeurs WunaGo à proximité sont prévenus.") : m.searchingSub) + '</span></div></div>';
     }
     var veh = (o.service === "ride" ? { bike: "Moto-taxi", car: "Voiture" }[c.vehicle] : d.vehNames[c.vehicle]) || "";
-    return '<div class="fx ac" style="gap:11px">' + avatar(c.name) +
+    var face = c.hasPhoto && o.trackToken ? '<img src="/api/suivi/' + encodeURIComponent(o.trackToken) + '/photo" alt="' + esc(c.name) + '" width="52" height="52" style="width:52px;height:52px;flex:none;border-radius:99px;object-fit:cover;border:2px solid #1FD1B2;background:#EAF0F4">' : avatar(c.name);
+    var done = c.deliveries ? " · " + c.deliveries + (state.lang === "en" ? " deliveries" : " livraisons") : "";
+    return '<div class="fx ac" style="gap:11px">' + face +
       '<div class="col" style="gap:2px;flex:1;min-width:0"><span class="mono" style="font-size:9.5px;letter-spacing:.06em;color:rgba(11,31,58,.55)">' + esc(m.courier.toUpperCase()) + '</span><span style="font-weight:700;font-size:14px">' + esc(c.name) + '</span>' +
-        '<span class="mono" style="font-size:10.5px;color:rgba(11,31,58,.6)">' + (c.rating ? c.rating + " ★ · " : esc(m.newDriver) + " · ") + esc(veh) + (c.plate ? " · " + esc(c.plate) : "") + '</span></div>' +
+        '<span class="mono" style="font-size:10.5px;color:rgba(11,31,58,.6)">' + (c.rating ? c.rating + " ★ · " : esc(m.newDriver) + " · ") + esc(veh) + (c.plate ? " · " + esc(c.plate) : "") + esc(done) + '</span></div>' +
       (srv() ? '<button class="btn" data-action="openOrderChat" data-arg="' + orderId + '" aria-label="' + esc(m.write) + '" style="width:44px;height:44px;border-radius:11px;background:rgba(11,31,58,.07);padding:0">' + ICON_CHAT + '</button>' : '') +
       (c.phone ? '<a class="btn btn-ink" href="tel:+237' + esc(c.phone) + '" aria-label="' + esc(m.call) + '" style="width:44px;height:44px;border-radius:11px;padding:0;text-decoration:none">' + ICON_PHONE + '</a>' : '') + '</div>';
   }
   var ICON_CHAT = '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linejoin="round" aria-hidden="true"><path d="M4 5h16v11H9l-5 4z"/></svg>';
   var ICON_PHONE = '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#1FD1B2" stroke-width="2.2" stroke-linejoin="round" aria-hidden="true"><path d="M5 4h4l2 5-2.5 1.5a11 11 0 0 0 5 5L15 13l5 2v4a2 2 0 0 1-2 2A16 16 0 0 1 3 6a2 2 0 0 1 2-2z"/></svg>';
+
+  /* ---------- espace commerçants (livraison seulement : la vente et l'encaissement restent entre le commerçant et ses clients) ---------- */
+  var MC = {
+    fr: { title: "Espace commerçant", pitch: "Boutique, restaurant, e-commerce ?", pitchSub: "Envois groupés, clients fréquents, taux de réussite, autocollant QR.", open: "Ouvrir mon espace",
+      setupTitle: "Votre commerce", name: "Nom du commerce", namePh: "Ex. Boutique Awa, Chez Mama Ngo", kind: "Type", area: "Quartier", areaPh: "Ex. Akwa",
+      kinds: { shop: "Boutique", restaurant: "Restaurant", ecommerce: "E-commerce", pharmacy: "Pharmacie", other: "Autre" },
+      start: "Départ de vos colis", noCode: "Créez d'abord le Code WunaGo de votre commerce : le livreur viendra directement devant la porte.", createCode: "Créer mon Code WunaGo",
+      save: "Enregistrer", saved: "Espace commerçant enregistré.", month: "CE MOIS", sent: "envois", delivered: "livrés", success: "réussite", spent: "livraisons payées",
+      active: "en cours", waiting: "lien(s) en attente de réponse", batch: "Envoi groupé", one: "Envoyer à un client", sticker: "Mon autocollant QR", shareShop: "Partager l'adresse du commerce",
+      frequent: "Clients fréquents", noFrequent: "Vos clients fréquents apparaîtront ici après vos premiers envois.", send: "Envoyer", times: "envoi(s)",
+      only: "WunaGo ne s'occupe que de la livraison : vos ventes et vos encaissements restent entre vous et vos clients.",
+      meal: "Repas chaud : à livrer sans attendre", mealTip: "Restaurants : cochez « Repas chaud » ; le livreur part dès qu'il a le sac.",
+      edit: "Modifier le commerce", leave: "Fermer l'espace commerçant", left: "Espace commerçant fermé.",
+      batchTitle: "Envoi groupé", recipients: "Destinataires", phonePh: "Numéro (6…)", namePh2: "Nom", notePh: "Article / consigne (facultatif)", add: "+ Ajouter un destinataire",
+      paste: "Coller une liste (un client par ligne : numéro puis nom)", pasteGo: "Ajouter la liste", size: "Taille", payer: "Qui paie la livraison ?", payMe: "Moi",
+      payThem: "Chaque client, au livreur", create: "Créer les liens", creating: "Création…", results: "Liens créés", resultsSub: "Envoyez chaque lien sur WhatsApp : le client choisit où recevoir, puis la course part.",
+      wa: "WhatsApp", failed: "Non créé", done: "Terminé", none: "Ajoutez au moins un numéro valide.", successNone: "—", stats: "Taux de réussite (depuis le début)" },
+    en: { title: "Merchant space", pitch: "Shop, restaurant, online store?", pitchSub: "Bulk sends, frequent customers, success rate, QR sticker.", open: "Open my space",
+      setupTitle: "Your business", name: "Business name", namePh: "e.g. Awa's Shop", kind: "Type", area: "Neighbourhood", areaPh: "e.g. Akwa",
+      kinds: { shop: "Shop", restaurant: "Restaurant", ecommerce: "Online store", pharmacy: "Pharmacy", other: "Other" },
+      start: "Where parcels leave from", noCode: "First create your business's WunaGo Code: couriers will come straight to your door.", createCode: "Create my WunaGo Code",
+      save: "Save", saved: "Merchant space saved.", month: "THIS MONTH", sent: "sent", delivered: "delivered", success: "success", spent: "deliveries paid",
+      active: "in progress", waiting: "link(s) awaiting an answer", batch: "Bulk send", one: "Send to a customer", sticker: "My QR sticker", shareShop: "Share the business address",
+      frequent: "Frequent customers", noFrequent: "Your frequent customers will show here after your first sends.", send: "Send", times: "send(s)",
+      only: "WunaGo only handles delivery: your sales and payments stay between you and your customers.",
+      meal: "Hot meal: deliver without waiting", mealTip: "Restaurants: tick “Hot meal”; the courier leaves as soon as he has the bag.",
+      edit: "Edit business", leave: "Close merchant space", left: "Merchant space closed.",
+      batchTitle: "Bulk send", recipients: "Recipients", phonePh: "Number (6…)", namePh2: "Name", notePh: "Item / instruction (optional)", add: "+ Add a recipient",
+      paste: "Paste a list (one customer per line: number then name)", pasteGo: "Add the list", size: "Size", payer: "Who pays for delivery?", payMe: "Me",
+      payThem: "Each customer, to the courier", create: "Create the links", creating: "Creating…", results: "Links created", resultsSub: "Send each link on WhatsApp: the customer picks where to receive, then the courier leaves.",
+      wa: "WhatsApp", failed: "Not created", done: "Done", none: "Add at least one valid number.", successNone: "—", stats: "Success rate (all time)" }
+  };
+  function tmc() { return MC[state.lang] || MC.fr; }
+  state.merchant = null; state.merchantStats = null; state.merchantLoaded = false; state.mForm = null; state.batch = null;
+  function loadMerchant() {
+    if (!srv() || isCourier() || !WAPI.token()) return Promise.resolve();
+    return WAPI.get("/merchant").then(function (r) {
+      var before = JSON.stringify([state.merchant, state.merchantStats]);
+      state.merchant = r.merchant; state.merchantStats = r.stats; state.merchantLoaded = true;
+      if (before !== JSON.stringify([state.merchant, state.merchantStats])) render();
+    }).catch(function () {});
+  }
+  function pct(n) { return n == null ? tmc().successNone : n + " %"; }
+  function merchantHomeCard() {
+    if (!srv() || !state.merchantLoaded) return "";
+    var f = tmc(), M = state.merchant, S = state.merchantStats;
+    if (!M) return '<div style="padding:16px 20px 0"><button class="fx ac" data-action="openMerchant" style="gap:12px;width:100%;text-align:left;background:#fff;border:1px solid var(--hair);border-radius:16px;padding:13px 14px;cursor:pointer;color:#0B1F3A">' +
+      '<span class="fx ac jc" aria-hidden="true" style="width:40px;height:40px;flex:none;border-radius:12px;background:#0B1F3A;color:#1FD1B2;font-size:18px">🏪</span>' +
+      '<span class="col" style="gap:2px;flex:1"><span style="font-weight:800;font-size:14px">' + esc(f.pitch) + '</span><span style="font-size:11.5px;line-height:1.4;color:rgba(11,31,58,.65)">' + esc(f.pitchSub) + '</span></span>' +
+      '<span style="font-weight:800;font-size:16px">→</span></button></div>';
+    return '<div style="padding:16px 20px 0"><button class="col" data-action="openMerchant" style="gap:10px;width:100%;text-align:left;background:#fff;border:1px solid var(--hair);border-radius:16px;padding:14px;cursor:pointer;color:#0B1F3A">' +
+      '<span class="fx ac jb" style="width:100%"><span class="col" style="gap:1px"><span class="mono" style="font-size:9.5px;letter-spacing:.08em;color:rgba(11,31,58,.55)">' + esc(f.kinds[M.kind] ? f.kinds[M.kind].toUpperCase() : "") + '</span>' +
+      '<span style="font-weight:800;font-size:15px">' + esc(M.name) + '</span></span><span style="font-weight:800;font-size:12px">' + esc(f.open) + ' →</span></span>' +
+      (S ? '<span class="fx" style="gap:8px;width:100%">' + miniStat(S.month.sent, f.sent) + miniStat(S.month.delivered, f.delivered) + miniStat(pct(S.successRate), f.success) + '</span>' : '') + '</button></div>';
+  }
+  function miniStat(v, l) {
+    return '<span class="col" style="flex:1;gap:1px;background:#F3F6F9;border-radius:11px;padding:8px 10px"><span style="font-weight:800;font-size:16px">' + esc(String(v)) + '</span><span class="mono" style="font-size:9.5px;color:rgba(11,31,58,.6)">' + esc(l) + '</span></span>';
+  }
+  actions.openMerchant = function () {
+    if (!state.merchant) { actions.editMerchant(); return; }
+    push("merchant"); loadMerchant();
+  };
+  actions.editMerchant = function () {
+    var M = state.merchant || {};
+    state.mForm = { name: M.name || "", kind: M.kind || "shop", area: M.area || "", placeCode: M.placeCode || ((state.places || [])[0] || {}).code || null, busy: false };
+    push("merchantForm");
+  };
+  function screenMerchantForm() {
+    var f = tmc(), F = state.mForm || (state.mForm = { name: "", kind: "shop", area: "", placeCode: null });
+    var kinds = Object.keys(f.kinds).map(function (k) { return chip(f.kinds[k], F.kind === k, "mKind", k); }).join("");
+    var places = (state.places || []).map(function (p) { return chip(p.code + " · " + (p.label || ""), F.placeCode === p.code, "mPlace", p.code); }).join("");
+    var inp = function (bind, val, ph, label) { return '<input data-bind="' + bind + '" aria-label="' + esc(label) + '" value="' + esc(val) + '" placeholder="' + esc(ph) + '" style="background:#fff;border:1px solid var(--hair);border-radius:16px;height:52px;padding:0 15px;font-weight:600;font-size:14px;width:100%" />'; };
+    return page3(hdr(f.setupTitle) +
+      '<div class="col" style="gap:8px">' + sectionTitle(f.name) + inp("m.name", F.name, f.namePh, f.name) + '</div>' +
+      '<div class="col" style="gap:8px">' + sectionTitle(f.kind) + '<div class="fx" style="gap:6px;flex-wrap:wrap">' + kinds + '</div></div>' +
+      '<div class="col" style="gap:8px">' + sectionTitle(f.area) + inp("m.area", F.area, f.areaPh, f.area) + '</div>' +
+      '<div class="col" style="gap:8px">' + sectionTitle(f.start) + (places ? '<div class="fx" style="gap:6px;flex-wrap:wrap">' + places + '</div>' :
+        '<div class="col" style="gap:8px;background:#DDF8F2;border-radius:16px;padding:13px 14px"><span style="font-size:12.5px;line-height:1.45">' + esc(f.noCode) + '</span><button class="btn btn-ink" data-action="openScreen" data-arg="codeForm" style="height:44px">' + esc(f.createCode) + '</button></div>') + '</div>' +
+      '<div style="font-size:11.5px;line-height:1.5;color:rgba(11,31,58,.6)">' + esc(f.only) + '</div>' +
+      '<button class="btn btn-ink" data-action="saveMerchant"' + (F.busy ? " disabled" : "") + '>' + esc(f.save) + '</button>' +
+      (state.merchant ? '<button class="btn" data-action="leaveMerchant" style="height:44px;background:transparent;font-weight:600;font-size:12px;color:rgba(11,31,58,.55)">' + esc(f.leave) + '</button>' : ''));
+  }
+  actions.mKind = function (el, k) { state.mForm.kind = k; render(); };
+  actions.mPlace = function (el, c) { state.mForm.placeCode = state.mForm.placeCode === c ? null : c; render(); };
+  actions.saveMerchant = function () {
+    var F = state.mForm; if (!F || F.busy) return;
+    if (String(F.name).trim().length < 2) { toast(tmc().name + " ?"); return; }
+    F.busy = true; render();
+    WAPI.put("/merchant", { name: F.name, kind: F.kind, area: F.area, placeCode: F.placeCode }).then(function (r) {
+      state.merchant = r.merchant; state.merchantStats = r.stats; state.merchantLoaded = true; F.busy = false;
+      var st = state.tabStacks[state.activeTab]; while (st.length > 1 && (st[st.length - 1].screen === "merchantForm" || st[st.length - 1].screen === "merchant")) st.pop();
+      st.push({ screen: "merchant" }); toast(tmc().saved); render();
+    }).catch(function (e) { F.busy = false; toast(e.message); render(); });
+  };
+  actions.leaveMerchant = function () {
+    WAPI.del("/merchant").then(function () {
+      state.merchant = null; state.merchantStats = null;
+      var st = state.tabStacks[state.activeTab]; while (st.length > 1) st.pop(); toast(tmc().left); render();
+    }).catch(function (e) { toast(e.message); });
+  };
+  function screenMerchant() {
+    var f = tmc(), M = state.merchant, S = state.merchantStats;
+    if (!M) return screenMerchantForm();
+    var stat = function (v, l) { return '<div class="col" style="gap:2px;flex:1"><span style="font-weight:800;font-size:22px;color:#fff">' + esc(String(v)) + '</span><span class="mono" style="font-size:9.5px;letter-spacing:.04em;color:rgba(234,241,247,.65)">' + esc(l) + '</span></div>'; };
+    var statsCard = S ? '<div class="col" style="gap:12px;background:#0B1F3A;border-radius:18px;padding:16px">' +
+      '<span class="mono" style="font-size:10px;letter-spacing:.08em;color:#1FD1B2">' + esc(f.month) + '</span>' +
+      '<div class="fx" style="gap:8px">' + stat(S.month.sent, f.sent) + stat(S.month.delivered, f.delivered) + stat(pct(S.successRate), f.success) + '</div>' +
+      '<div class="fx ac jb" style="border-top:1px solid rgba(234,241,247,.12);padding-top:10px"><span style="font-size:12px;color:rgba(234,241,247,.75)">' + esc(f.spent) + '</span><span class="mono" style="font-weight:600;color:#fff">' + fmtFcfa(S.month.spent) + '</span></div>' +
+      (S.month.active || S.waitingLinks ? '<span style="font-size:11.5px;color:rgba(234,241,247,.75)">' + (S.month.active ? S.month.active + " " + esc(f.active) : "") + (S.month.active && S.waitingLinks ? " · " : "") + (S.waitingLinks ? S.waitingLinks + " " + esc(f.waiting) : "") + '</span>' : '') + '</div>' : '';
+    var freq = S && S.frequent && S.frequent.length ? S.frequent.map(function (c) {
+      return '<div class="fx ac" style="gap:11px;padding:10px 0;border-bottom:1px solid var(--hair)">' + avatar(c.name || c.phone, true) +
+        '<div class="col" style="gap:1px;flex:1;min-width:0"><span style="font-weight:700;font-size:13.5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">' + esc(c.name || ("+237 " + c.phone)) + '</span>' +
+        '<span class="mono" style="font-size:10.5px;color:rgba(11,31,58,.55)">' + esc(c.phone) + ' · ' + c.count + ' ' + esc(f.times) + '</span></div>' +
+        '<button class="btn btn-ink" data-action="mSendTo" data-arg="' + esc(c.phone + "|" + (c.name || "")) + '" style="height:40px;border-radius:12px;padding:0 13px;font-size:12px">' + esc(f.send) + '</button></div>';
+    }).join("") : '<div style="font-size:12px;line-height:1.5;color:rgba(11,31,58,.6);padding:4px 0">' + esc(f.noFrequent) + '</div>';
+    var code = M.placeCode;
+    return page3(hdr(M.name) +
+      '<span class="mono" style="font-size:10px;letter-spacing:.08em;color:rgba(11,31,58,.55);margin-top:-8px">' + esc((f.kinds[M.kind] || "").toUpperCase()) + (M.area ? " · " + esc(M.area.toUpperCase()) : "") + (code ? " · " + esc(code) : "") + '</span>' +
+      statsCard +
+      '<div class="col" style="gap:8px"><button class="btn btn-ink" data-action="openBatch">' + esc(f.batch) + '</button>' +
+      '<button class="btn btn-outline" data-action="mSendOne" style="color:#0B1F3A">' + esc(f.one) + '</button></div>' +
+      (M.kind === "restaurant" ? '<div style="background:#DDF8F2;border-radius:14px;padding:11px 13px;font-size:12px;line-height:1.45">🍲 ' + esc(f.mealTip) + '</div>' : '') +
+      '<div class="col" style="gap:2px;' + cardStyle + ';padding:6px 14px">' + '<div style="padding:8px 0 2px">' + sectionTitle(f.frequent) + '</div>' + freq + '</div>' +
+      (code ? '<div class="col" style="gap:8px"><a class="btn btn-outline" href="' + codeUrl(code) + '&shop=1&print=1" target="_blank" rel="noopener" style="color:#0B1F3A;text-decoration:none">' + esc(f.sticker) + '</a>' +
+        '<button class="btn btn-outline" data-action="shareCode" data-arg="' + esc(code) + '" style="color:#0B1F3A">' + esc(f.shareShop) + '</button></div>' : '') +
+      (S && S.successRate != null ? '<div class="fx ac jb" style="font-size:12px;color:rgba(11,31,58,.65)"><span>' + esc(f.stats) + '</span><span class="mono">' + pct(S.successRate) + ' · ' + S.deliveredAll + '/' + (S.deliveredAll + S.returnedAll) + '</span></div>' : '') +
+      '<div style="font-size:11.5px;line-height:1.5;color:rgba(11,31,58,.6)">' + esc(f.only) + '</div>' +
+      '<button class="btn" data-action="editMerchant" style="height:44px;background:transparent;font-weight:700;font-size:12.5px;text-decoration:underline">' + esc(f.edit) + '</button>');
+  }
+  actions.mSendTo = function (el, arg) { var p = String(arg).split("|"); openLinkForm(p[0], p.slice(1).join("|")); if (state.merchant && state.merchant.kind === "restaurant" && state.linkForm) state.linkForm.note = ""; };
+  actions.mSendOne = function () { openSend(); };
+  function newBatchRow() { return { phone: "", name: "", note: "" }; }
+  actions.openBatch = function () {
+    var M = state.merchant || {};
+    state.batch = { rows: [newBatchRow(), newBatchRow(), newBatchRow()], size: "small", payer: "me", meal: M.kind === "restaurant", paste: "", busy: false, results: null,
+      code: M.placeCode || ((state.places || [])[0] || {}).code || null };
+    push("batch");
+  };
+  function screenBatch() {
+    var f = tmc(), B = state.batch, sz = tl();
+    if (!B) { actions.openBatch(); B = state.batch; }
+    if (B.results) {
+      var list = B.results.map(function (r, i) {
+        if (!r.ok) return '<div class="fx ac" style="gap:10px;padding:10px 0;border-bottom:1px solid var(--hair)"><span class="col" style="flex:1;gap:1px"><span style="font-weight:700;font-size:13px">' + esc(r.name || r.phone) + '</span>' +
+          '<span style="font-size:11.5px;color:#8A1C0C">' + esc(f.failed + " : " + (r.error || "")) + '</span></span></div>';
+        var l = r.link;
+        return '<div class="fx ac" style="gap:10px;padding:10px 0;border-bottom:1px solid var(--hair)"><span class="col" style="flex:1;gap:1px;min-width:0"><span style="font-weight:700;font-size:13px">' + esc(l.contactName || ("+237 " + l.contactPhone)) + '</span>' +
+          '<span class="mono" style="font-size:10.5px;color:rgba(11,31,58,.55)">' + esc(l.contactPhone) + (l.note ? ' · ' + esc(l.note) : '') + '</span></span>' +
+          '<button class="btn ' + (r.sent ? "btn-outline" : "btn-ink") + '" data-action="batchWa" data-arg="' + i + '" style="height:40px;border-radius:12px;padding:0 13px;font-size:12px;' + (r.sent ? "color:#0B1F3A" : "") + '">' + (r.sent ? "✓ " : "") + esc(f.wa) + '</button></div>';
+      }).join("");
+      return page3(hdr(f.results) + '<div style="font-size:12.5px;line-height:1.5;color:rgba(11,31,58,.7)">' + esc(f.resultsSub) + '</div>' +
+        '<div class="col" style="' + cardStyle + ';padding:2px 14px">' + list + '</div>' +
+        '<button class="btn btn-ink" data-action="batchDone">' + esc(f.done) + '</button>');
+    }
+    var inp = function (bind, val, ph, extra) { return '<input data-bind="' + bind + '" value="' + esc(val) + '" placeholder="' + esc(ph) + '" aria-label="' + esc(ph) + '" style="background:#fff;border:1px solid var(--hair);border-radius:12px;height:44px;padding:0 12px;font-weight:600;font-size:13.5px;min-width:0;' + (extra || "") + '" />'; };
+    var rows = B.rows.map(function (r, i) {
+      return '<div class="col" style="gap:6px;padding:10px;background:#F3F6F9;border-radius:14px">' +
+        '<div class="fx" style="gap:6px">' + inp("m.batch." + i + ".phone", r.phone, f.phonePh, "flex:1.1;font-family:var(--mono)") + inp("m.batch." + i + ".name", r.name, f.namePh2, "flex:1") +
+        '<button class="btn" data-action="batchDel" data-arg="' + i + '" aria-label="×" style="width:44px;height:44px;flex:none;border-radius:12px;background:#fff;border:1px solid var(--hair);padding:0">×</button></div>' +
+        inp("m.batch." + i + ".note", r.note, f.notePh, "width:100%") + '</div>';
+    }).join("");
+    var ST = SIZE_TXT[state.lang] || SIZE_TXT.fr;
+    var sizes = ["small", "medium", "large", "xl"].map(function (k) { return chip(ST[k][0] + " · " + ST[k][1], B.size === k, "batchSize", k); }).join("");
+    var places = (state.places || []).map(function (p) { return chip(p.code + " · " + (p.label || ""), B.code === p.code, "batchCode", p.code); }).join("");
+    var n = B.rows.filter(function (r) { return phoneFromText(r.phone); }).length;
+    return page3(hdr(f.batchTitle) +
+      '<div class="col" style="gap:8px">' + sectionTitle(f.start) + (places ? '<div class="fx" style="gap:6px;flex-wrap:wrap">' + places + '</div>' :
+        '<div class="col" style="gap:8px;background:#DDF8F2;border-radius:16px;padding:13px 14px"><span style="font-size:12.5px;line-height:1.45">' + esc(f.noCode) + '</span><button class="btn btn-ink" data-action="openScreen" data-arg="codeForm" style="height:44px">' + esc(f.createCode) + '</button></div>') + '</div>' +
+      '<div class="col" style="gap:8px">' + sectionTitle(f.recipients) + rows +
+        '<button class="btn btn-outline" data-action="batchAdd" style="height:44px;color:#0B1F3A">' + esc(f.add) + '</button>' +
+        '<textarea data-bind="m.paste" aria-label="' + esc(f.paste) + '" placeholder="' + esc(f.paste) + '" rows="3" style="background:#fff;border:1px solid var(--hair);border-radius:12px;padding:10px 12px;font:600 13px var(--sans);resize:vertical">' + esc(B.paste) + '</textarea>' +
+        '<button class="btn" data-action="batchPaste" style="height:40px;background:rgba(11,31,58,.06);font-weight:700;font-size:12px">' + esc(f.pasteGo) + '</button></div>' +
+      '<div class="col" style="gap:8px">' + sectionTitle(f.size) + '<div class="fx" style="gap:6px;flex-wrap:wrap">' + sizes + '</div></div>' +
+      '<label class="fx ac" style="gap:10px;font-weight:700;font-size:13px;cursor:pointer;min-height:44px"><input type="checkbox" data-action="batchMeal"' + (B.meal ? " checked" : "") + ' style="width:20px;height:20px;accent-color:#0B1F3A" /> 🍲 ' + esc(f.meal) + '</label>' +
+      '<div class="col" style="gap:8px">' + sectionTitle(f.payer) + '<div class="fx" style="gap:6px;flex-wrap:wrap">' + chip(f.payMe, B.payer === "me", "batchPayer", "me") + chip(f.payThem, B.payer === "them", "batchPayer", "them") + '</div></div>' +
+      '<div style="font-size:11.5px;line-height:1.5;color:rgba(11,31,58,.6)">' + esc(f.only) + '</div>' +
+      '<button class="btn btn-ink" data-action="batchCreate"' + (B.busy || !n || !B.code ? " disabled" : "") + '>' + esc(B.busy ? f.creating : f.create + (n ? " (" + n + ")" : "")) + '</button>');
+  }
+  actions.batchAdd = function () { if (state.batch.rows.length < 20) state.batch.rows.push(newBatchRow()); render(); };
+  actions.batchDel = function (el, i) { state.batch.rows.splice(Number(i), 1); if (!state.batch.rows.length) state.batch.rows.push(newBatchRow()); render(); };
+  actions.batchSize = function (el, k) { state.batch.size = k; render(); };
+  actions.batchCode = function (el, c) { state.batch.code = c; render(); };
+  actions.batchPayer = function (el, k) { state.batch.payer = k; render(); };
+  actions.batchMeal = function (el) { state.batch.meal = !!el.checked; };
+  actions.batchPaste = function () {
+    var B = state.batch, add = [];
+    String(B.paste || "").split(/\n+/).forEach(function (line) {
+      var ph = phoneFromText((line.match(/(?:\+?237[\s.]*)?6[\d\s.]{8,12}/) || [""])[0]);
+      if (!ph) return;
+      var name = line.replace(/(?:\+?237[\s.]*)?6[\d\s.]{8,12}/, "").replace(/[;,\t:-]+/g, " ").trim().slice(0, 60);
+      add.push({ phone: ph, name: name, note: "" });
+    });
+    if (!add.length) { toast(tmc().none); return; }
+    B.rows = B.rows.filter(function (r) { return r.phone || r.name || r.note; }).concat(add).slice(0, 20); B.paste = ""; render();
+  };
+  actions.batchCreate = function () {
+    var B = state.batch, f = tmc();
+    var items = B.rows.filter(function (r) { return phoneFromText(r.phone); }).map(function (r) {
+      return { phone: phoneFromText(r.phone), name: r.name.trim(), note: ((B.meal ? "🍲 " + f.meal + ". " : "") + r.note.trim()).trim() };
+    });
+    if (!items.length) { toast(f.none); return; }
+    B.busy = true; render();
+    WAPI.post("/merchant/batch", { items: items, size: B.size, payer: B.payer, mineCode: B.code,
+      paymentMethod: state.defaultPay && state.defaultPay !== "wallet" ? state.defaultPay : "cash" }).then(function (r) {
+      B.busy = false; B.results = r.results; render(); loadLinks(); loadMerchant();
+    }).catch(function (e) { B.busy = false; toast(e.message); render(); });
+  };
+  actions.batchWa = function (el, i) { var r = state.batch.results[Number(i)]; if (!r || !r.ok) return; r.sent = true; openWhatsApp(r.link); render(); };
+  actions.batchDone = function () { state.batch = null; var st = state.tabStacks[state.activeTab]; while (st.length > 1 && st[st.length - 1].screen !== "merchant") st.pop(); render(); };
+  function setMerchantField(bind, v) {
+    var p = bind.split(".");
+    if (p[1] === "name" && state.mForm) state.mForm.name = v.slice(0, 60);
+    else if (p[1] === "area" && state.mForm) state.mForm.area = v.slice(0, 60);
+    else if (p[1] === "paste" && state.batch) state.batch.paste = v;
+    else if (p[1] === "batch" && state.batch) {
+      var r = state.batch.rows[Number(p[2])]; if (!r) return;
+      var before = !!phoneFromText(r.phone);
+      r[p[3]] = v.slice(0, p[3] === "note" ? 120 : 60);
+      if (p[3] === "phone" && before !== !!phoneFromText(v)) render();
+    }
+  }
+  /* reçu de livraison partageable */
+  function receiptUrl(o) { return location.origin + "/recu.html?t=" + encodeURIComponent(o.trackToken); }
+  actions.shareReceipt = function (el, id) {
+    var o = findOrder(id); if (!o || !o.trackToken) return;
+    var text = (state.lang === "en" ? "Delivery receipt " : "Reçu de livraison ") + o.code + " : " + receiptUrl(o);
+    if (navigator.share) { navigator.share({ title: "WunaGo · " + o.code, text: text }).catch(function () {}); return; }
+    var w = null; try { w = window.open("https://wa.me/?text=" + encodeURIComponent(text), "_blank", "noopener"); } catch (e) {}
+    if (!w) try { location.href = "https://wa.me/?text=" + encodeURIComponent(text); } catch (e2) {}
+  };
+  function receiptButton(o) {
+    if (!srv() || !o.trackToken || o.status !== "delivered" || o.service === "ride") return "";
+    return '<button class="btn btn-outline" data-action="shareReceipt" data-arg="' + o.id + '" style="width:100%;color:#0B1F3A">🧾 ' + esc(state.lang === "en" ? "Share the delivery receipt" : "Partager le reçu de livraison") + '</button>';
+  }
+  function readyBadge(o) {
+    var r = (o.details || {}).recipientReady; if (!r || o.status === "delivered" || o.status === "cancelled") return "";
+    var en = state.lang === "en", now = r.state === "now";
+    var txt = now ? (en ? "Recipient is available ✓" : "Destinataire disponible ✓") : (en ? "Recipient available later" : "Destinataire disponible plus tard") + (r.note ? " : " + r.note : "");
+    return '<div class="fx ac" style="gap:8px;background:' + (now ? "#DDF8F2" : "#FDE2DD") + ';border-radius:12px;padding:9px 12px;font-weight:700;font-size:12.5px">' + esc(txt) + '</div>';
+  }
 
   /* ---------- notifications sur le téléphone ---------- */
   function b64ToBytes(s) { var p = "=".repeat((4 - s.length % 4) % 4), b = atob((s + p).replace(/-/g, "+").replace(/_/g, "/")); var a = new Uint8Array(b.length); for (var i = 0; i < b.length; i++) a[i] = b.charCodeAt(i); return a; }
@@ -3233,6 +3479,7 @@
       : o.arrivedAt ? "" : (en ? "Deliver to " : "Livrez à ") + rName + (en ? ", then tap « I've arrived »." : ", puis touchez « Je suis arrivé ».");
     return page3(hdr(o.code + " · " + svcName(o.service)) +
       (tip ? '<div role="status" style="background:#DDF8F2;border-radius:14px;padding:11px 13px;font-weight:800;font-size:13px;line-height:1.4">' + esc(tip) + '</div>' : '') +
+      readyBadge(o) +
       '<div style="' + card + ';padding:14px;display:flex;flex-direction:column;gap:10px">' +
         '<div class="fx" style="gap:10px"><span style="width:9px;height:9px;margin-top:5px;flex:none;border-radius:99px;background:#1FD1B2;border:2.5px solid #0B1F3A"></span><span style="font-weight:700;font-size:13.5px">' + esc(o.pickup) + '</span></div>' +
         (o.dropoff !== o.pickup ? '<div class="fx" style="gap:10px"><span style="width:9px;height:9px;margin-top:5px;flex:none;background:#0B1F3A"></span><span style="font-weight:700;font-size:13.5px">' + esc(o.dropoff) + '</span></div>' : '') +

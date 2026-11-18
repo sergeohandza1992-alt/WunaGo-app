@@ -32,7 +32,7 @@
     .row { display: flex; align-items: center; gap: 11px; }
     .av { width: 44px; height: 44px; border-radius: 99px; background: var(--y); display: flex; align-items: center; justify-content: center; font-weight: 800; font-size: 14px; flex: none; }
     .btn { min-height: 48px; border-radius: 17px; border: 0; display: inline-flex; align-items: center; justify-content: center; gap: 8px; font: inherit; font-weight: 700; font-size: 14px; text-decoration: none; padding: 0 18px; }
-    .ink { background: var(--k); color: #fff; } .yel { background: var(--k); color: #fff; } .out { background: #fff; color: var(--k); border: 1.5px solid rgba(11,31,58,.12); }
+    .ink { background: var(--k); color: #fff; } .yel { background: var(--k); color: #fff; } .dark .yel, .dark .ink { background: var(--y); color: var(--k); } .out { background: #fff; color: var(--k); border: 1.5px solid rgba(11,31,58,.12); }
     .muted { font-size: 12.5px; line-height: 1.5; color: rgba(11,31,58,.7); margin: 0; }
     .big { font-weight: 800; font-size: 16px; }
     .err { text-align: center; padding: 60px 20px; }
@@ -112,11 +112,18 @@
       var pickupMsg = !done && !cancelled && parcelLike && c && d.stage === 0 ? '<div class="flash" role="status">🛵 ' + esc(cn) + ' vient récupérer le colis' + (d.sender ? ' chez ' + esc(d.sender) : '') + '.' +
         (d.canHandOver ? '<button class="btn" id="handed" style="margin-top:10px;background:#0B1F3A;color:#1FD1B2">J\'ai remis le colis au livreur</button>' : '') + '</div>' : '';
       var retMsg = d.returned && !done ? '<div class="flash" role="status">↩ Colis non remis : il retourne à l\'expéditeur.</div>' : '';
+      /* le destinataire dit s'il est là avant que le livreur ne parte vers lui */
+      var R = d.recipientReady, readyBox = d.canSayReady ? '<div class="card"><div class="lbl">Êtes-vous disponible ?</div>' +
+        (R ? '<div class="big">' + (R.state === "now" ? "Vous êtes indiqué(e) disponible ✓" : "Vous serez disponible plus tard") + '</div>' + (R.note ? '<p class="muted">' + esc(R.note) + '</p>' : '') : '<p class="muted">Dites-le au livreur' + (d.sender ? ' et à ' + esc(d.sender) : '') + ' : il part au bon moment et vous trouve du premier coup.</p>') +
+        '<div class="row" style="gap:8px"><button class="btn ' + (R && R.state === "now" ? "out" : "ink") + '" id="ready-now" style="flex:1">Je suis là</button>' +
+        '<button class="btn out" id="ready-later" style="flex:1">Plus tard</button></div>' +
+        '<input id="ready-note" maxlength="120" placeholder="Ex. dispo après 17 h, appeler avant" aria-label="Précision pour le livreur" style="height:46px;border:1.5px solid rgba(11,31,58,.12);border-radius:13px;padding:0 13px;font:600 14px Manrope,system-ui,sans-serif;display:none">' +
+        '<p class="muted" id="ready-msg" role="status"></p></div>' : '';
       main.innerHTML =
         '<div><div class="lbl">' + (d.recipient && d.recipient.name ? "Pour " + esc(d.recipient.name) : "Suivi de livraison") + '</div><h1>' + esc(title) + '</h1></div>' +
-        pickupMsg + retMsg + confirmBox +
-        (c ? '<div class="card"><div class="row"><div class="av">' + esc(c.name.slice(0, 1).toUpperCase()) + '</div><div style="flex:1"><div class="lbl">Votre livreur</div><div class="big">' + esc(c.name) + '</div>' +
-          '<div class="lbl" style="text-transform:none">' + esc(VEH[c.vehicle] || "") + (c.plate ? " · " + esc(c.plate) : "") + '</div></div>' +
+        pickupMsg + retMsg + confirmBox + readyBox +
+        (c ? '<div class="card"><div class="row">' + (c.hasPhoto ? '<img class="av" src="/api/suivi/' + encodeURIComponent(token) + '/photo" alt="' + esc(c.name) + '" style="width:56px;height:56px;object-fit:cover;border:2px solid var(--y)">' : '<div class="av">' + esc(c.name.slice(0, 1).toUpperCase()) + '</div>') + '<div style="flex:1"><div class="lbl">Votre livreur</div><div class="big">' + esc(c.name) + '</div>' +
+          '<div class="lbl" style="text-transform:none">' + (c.rating ? c.rating + " ★ · " : "") + esc(VEH[c.vehicle] || "") + (c.plate ? " · " + esc(c.plate) : "") + '</div></div>' +
           (c.phone ? '<a class="btn ink" href="tel:+237' + esc(c.phone) + '">Appeler</a>' : '') + '</div></div>'
           : !done && !cancelled ? '<div class="card"><p class="muted">Un livreur WunaGo va prendre en charge la livraison dans quelques minutes.</p></div>' : '') +
         '<div class="card"><div class="tl">' + tl + '</div></div>' + steps +
@@ -126,15 +133,27 @@
           '<p class="muted">' + (d.positionShared ? "Le livreur ira directement au point envoyé. Vous pouvez le renvoyer si vous avez bougé." : "Si vous êtes déjà à l'adresse de livraison, envoyez votre position exacte : le livreur arrivera directement à vous.") + '</p>' +
           '<button class="btn ' + (d.positionShared ? "out" : "ink") + '" id="share-pos">📍 ' + (d.positionShared ? "Renvoyer ma position" : "Envoyer ma position exacte") + '</button><p class="muted" id="pos-msg" role="status"></p></div>' : '') +
         (!done && !cancelled && parcelLike && !d.canConfirm && !d.returned ? '<p class="muted">À l\'arrivée du livreur, vous taperez ici le code affiché sur son téléphone pour confirmer la réception.</p>' : '') +
+        (done && parcelLike && d.deliveredWith !== "returned" ? '<a class="btn out" href="recu.html?t=' + encodeURIComponent(token) + '">🧾 Voir le reçu de livraison</a>' : '') +
         '<a class="btn yel" href="/">Commander avec WunaGo</a>';
       drawMap(d);
       var sb = document.getElementById("share-pos");
       if (sb) sb.onclick = sharePos;
       var hb = document.getElementById("handed");
       if (hb) hb.onclick = function () { hb.disabled = true; fetch("/api/suivi/" + encodeURIComponent(token) + "/handed", { method: "POST" }).then(function () { load(); }); };
+      var rn2 = document.getElementById("ready-now"), rl = document.getElementById("ready-later");
+      if (rn2) rn2.onclick = function () { sayReady("now"); };
+      if (rl) rl.onclick = function () { var n = document.getElementById("ready-note"); if (n.style.display === "none") { n.style.display = "block"; n.focus(); rl.textContent = "Envoyer"; return; } sayReady("later"); };
       var rg = document.getElementById("rcv-go");
       if (rg) rg.onclick = confirmReceipt;
       return !done && !cancelled;
+    }
+    function sayReady(state) {
+      var msg = document.getElementById("ready-msg"), n = document.getElementById("ready-note");
+      msg.textContent = "Envoi…";
+      fetch("/api/suivi/" + encodeURIComponent(token) + "/ready", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ state: state, note: n ? n.value : "" }) })
+        .then(function (r) { return r.json().then(function (j) { if (!r.ok) throw new Error(j.error || "Erreur."); return j; }); })
+        .then(function () { load(); })
+        .catch(function (e) { msg.textContent = e.message; });
     }
     function confirmReceipt() {
       var inp = document.getElementById("rcv"), msg = document.getElementById("rcv-msg"), btn = document.getElementById("rcv-go");
@@ -165,7 +184,7 @@
         .then(function (x) {
           if (!x.ok) throw new Error(x.j.error || "Lien invalide.");
           var a = document.activeElement;
-          if (a && a.id === "rcv" && a.value) { timer = setTimeout(load, 15000); return; }
+          if (a && (a.id === "rcv" || a.id === "ready-note") && a.value) { timer = setTimeout(load, 15000); return; }
           if (show(x.j)) timer = setTimeout(load, 15000);
         }).catch(function (e) {
           main.innerHTML = '<div class="err"><h1>Lien de suivi introuvable</h1><p class="muted">' + esc(e.message) + '</p><p><a class="btn yel" href="/">Ouvrir WunaGo</a></p></div>';
