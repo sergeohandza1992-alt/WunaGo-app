@@ -8,6 +8,6 @@ const shift = (off) => `(() => { const off = ${off}; if (!off) return; const R =
 export function fixNode() { if (OFFSET) (0, eval)(shift(OFFSET)); }
 export async function fixClock(ctx) {
   if (OFFSET) await ctx.addInitScript(shift(OFFSET));
-  /* les anciens tests couvrent aussi le pressing et les courses, masqués sur l'accueil : on les réaffiche */
-  await ctx.addInitScript(() => { if (window.WG_ALL_SERVICES === undefined) window.WG_ALL_SERVICES = true; });
+  /* les anciens tests couvrent aussi le pressing, les courses et le formulaire détaillé : on les réaffiche */
+  await ctx.addInitScript(() => { if (window.WG_ALL_SERVICES === undefined) window.WG_ALL_SERVICES = true; if (window.WG_CLASSIC_FORM === undefined) window.WG_CLASSIC_FORM = true; });
 }
