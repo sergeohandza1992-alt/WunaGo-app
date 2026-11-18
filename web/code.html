@@ -54,7 +54,8 @@
         var M = d.merchant, KIND = { shop: "Boutique", restaurant: "Restaurant", ecommerce: "E-commerce", pharmacy: "Pharmacie", other: "Commerce" };
         if (M) {
           document.title = M.name + " — livré par WunaGo";
-          card.innerHTML = '<div class="brand">' + logo + 'WunaGo</div><span class="lbl">' + esc(KIND[M.kind] || "Commerce") + ' · livré par WunaGo</span>' +
+          card.innerHTML = '<div class="brand">' + logo + 'WunaGo</div>' + (M.photo ? '<img class="noprint" src="' + M.photo + '" alt="' + esc(M.name) + '" style="width:100%;max-height:150px;object-fit:cover;border-radius:14px;margin:4px 0 2px">' : '') +
+            '<span class="lbl">' + esc(M.activity || KIND[M.kind] || "Commerce") + ' · livré par WunaGo</span>' +
             '<div class="who" style="font-size:24px;letter-spacing:-.5px">' + esc(M.name) + '</div>' +
             '<div class="qr">' + q.createSvgTag({ cellSize: 6, margin: 1, scalable: true }) + '</div><div class="code" style="font-size:30px">' + code + '</div>' +
             '<p class="muted">' + esc(place) + ', Douala</p>' +

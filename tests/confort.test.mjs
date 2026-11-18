@@ -37,7 +37,7 @@ await P.click('[data-action="openMenu"]'); await P.waitForSelector('.drawer');
 const items = await P.locator('.drawer .drawer-item').allInnerTexts();
 ok('Menu : compte, envois, préférences, aide', ['Mon profil', 'Mes adresses', 'Moyens de paiement', 'Espace commerçant', 'Notifications', 'Aide', 'Devenir livreur'].every(k => items.some(t => t.includes(k))), items.join(' | ').slice(0, 200));
 const top = await P.locator('.drawer').innerText();
-ok('Menu : nom, numéro et version', top.includes('Ariane Ngono') && top.replace(/\s/g,'').includes('+237699445566') && top.includes('Version 26'), top.slice(0, 120).replace(/\n/g, ' '));
+ok('Menu : nom, numéro et version', top.includes('Ariane Ngono') && top.replace(/\s/g,'').includes('+237699445566') && /Version \d+/.test(top), top.slice(0, 120).replace(/\n/g, ' '));
 await P.waitForTimeout(300); await P.screenshot({ path: CAP + '01-menu.png' });
 await P.goBack(); await P.waitForTimeout(300);
 ok('Retour du téléphone : ferme le menu sans quitter l\'accueil', !(await P.isVisible('.drawer')) && await P.isVisible('[data-bind="quickCode"]'));

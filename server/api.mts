@@ -405,8 +405,13 @@ async function enrich(rows: Row[], viewer: Row) {
       FROM users u WHERE u.id = ANY(${ids}::uuid[])`;
     cs.forEach((c) => (map[c.id] = c));
   }
+  const oids = rows.map((o) => o.id);
+  const pp = oids.length ? await db().sql`SELECT DISTINCT COALESCE(pp.order_id, l.order_id) AS oid FROM parcel_photos pp LEFT JOIN delivery_links l ON l.id = pp.link_id
+    WHERE pp.order_id = ANY(${oids}::uuid[]) OR l.order_id = ANY(${oids}::uuid[])` : [];
+  const pset = new Set(pp.map((x) => x.oid));
   return rows.map((o) => {
     const out: Row = orderOut(o);
+    out.parcelPhoto = pset.has(o.id);
     const c = o.courier_id ? map[o.courier_id] : null;
     if (c) {
       const live = o.status !== "delivered" && o.status !== "cancelled";
@@ -815,6 +820,18 @@ async function linkRoutes(req: Request, user: Row, path: string, m: string): Pro
       ORDER BY created_at DESC LIMIT 30`;
     return json({ links: rows.map(linkOut) });
   }
+  const lph = path.match(/^\/links\/([0-9a-f-]{36})\/photo$/);
+  if (lph) {
+    const l = (await db().sql`SELECT * FROM delivery_links WHERE id = ${lph[1]} AND user_id = ${user.id}`)[0];
+    if (!l) return fail(404, "Lien introuvable.");
+    if (m === "GET") return imageResponse((await db().sql`SELECT image FROM parcel_photos WHERE link_id = ${l.id}`)[0]?.image || null);
+    if (m === "PUT") {
+      const img = imageIn((await body(req)).image);
+      if (!img) return fail(400, "Photo illisible ou trop lourde.");
+      await saveParcelPhoto("link", l.id, user.id, img);
+      return json({ ok: true });
+    }
+  }
   const r = path.match(/^\/links\/([0-9a-f-]{36})\/(confirm|cancel)$/);
   if (!r || m !== "POST") return null;
   const l = (await db().sql`SELECT * FROM delivery_links WHERE id = ${r[1]} AND user_id = ${user.id}`)[0];
@@ -834,7 +851,9 @@ async function linkRoutes(req: Request, user: Row, path: string, m: string): Pro
 async function publicLink(token: string) {
   const l = (await db().sql`SELECT * FROM delivery_links WHERE token = ${token}`)[0];
   if (!l) return null;
-  const c = (await db().sql`SELECT u.name, mm.name AS shop FROM users u LEFT JOIN merchants mm ON mm.user_id = u.id WHERE u.id = ${l.user_id}`)[0] || {};
+  const c = (await db().sql`SELECT u.name, mm.name AS shop, mm.activity, mm.place_code, (mm.photo IS NOT NULL) AS shop_photo,
+    EXISTS (SELECT 1 FROM parcel_photos pp WHERE pp.link_id = ${l.id}) AS parcel_photo
+    FROM users u LEFT JOIN merchants mm ON mm.user_id = u.id WHERE u.id = ${l.user_id}`)[0] || {};
   let order = null;
   if (l.order_id) {
     const o = (await db().sql`SELECT code, status, track_token, delivery_code, price_net FROM orders WHERE id = ${l.order_id}`)[0];
@@ -844,7 +863,8 @@ async function publicLink(token: string) {
   const out = linkOut(l), mine = l.mine || {};
   let closed = false;
   if (l.other && l.status === "waiting_confirm") { const q = linkQuote(l, l.other); closed = !!q.closed; out.price = q.net; }
-  return { l, view: { direction: l.direction, from: String(c.shop || c.name || "Un client WunaGo"), merchant: !!c.shop, contactName: l.contact_name, payer: l.payer, size: l.size, note: l.note,
+  return { l, view: { direction: l.direction, from: String(c.shop || c.name || "Un client WunaGo"), merchant: !!c.shop, activity: c.shop ? c.activity || "" : "",
+    shopPhoto: c.shop && c.shop_photo && c.place_code ? "/api/shop/" + c.place_code + "/photo" : null, parcelPhoto: !!c.parcel_photo, contactName: l.contact_name, payer: l.payer, size: l.size, note: l.note,
     mineArea: mine.code ? String(mine.text || "").split(" · ")[0] : mine.text, status: out.status, other: out.other, price: out.price, closed, order } };
 }
 async function linkPlace(token: string, b: Row) {
@@ -919,7 +939,7 @@ async function publicTrack(token: string) {
   const sender = (d.pickupContact && d.pickupContact.name) || (mer && mer.name) || owner.name || "";
   return json({ code: o.code, service: o.service, status: o.status, stage: o.stage, pickup: o.pickup, dropoff: o.dropoff, hints: d.hints || null,
     sender, merchant: !!mer && !d.pickupContact, returned: !!d.returned, deliveredWith: o.delivered_with || null,
-    recipientReady: d.recipientReady || null, canSayReady: live && o.service !== "ride" && o.stage < 2 && !d.returned,
+    parcelPhoto: !!(await parcelPhotoForOrder(o.id)), recipientReady: d.recipientReady || null, canSayReady: live && o.service !== "ride" && o.stage < 2 && !d.returned,
     canConfirm: live && o.service !== "ride" && (o.stage === 2 || (!!o.courier_id && courierBasic)) && !d.returned && !!o.handover_code && (o.handover_tries || 0) < 5,
     canHandOver: live && o.service !== "ride" && o.stage === 0 && !!o.courier_id && !!d.pickupContact,
     triesLeft: Math.max(0, 5 - (o.handover_tries || 0)),
@@ -1571,14 +1591,14 @@ async function adminRoutes(req: Request, user: Row, path: string, m: string, url
   }
   if (path === "/admin/merchants" && m === "GET") {
     const rows = await db().sql`
-      SELECT mm.*, u.phone, u.name AS owner,
+      SELECT mm.user_id, mm.name, mm.kind, mm.activity, mm.area, mm.place_code, mm.created_at, (mm.photo IS NOT NULL) AS has_photo, u.phone, u.name AS owner,
         (SELECT COUNT(*) FROM orders o WHERE o.user_id = mm.user_id AND o.service <> 'ride' AND o.status <> 'cancelled' AND o.created_at > NOW() - INTERVAL '30 days') AS sent30,
         (SELECT COUNT(*) FROM orders o WHERE o.user_id = mm.user_id AND o.status = 'delivered' AND COALESCE(o.delivered_with, '') <> 'returned') AS delivered,
         (SELECT COUNT(*) FROM orders o WHERE o.user_id = mm.user_id AND o.details ? 'returned') AS returned,
         (SELECT MAX(created_at) FROM orders o WHERE o.user_id = mm.user_id) AS last
       FROM merchants mm JOIN users u ON u.id = mm.user_id WHERE u.deleted_at IS NULL ORDER BY sent30 DESC, mm.created_at DESC LIMIT 300`;
     return json({ merchants: rows.map((x) => { const d = Number(x.delivered), r = Number(x.returned);
-      return { userId: x.user_id, name: x.name, kind: x.kind, area: x.area, placeCode: x.place_code, phone: x.phone, owner: x.owner, sent30: Number(x.sent30),
+      return { userId: x.user_id, name: x.name, kind: x.kind, activity: x.activity || "", hasPhoto: !!x.has_photo, area: x.area, placeCode: x.place_code, phone: x.phone, owner: x.owner, sent30: Number(x.sent30),
         delivered: d, returned: r, successRate: d + r ? Math.round((d / (d + r)) * 100) : null, last: x.last ? new Date(x.last).getTime() : null, createdAt: new Date(x.created_at).getTime() }; }) });
   }
   if (path === "/admin/clients" && m === "GET") {
@@ -1594,10 +1614,36 @@ async function adminRoutes(req: Request, user: Row, path: string, m: string, url
 }
 
 
+/* ---------- images (photo du commerce, photo du colis) ---------- */
+function imageIn(v: any, max = 500_000): string | null {
+  return typeof v === "string" && /^data:image\/(jpeg|png|webp);base64,[A-Za-z0-9+/=]+$/.test(v) && v.length < max ? v : null;
+}
+function imageResponse(dataUrl: string | null, cache = "private, max-age=600") {
+  if (!dataUrl) return fail(404, "Photo indisponible.");
+  const mm = dataUrl.match(/^data:(image\/[a-z]+);base64,(.*)$/);
+  if (!mm) return fail(404, "Photo indisponible.");
+  const bin = Uint8Array.from(atob(mm[2]), (ch) => ch.charCodeAt(0));
+  return new Response(bin, { headers: { "content-type": mm[1], "cache-control": cache } });
+}
+async function parcelPhotoForOrder(orderId: string) {
+  return (await db().sql`SELECT pp.image FROM parcel_photos pp LEFT JOIN delivery_links l ON l.id = pp.link_id
+    WHERE pp.order_id = ${orderId} OR l.order_id = ${orderId} ORDER BY pp.order_id NULLS LAST LIMIT 1`)[0]?.image || null;
+}
+async function saveParcelPhoto(kind: "link" | "order", id: string, userId: string, image: string) {
+  if (kind === "link") {
+    await db().sql`DELETE FROM parcel_photos WHERE link_id = ${id}`;
+    await db().sql`INSERT INTO parcel_photos (link_id, user_id, image) VALUES (${id}, ${userId}, ${image})`;
+  } else {
+    await db().sql`DELETE FROM parcel_photos WHERE order_id = ${id}`;
+    await db().sql`INSERT INTO parcel_photos (order_id, user_id, image) VALUES (${id}, ${userId}, ${image})`;
+  }
+}
+
 /* ---------- espace commerçants (livraison seulement : jamais de vente ni d'argent des marchandises) ---------- */
 const MERCHANT_KINDS = ["shop", "restaurant", "ecommerce", "pharmacy", "other"];
 function merchantOut(x: Row | null) {
-  return x ? { name: x.name, kind: x.kind, area: x.area || "", placeCode: x.place_code || null, createdAt: new Date(x.created_at).getTime() } : null;
+  return x ? { name: x.name, kind: x.kind, activity: x.activity || "", area: x.area || "", placeCode: x.place_code || null, hasPhoto: !!x.photo,
+    createdAt: new Date(x.created_at).getTime() } : null;
 }
 async function merchantOf(userId: string) { return (await db().sql`SELECT * FROM merchants WHERE user_id = ${userId}`)[0] || null; }
 async function merchantStats(userId: string) {
@@ -1644,9 +1690,23 @@ async function merchantRoutes(req: Request, user: Row, path: string, m: string):
       code = p.code;
     }
     const area = String(b.area || "").trim().slice(0, 60);
-    const rows = await db().sql`INSERT INTO merchants (user_id, name, kind, area, place_code) VALUES (${user.id}, ${name}, ${kind}, ${area}, ${code})
-      ON CONFLICT (user_id) DO UPDATE SET name = EXCLUDED.name, kind = EXCLUDED.kind, area = EXCLUDED.area, place_code = EXCLUDED.place_code, updated_at = NOW() RETURNING *`;
+    const activity = String(b.activity || "").trim().slice(0, 60);
+    const rows = await db().sql`INSERT INTO merchants (user_id, name, kind, area, place_code, activity) VALUES (${user.id}, ${name}, ${kind}, ${area}, ${code}, ${activity})
+      ON CONFLICT (user_id) DO UPDATE SET name = EXCLUDED.name, kind = EXCLUDED.kind, area = EXCLUDED.area, place_code = EXCLUDED.place_code,
+        activity = EXCLUDED.activity, updated_at = NOW() RETURNING *`;
     return json({ merchant: merchantOut(rows[0]), stats: await merchantStats(user.id) });
+  }
+  if (path === "/merchant/photo" && m === "PUT") {
+    const img = imageIn((await body(req)).image);
+    if (!img) return fail(400, "Photo illisible ou trop lourde.");
+    const rows = await db().sql`UPDATE merchants SET photo = ${img}, updated_at = NOW() WHERE user_id = ${user.id} RETURNING *`;
+    if (!rows.length) return fail(404, "Créez d'abord votre espace commerçant.");
+    return json({ merchant: merchantOut(rows[0]) });
+  }
+  if (path === "/merchant/photo" && m === "GET") return imageResponse((await merchantOf(user.id))?.photo || null);
+  if (path === "/merchant/photo" && m === "DELETE") {
+    await db().sql`UPDATE merchants SET photo = NULL WHERE user_id = ${user.id}`;
+    return json({ ok: true });
   }
   if (path === "/merchant" && m === "DELETE") {
     await db().sql`DELETE FROM merchants WHERE user_id = ${user.id}`;
@@ -1665,6 +1725,8 @@ async function merchantRoutes(req: Request, user: Row, path: string, m: string):
     for (const it of items) {
       const res = await linkCreateFrom({ ...base, phone: it.phone, name: it.name, note: it.note || b.note || "", size: it.size || b.size }, user, batchId);
       const j: Row = await res.json();
+      const img = res.status === 201 ? imageIn(it.photo) : null;
+      if (img) { await saveParcelPhoto("link", j.link.id, user.id, img); j.link.hasPhoto = true; }
       results.push(res.status === 201 ? { ok: true, link: j.link } : { ok: false, phone: String(it.phone), name: String(it.name || ""), error: j.error });
     }
     return json({ batchId, results, created: results.filter((r) => r.ok).length }, 201);
@@ -1739,9 +1801,19 @@ const apiHandler = async (req: Request, context: any): Promise<Response> => {
     if (pc && m === "GET") {
       const p = await findPlace(pc[1]);
       if (!p) return fail(404, "Ce Code WunaGo n'existe pas.");
-      const mer = (await db().sql`SELECT name, kind FROM merchants WHERE user_id = ${p.user_id} AND place_code = ${p.code}`)[0];
+      const mer = (await db().sql`SELECT name, kind, activity, (photo IS NOT NULL) AS has_photo FROM merchants WHERE user_id = ${p.user_id} AND place_code = ${p.code}`)[0];
       return json({ code: p.code, name: String(p.owner_name || "").split(" ")[0] || "", label: p.label, placeName: p.place_name, area: p.area,
-        merchant: mer ? { name: mer.name, kind: mer.kind } : null });
+        merchant: mer ? { name: mer.name, kind: mer.kind, activity: mer.activity || "", photo: mer.has_photo ? "/api/shop/" + p.code + "/photo" : null } : null });
+    }
+    const lp = path.match(/^\/lien\/([A-Za-z0-9_-]{8,40})\/photo$/);
+    if (lp && m === "GET") {
+      const l = (await db().sql`SELECT id FROM delivery_links WHERE token = ${lp[1]}`)[0];
+      return imageResponse(l ? (await db().sql`SELECT image FROM parcel_photos WHERE link_id = ${l.id}`)[0]?.image || null : null);
+    }
+    const sp = path.match(/^\/shop\/(WG-[0-9A-Z]{4})\/photo$/);
+    if (sp && m === "GET") {
+      const mer = (await db().sql`SELECT photo FROM merchants WHERE place_code = ${sp[1]} AND photo IS NOT NULL LIMIT 1`)[0];
+      return imageResponse(mer ? mer.photo : null, "public, max-age=3600");
     }
     const ln = path.match(/^\/lien\/([A-Za-z0-9_-]{8,40})(?:\/(place|confirm))?$/);
     if (ln) {
@@ -1757,6 +1829,11 @@ const apiHandler = async (req: Request, context: any): Promise<Response> => {
       if (!o) return fail(404, "Lien de suivi introuvable.");
       if (!(o.details || {}).pickupContact) return fail(403, "C'est l'expéditeur qui confirme la remise.");
       return await handOver(o, (o.details.pickupContact.name || "L'expéditeur"));
+    }
+    const rpp = path.match(/^\/suivi\/([A-Za-z0-9_-]{10,40})\/parcel-photo$/);
+    if (rpp && m === "GET") {
+      const o = (await db().sql`SELECT id FROM orders WHERE track_token = ${rpp[1]}`)[0];
+      return imageResponse(o ? await parcelPhotoForOrder(o.id) : null);
     }
     const rd = path.match(/^\/suivi\/([A-Za-z0-9_-]{10,40})\/(ready|photo)$/);
     if (rd && rd[2] === "ready" && m === "POST") return await recipientReady(rd[1], await body(req));
@@ -1775,6 +1852,19 @@ const apiHandler = async (req: Request, context: any): Promise<Response> => {
     const pr = await placesRoutes(req, user, path, m); if (pr) return pr;
     const lr = await linkRoutes(req, user, path, m); if (lr) return lr;
     const mr = await merchantRoutes(req, user, path, m); if (mr) return mr;
+    const op = path.match(/^\/orders\/([0-9a-f-]{36})\/parcel-photo$/);
+    if (op) {
+      const o = (await db().sql`SELECT * FROM orders WHERE id = ${op[1]}`)[0];
+      const can = o && (o.user_id === user.id || o.courier_id === user.id || user.role === "admin");
+      if (!can) return fail(404, "Photo indisponible.");
+      if (m === "GET") return imageResponse(await parcelPhotoForOrder(o.id));
+      if (m === "PUT" && o.user_id === user.id) {
+        const img = imageIn((await body(req)).image);
+        if (!img) return fail(400, "Photo illisible ou trop lourde.");
+        await saveParcelPhoto("order", o.id, user.id, img);
+        return json({ ok: true });
+      }
+    }
     const ph = path.match(/^\/orders\/([0-9a-f-]{36})\/courier-photo$/);
     if (ph && m === "GET") {
       const o = (await db().sql`SELECT * FROM orders WHERE id = ${ph[1]}`)[0];

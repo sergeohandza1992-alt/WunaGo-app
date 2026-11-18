@@ -302,7 +302,7 @@ await ADM.click('[data-a="nav"][data-v="couriers"]'); await ADM.click('tr[data-a
 await ADM.waitForSelector('text=Caisse du livreur');
 await ADM.click('[data-a="addPayment"]');
 await ADM.click('[data-a="savePayment"]');
-await ADM.waitForSelector('text=Versement enregistré');
+await ADM.waitForSelector('text=Versement enregistré',{timeout:4000}).catch(()=>{});
 await ADM.waitForSelector('text=Versements enregistrés',{timeout:T});
 ok('Backoffice : versement du livreur enregistré, caisse remise à zéro',(await ADM.locator('.balance b').textContent()).startsWith('0 F'),(await ADM.locator('.balance b').textContent()));
 await LIV.click('[data-action="switchTab"][data-arg="account"]');

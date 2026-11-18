@@ -122,6 +122,7 @@
       main.innerHTML =
         '<div><div class="lbl">' + (d.recipient && d.recipient.name ? "Pour " + esc(d.recipient.name) : "Suivi de livraison") + '</div><h1>' + esc(title) + '</h1></div>' +
         pickupMsg + retMsg + confirmBox + readyBox +
+        (d.parcelPhoto ? '<div class="card"><div class="lbl">Photo du colis</div><img src="/api/suivi/' + encodeURIComponent(token) + '/parcel-photo" alt="Photo du colis" style="width:100%;max-height:220px;object-fit:cover;border-radius:12px"><p class="muted">Vérifiez que c\'est bien ce colis à la remise.</p></div>' : '') +
         (c ? '<div class="card"><div class="row">' + (c.hasPhoto ? '<img class="av" src="/api/suivi/' + encodeURIComponent(token) + '/photo" alt="' + esc(c.name) + '" style="width:56px;height:56px;object-fit:cover;border:2px solid var(--y)">' : '<div class="av">' + esc(c.name.slice(0, 1).toUpperCase()) + '</div>') + '<div style="flex:1"><div class="lbl">Votre livreur</div><div class="big">' + esc(c.name) + '</div>' +
           '<div class="lbl" style="text-transform:none">' + (c.rating ? c.rating + " ★ · " : "") + esc(VEH[c.vehicle] || "") + (c.plate ? " · " + esc(c.plate) : "") + '</div></div>' +
           (c.phone ? '<a class="btn ink" href="tel:+237' + esc(c.phone) + '">Appeler</a>' : '') + '</div></div>'

@@ -9,7 +9,7 @@
   var SUPPORT_PHONE = "+237600000000", SUPPORT_PHONE_LABEL = "+237 6 00 00 00 00";
   var STORE_KEY = "wunago.client.v1";
   /* Version affichée dans Réglages : à changer avec CACHE dans sw.js à chaque mise en ligne */
-  var APP_VERSION = "26 · 18/11/2026";
+  var APP_VERSION = "27 · 18/11/2026";
   var deferredInstall = null;
   var lastScreenKey = "";
   var installDismissed = false;
@@ -366,6 +366,7 @@
   }
   var trackTimer = null;
   function afterRender() {
+    try { loadAuthImages(document.getElementById("app")); } catch (e) {}
     clearInterval(trackTimer); trackTimer = null;
     if (!state.loggedIn || cur().screen !== "track" || !window.WMap) return;
     var o = findOrder(cur().orderId); if (!o) return;
@@ -881,7 +882,7 @@
       '</div>' +
       '<div class="scroll" style="background:#F5F8FA;border-radius:22px 22px 0 0;margin-top:-18px;padding:16px 20px 20px;position:relative;z-index:500"><div class="col" style="gap:16px">' +
         '<div style="width:34px;height:4px;border-radius:9px;background:rgba(11,31,58,.15);margin:0 auto"></div>' +
-        arrivedBanner(o) + readyBadge(o) + receiveBox(o) + pickupBanner(o) + linkInfo(o) + courierBlock(o, orderId) + codeCard(o) + notifPrompt() +
+        arrivedBanner(o) + readyBadge(o) + receiveBox(o) + pickupBanner(o) + parcelThumb(o) + linkInfo(o) + courierBlock(o, orderId) + codeCard(o) + notifPrompt() +
         '<div style="height:1px;background:var(--hair)"></div>' +
         '<div class="col">' + timeline + '</div>' +
         gmapsButton(orderGeo(o).pickup, orderGeo(o).dropoff, false) +
@@ -2759,6 +2760,10 @@
       (L.payer === "me" ? '<div class="col" style="gap:7px">' + lab(f.pay) + '<div class="fx wrap" style="gap:6px">' + payOpts.map(function (k) { return chipS(L.pay === k, "linkSet", "pay|" + k, d.paymentNames[k]); }).join("") + '</div></div>' : '') +
       (addr ? '<div class="col" style="gap:7px">' + lab(S.when) + whenChips(L.when, "sendWhen") + '</div>' : '') +
       inp("linkNote", f.note, L.note) +
+      '<div class="col" style="gap:7px">' + lab(state.lang === "en" ? "Parcel photo (optional)" : "Photo du colis (facultatif)") +
+        (L.photo ? '<div class="fx ac" style="gap:12px"><img src="' + L.photo + '" alt="" style="width:72px;height:72px;border-radius:13px;object-fit:cover"><span style="flex:1;font-size:12px;line-height:1.4;color:rgba(11,31,58,.7)">' + (state.lang === "en" ? "The recipient and the courier will see it." : "Le destinataire et le livreur la verront.") + '</span>' +
+          '<button class="btn" data-action="dropPhoto" data-arg="parcel" aria-label="' + (state.lang === "en" ? "Remove" : "Retirer") + '" style="width:44px;height:44px;border-radius:12px;background:rgba(11,31,58,.06);padding:0">×</button></div>'
+        : photoPicker("parcel", false, state.lang === "en" ? "Take a photo of the parcel" : "Photographier le colis", null, { style: "height:56px;flex-direction:row" })) + '</div>' +
       (phoneMode && L.phone ? '<div style="background:rgba(31,209,178,.25);border-radius:12px;padding:10px 12px;font-size:12px;line-height:1.45;font-weight:600">' + esc(L.payer === "me" ? f.confMe : f.confThem) + '</div>' : '') +
       (qErr ? '<div role="alert" style="background:rgba(31,209,178,.25);border-radius:12px;padding:10px 12px;font-size:12px;font-weight:600">' + esc(qErr) + '</div>' : '') +
     '</div></div>' +
@@ -2788,7 +2793,9 @@
       paymentMethod: L.payer === "me" ? L.pay : "cash", note: L.note || "" };
     if (L.payer === "them") body.payBy = { role: "recipient", other: true };
     L.busy = true; render();
+    var photo = L.photo || null;
     WAPI.post("/orders", body).then(function (r) {
+      if (photo) { r.order.parcelPhoto = true; WAPI.put("/orders/" + r.order.id + "/parcel-photo", { image: photo }).catch(function () {}); }
       state.wallet.balance = r.wallet.balance; replaceOrder(r.order); state.linkForm = null;
       state.tabStacks.home = [{ screen: "home" }, { screen: "track", orderId: r.order.id }]; render();
     }).catch(function (e) { L.busy = false; render(); errToast(e); });
@@ -2800,7 +2807,9 @@
     L.busy = true; render();
     var b = { direction: L.direction, phone: L.phone, name: L.name, payer: L.payer, paymentMethod: L.pay, size: L.size, note: L.note };
     if (L.mine.code) b.mineCode = L.mine.code; else b.mineGeo = L.mine.geo;
+    var photo = L.photo || null;
     WAPI.post("/links", b).then(function (r) {
+      if (photo) WAPI.put("/links/" + r.link.id + "/photo", { image: photo }).catch(function () {});
       state.linkForm = null; state.links = [r.link].concat(state.links.filter(function (x) { return x.id !== r.link.id; }));
       state.tabStacks.home = [{ screen: "home" }]; render(); toast(tl().sent);
       openWhatsApp(r.link);
@@ -3288,7 +3297,7 @@
       '<span class="col" style="gap:2px;flex:1"><span style="font-weight:800;font-size:14px">' + esc(f.pitch) + '</span><span style="font-size:11.5px;line-height:1.4;color:rgba(11,31,58,.65)">' + esc(f.pitchSub) + '</span></span>' +
       '<span style="font-weight:800;font-size:16px">→</span></button></div>';
     return '<div style="padding:16px 20px 0"><button class="col" data-action="openMerchant" style="gap:10px;width:100%;text-align:left;background:#fff;border:1px solid var(--hair);border-radius:16px;padding:14px;cursor:pointer;color:#0B1F3A">' +
-      '<span class="fx ac jb" style="width:100%"><span class="col" style="gap:1px"><span class="mono" style="font-size:9.5px;letter-spacing:.08em;color:rgba(11,31,58,.55)">' + esc(f.kinds[M.kind] ? f.kinds[M.kind].toUpperCase() : "") + '</span>' +
+      '<span class="fx ac jb" style="width:100%"><span class="col" style="gap:1px"><span class="mono" style="font-size:9.5px;letter-spacing:.08em;color:rgba(11,31,58,.55)">' + esc((M.activity || f.kinds[M.kind] || "").toUpperCase()) + '</span>' +
       '<span style="font-weight:800;font-size:15px">' + esc(M.name) + '</span></span><span style="font-weight:800;font-size:12px">' + esc(f.open) + ' →</span></span>' +
       (S ? '<span class="fx" style="gap:8px;width:100%">' + miniStat(S.month.sent, f.sent) + miniStat(S.month.delivered, f.delivered) + miniStat(pct(S.successRate), f.success) + '</span>' : '') + '</button></div>';
   }
@@ -3299,34 +3308,149 @@
     if (!state.merchant) { actions.editMerchant(); return; }
     push("merchant"); loadMerchant();
   };
+  /* secteurs d'activité proposés pendant la saisie (le type du commerce en est déduit) */
+  var ACTIVITES = ("Restaurant|r;Maquis|r;Fast-food|r;Snack-bar|r;Boulangerie|r;Pâtisserie|r;Traiteur|r;Grillades et poissons braisés|r;Glacier|r;Jus et cocktails de fruits|r;" +
+    "Café|r;Cuisine africaine|r;Pizzeria|r;Rôtisserie|r;Pharmacie|p;Parapharmacie|p;Laboratoire d'analyses|p;Cabinet médical|p;Opticien|p;Produits naturels et tisanes|p;" +
+    "Boutique de vêtements|s;Prêt-à-porter femme|s;Prêt-à-porter homme|s;Vêtements enfants|s;Friperie|s;Pagnes et tissus|s;Couture et retouches|s;Chaussures|s;Sacs et maroquinerie|s;" +
+    "Bijouterie|s;Montres et accessoires|s;Lingerie|s;Tenues de sport|s;Cosmétiques|s;Mèches et perruques|s;Salon de coiffure|s;Institut de beauté|s;Parfumerie|s;Barbier|s;" +
+    "Téléphones et accessoires|s;Réparation de téléphones|s;Informatique|s;Électronique|s;Électroménager|s;Jeux vidéo|s;Imprimerie|s;Photocopie et bureautique|s;" +
+    "Librairie|s;Fournitures scolaires|s;Papeterie|s;Supermarché|s;Épicerie|s;Alimentation générale|s;Boucherie|s;Poissonnerie|s;Fruits et légumes|s;Vivres frais|s;" +
+    "Produits surgelés|s;Boissons et casiers|s;Cave à vins|s;Eau minérale|s;Gaz domestique|s;Quincaillerie|s;Matériaux de construction|s;Peinture|s;Plomberie|s;Électricité|s;" +
+    "Menuiserie|s;Meubles|s;Décoration|s;Literie et matelas|s;Vaisselle et ustensiles|s;Pièces auto|s;Pièces moto|s;Pneumatiques|s;Lavage auto|s;Garage|s;" +
+    "Animalerie|s;Fleuriste|s;Jardinage|s;Jouets|s;Articles pour bébés|s;Produits d'entretien|s;Pressing|s;Cordonnerie|s;Sérigraphie et broderie|s;Studio photo|s;" +
+    "Instruments de musique|s;Articles religieux|s;Sport et fitness|s;Agence de voyages|o;Agence immobilière|o;Hôtel|o;Auberge|o;Salle de fêtes|o;Événementiel|o;" +
+    "Cabinet comptable|o;Cabinet d'avocats|o;Assurance|o;Transfert d'argent|o;Banque|o;Microfinance|o;École|o;Centre de formation|o;Crèche|o;Église|o;" +
+    "Association|o;Administration|o;Entreprise|o;Usine|o;Entrepôt|o;Grossiste|s;Distributeur|s;Import-export|s;Vente en ligne|e;Boutique Facebook|e;" +
+    "Boutique Instagram|e;Boutique WhatsApp|e;Boutique TikTok|e;Site e-commerce|e;Marketplace|e;Artisanat|s;Agriculture|o;Élevage|o").split(";").map(function (x) { var p = x.split("|"); return { label: p[0], kind: { r: "restaurant", p: "pharmacy", s: "shop", e: "ecommerce", o: "other" }[p[1]] }; });
+  function fold(s) { return String(s || "").toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g, ""); }
+  function activityMatches(q) {
+    q = fold(q).trim(); if (q.length < 1) return [];
+    var starts = [], inside = [];
+    ACTIVITES.forEach(function (a, i) { var f = fold(a.label); if (f.indexOf(q) === 0 || f.split(/[\s'-]+/).some(function (w) { return w.indexOf(q) === 0; })) starts.push(i); else if (f.indexOf(q) !== -1) inside.push(i); });
+    return starts.concat(inside).slice(0, 6);
+  }
+  function kindOfActivity(label) { var f = fold(label), a = ACTIVITES.filter(function (x) { return fold(x.label) === f; })[0]; return a ? a.kind : null; }
+
+  /* photo : choisie dans la galerie ou prise sur le moment, compressée dans le téléphone */
+  function photoPicker(dataFile, has, labelTxt, preview, opts) {
+    opts = opts || {};
+    return '<label class="photo-pick' + (has ? " has" : "") + (opts.compact ? " compact" : "") + '" style="' + (opts.style || "") + '">' +
+      (has && preview ? '<img src="' + preview + '" alt="">' : '<span class="pp-ic" aria-hidden="true">📷</span>') +
+      (opts.compact ? '' : '<span class="pp-t">' + esc(labelTxt) + '</span>') +
+      '<input type="file" accept="image/*" data-file="' + dataFile + '" aria-label="' + esc(labelTxt) + '" hidden></label>';
+  }
+  document.addEventListener("change", function (ev) {
+    var el = ev.target, k = el && el.getAttribute && el.getAttribute("data-file");
+    if (!k || !el.files || !el.files[0] || k === "qrquick") return;
+    readImage(el.files[0], function (data) {
+      if (k === "shop" && state.mForm) { state.mForm.photo = data; state.mForm.photoNew = true; }
+      else if (k === "parcel" && state.linkForm) state.linkForm.photo = data;
+      else if (/^batch:\d+$/.test(k) && state.batch) { var r = state.batch.rows[Number(k.split(":")[1])]; if (r) r.photo = data; }
+      render();
+    });
+  });
+  actions.dropPhoto = function (el, k) {
+    if (k === "shop" && state.mForm) { state.mForm.photo = null; state.mForm.photoNew = false; state.mForm.photoDrop = true; }
+    else if (k === "parcel" && state.linkForm) state.linkForm.photo = null;
+    else if (/^batch:\d+$/.test(k) && state.batch) { var r = state.batch.rows[Number(k.split(":")[1])]; if (r) r.photo = null; }
+    render();
+  };
+  /* images réservées au compte connecté : chargées avec le jeton */
+  var authImgCache = {};
+  function loadAuthImages(root) {
+    var imgs = root.querySelectorAll("img[data-auth-src]");
+    for (var i = 0; i < imgs.length; i++) (function (img) {
+      var src = img.getAttribute("data-auth-src");
+      if (authImgCache[src]) { if (authImgCache[src] !== "…") img.src = authImgCache[src]; return; }
+      authImgCache[src] = "…";
+      fetch(src, { headers: { authorization: "Bearer " + WAPI.token() } }).then(function (r) { if (!r.ok) throw 0; return r.blob(); })
+        .then(function (b) { authImgCache[src] = URL.createObjectURL(b); var all = document.querySelectorAll('img[data-auth-src="' + src + '"]'); for (var j = 0; j < all.length; j++) all[j].src = authImgCache[src]; })
+        .catch(function () { delete authImgCache[src]; });
+    })(imgs[i]);
+  }
+  function parcelThumb(o) {
+    if (!o || !o.parcelPhoto || !srv()) return "";
+    var en = state.lang === "en";
+    return '<div class="fx ac" style="gap:12px;background:#fff;border:1px solid var(--hair);border-radius:16px;padding:10px 12px">' +
+      '<img data-auth-src="/api/orders/' + o.id + '/parcel-photo" alt="' + (en ? "Parcel photo" : "Photo du colis") + '" style="width:64px;height:64px;flex:none;border-radius:12px;object-fit:cover;background:#F3F6F9">' +
+      '<span class="col" style="gap:2px"><span class="mono" style="font-size:9.5px;letter-spacing:.07em;color:rgba(11,31,58,.55)">' + (en ? "PARCEL PHOTO" : "PHOTO DU COLIS") + '</span>' +
+      '<span style="font-size:12.5px;line-height:1.4">' + (en ? "To check it is the right parcel." : "Pour vérifier que c'est le bon colis.") + '</span></span></div>';
+  }
+
   actions.editMerchant = function () {
     var M = state.merchant || {};
-    state.mForm = { name: M.name || "", kind: M.kind || "shop", area: M.area || "", placeCode: M.placeCode || ((state.places || [])[0] || {}).code || null, busy: false };
+    var code = M.placeCode || (((state.places || []).filter(function (p) { return /boutique|shop|commerce/i.test(p.label || ""); })[0]) || {}).code || null;
+    state.mForm = { name: M.name || "", kind: M.kind || "shop", activity: M.activity || "", actOpen: false, area: M.area || "", placeCode: code,
+      photo: M.hasPhoto ? "auth" : null, photoNew: false, hint: "", busy: false, creating: false };
     push("merchantForm");
   };
   function screenMerchantForm() {
-    var f = tmc(), F = state.mForm || (state.mForm = { name: "", kind: "shop", area: "", placeCode: null });
-    var kinds = Object.keys(f.kinds).map(function (k) { return chip(f.kinds[k], F.kind === k, "mKind", k); }).join("");
-    var places = (state.places || []).map(function (p) { return chip(p.code + " · " + (p.label || ""), F.placeCode === p.code, "mPlace", p.code); }).join("");
-    var inp = function (bind, val, ph, label) { return '<input data-bind="' + bind + '" aria-label="' + esc(label) + '" value="' + esc(val) + '" placeholder="' + esc(ph) + '" style="background:#fff;border:1px solid var(--hair);border-radius:16px;height:52px;padding:0 15px;font-weight:600;font-size:14px;width:100%" />'; };
-    return page3(hdr(f.setupTitle) +
+    var f = tmc(), F = state.mForm || (state.mForm = { name: "", kind: "shop", activity: "", area: "", placeCode: null });
+    var en = state.lang === "en";
+    var inp = function (bind, val, ph, label, extra) { return '<input data-bind="' + bind + '" aria-label="' + esc(label) + '" value="' + esc(val) + '" placeholder="' + esc(ph) + '"' + (extra || "") + ' style="background:#fff;border:1px solid var(--hair);border-radius:16px;height:52px;padding:0 15px;font-weight:600;font-size:14px;width:100%" />'; };
+    /* photo du commerce */
+    var prev = F.photo === "auth" ? null : F.photo;
+    var photoBlock = F.photo ? '<div class="shop-photo">' + (prev ? '<img src="' + prev + '" alt="">' : '<img data-auth-src="/api/merchant/photo" alt="">') +
+        '<div class="fx" style="gap:6px;position:absolute;right:10px;bottom:10px">' + photoPicker("shop", false, en ? "Change" : "Changer", null, { compact: true, style: "width:40px;height:40px" }) +
+        '<button class="btn" data-action="dropPhoto" data-arg="shop" aria-label="' + (en ? "Remove" : "Retirer") + '" style="width:40px;height:40px;border-radius:12px;background:#fff;padding:0">×</button></div></div>'
+      : photoPicker("shop", false, en ? "Add a photo of the shop front or sign (optional)" : "Ajouter une photo de la devanture ou de l'enseigne (facultatif)", null, { style: "height:110px" });
+    /* secteur d'activité avec propositions */
+    var sugg = F.actOpen ? activityMatches(F.activity) : [];
+    var actBlock = '<div class="col" style="gap:8px;position:relative">' + sectionTitle(en ? "Business sector" : "Secteur d'activité") +
+      inp("m.activity", F.activity, en ? "Start typing: restaurant, pharmacy, clothes…" : "Tapez : restaurant, pharmacie, vêtements…", "activity", ' autocomplete="off" role="combobox" aria-expanded="' + (sugg.length ? "true" : "false") + '" aria-autocomplete="list"') +
+      (sugg.length ? '<div class="act-list" role="listbox">' + sugg.map(function (i) { return '<button role="option" data-action="mActPick" data-arg="' + i + '">' + esc(ACTIVITES[i].label) + '</button>'; }).join("") + '</div>' : '') + '</div>';
+    /* Code WunaGo du commerce */
+    var place = (state.places || []).filter(function (p) { return p.code === F.placeCode; })[0];
+    var others = (state.places || []).filter(function (p) { return p.code !== F.placeCode; });
+    var codeBlock;
+    if (place) {
+      codeBlock = '<div class="fx ac" style="gap:14px;background:#fff;border:1px solid var(--hair);border-radius:16px;padding:12px 14px">' +
+        '<div class="qr-mini" aria-hidden="true">' + qrSvg(codeUrl(place.code), 3) + '</div>' +
+        '<div class="col" style="gap:3px;flex:1;min-width:0"><span class="mono" style="font-weight:600;font-size:20px;letter-spacing:.06em">' + esc(place.code) + '</span>' +
+        '<span style="font-size:12px;color:rgba(11,31,58,.65);line-height:1.4">' + esc([place.placeName, place.area].filter(Boolean).join(" · ")) + (place.hint ? '<br>' + esc(place.hint) : '') + '</span></div></div>' +
+        (others.length ? '<div class="fx wrap" style="gap:6px">' + others.map(function (p) { return chip(p.code + " · " + (p.label || ""), false, "mPlace", p.code); }).join("") + '</div>' : '');
+    } else {
+      codeBlock = '<div class="col" style="gap:10px;background:#0B1F3A;border-radius:18px;padding:15px">' +
+        '<span style="font-weight:800;font-size:15px;color:#fff">' + (en ? "Create the shop's WunaGo Code" : "Créer le Code WunaGo de la boutique") + '</span>' +
+        '<span style="font-size:12.5px;line-height:1.45;color:rgba(234,241,247,.8)">' + (en ? "Stand at the shop entrance: the code records the exact spot. Couriers and customers will find you first time." : "Placez-vous devant l'entrée : le code enregistre le point exact. Livreurs et clients vous trouveront du premier coup.") + '</span>' +
+        '<input data-bind="m.hint" value="' + esc(F.hint || "") + '" placeholder="' + (en ? "Landmark: opposite the pharmacy, green gate…" : "Repère : face à la pharmacie, portail vert…") + '" aria-label="' + (en ? "Landmark" : "Repère") + '" style="height:48px;border-radius:13px;border:0;padding:0 13px;font-weight:600;font-size:14px" />' +
+        '<button class="btn btn-accent" data-action="mCreateCode"' + (F.creating ? " disabled" : "") + '>' + (F.creating ? (en ? "Locating…" : "Localisation…") : (en ? "📍 I'm in front of the shop — create" : "📍 Je suis devant la boutique — créer")) + '</button>' +
+        (others.length ? '<span style="font-size:11.5px;color:rgba(234,241,247,.7)">' + (en ? "Or use one of your codes:" : "Ou utiliser un de vos codes :") + '</span><div class="fx wrap" style="gap:6px">' + others.map(function (p) { return '<button class="btn" data-action="mPlace" data-arg="' + p.code + '" style="height:36px;border-radius:99px;padding:0 12px;background:rgba(255,255,255,.1);color:#fff;font-size:12px">' + esc(p.code + " · " + (p.label || "")) + '</button>'; }).join("") + '</div>' : '') +
+      '</div>';
+    }
+    return page3(hdr(f.setupTitle) + photoBlock +
       '<div class="col" style="gap:8px">' + sectionTitle(f.name) + inp("m.name", F.name, f.namePh, f.name) + '</div>' +
-      '<div class="col" style="gap:8px">' + sectionTitle(f.kind) + '<div class="fx" style="gap:6px;flex-wrap:wrap">' + kinds + '</div></div>' +
-      '<div class="col" style="gap:8px">' + sectionTitle(f.area) + inp("m.area", F.area, f.areaPh, f.area) + '</div>' +
-      '<div class="col" style="gap:8px">' + sectionTitle(f.start) + (places ? '<div class="fx" style="gap:6px;flex-wrap:wrap">' + places + '</div>' :
-        '<div class="col" style="gap:8px;background:#DDF8F2;border-radius:16px;padding:13px 14px"><span style="font-size:12.5px;line-height:1.45">' + esc(f.noCode) + '</span><button class="btn btn-ink" data-action="openScreen" data-arg="codeForm" style="height:44px">' + esc(f.createCode) + '</button></div>') + '</div>' +
+      actBlock +
+      '<div class="col" style="gap:8px">' + sectionTitle(en ? "Shop address (WunaGo Code)" : "Adresse de la boutique (Code WunaGo)") + codeBlock + '</div>' +
       '<div style="font-size:11.5px;line-height:1.5;color:rgba(11,31,58,.6)">' + esc(f.only) + '</div>' +
       '<button class="btn btn-ink" data-primary="1" data-action="saveMerchant"' + (F.busy ? " disabled" : "") + '>' + esc(f.save) + '</button>' +
       (state.merchant ? '<button class="btn" data-action="leaveMerchant" style="height:44px;background:transparent;font-weight:600;font-size:12px;color:rgba(11,31,58,.55)">' + esc(f.leave) + '</button>' : ''));
   }
-  actions.mKind = function (el, k) { state.mForm.kind = k; render(); };
-  actions.mPlace = function (el, c) { state.mForm.placeCode = state.mForm.placeCode === c ? null : c; render(); };
+  actions.mActPick = function (el, i) { var a = ACTIVITES[Number(i)]; if (!a || !state.mForm) return; state.mForm.activity = a.label; state.mForm.kind = a.kind; state.mForm.actOpen = false; render(); };
+  actions.mPlace = function (el, c) { state.mForm.placeCode = c; render(); };
+  actions.mCreateCode = function () {
+    var F = state.mForm; if (!F || F.creating) return;
+    if (!navigator.geolocation) { toast(state.lang === "en" ? "Location unavailable on this phone." : "Localisation indisponible sur ce téléphone."); return; }
+    F.creating = true; render();
+    navigator.geolocation.getCurrentPosition(function (pos) {
+      WAPI.post("/places", { lat: pos.coords.latitude, lng: pos.coords.longitude, label: "Boutique", placeName: String(F.name || "").trim(), hint: String(F.hint || "").trim() }).then(function (r) {
+        F.creating = false; state.places = (state.places || []).concat([r.place]); F.placeCode = r.place.code; if (!F.area) F.area = r.place.area || "";
+        toast((state.lang === "en" ? "Code created: " : "Code créé : ") + r.place.code); render();
+      }).catch(function (e) { F.creating = false; render(); errToast(e); });
+    }, function () { F.creating = false; render(); toast(state.lang === "en" ? "Turn on location, then try again." : "Activez la localisation, puis réessayez."); }, { enableHighAccuracy: true, timeout: 15000, maximumAge: 0 });
+  };
   actions.saveMerchant = function () {
     var F = state.mForm; if (!F || F.busy) return;
     if (String(F.name).trim().length < 2) { toast(tmc().name + " ?"); return; }
+    var kind = kindOfActivity(F.activity) || F.kind || "shop";
+    var place = (state.places || []).filter(function (p) { return p.code === F.placeCode; })[0];
     F.busy = true; render();
-    WAPI.put("/merchant", { name: F.name, kind: F.kind, area: F.area, placeCode: F.placeCode }).then(function (r) {
-      state.merchant = r.merchant; state.merchantStats = r.stats; state.merchantLoaded = true; F.busy = false;
+    WAPI.put("/merchant", { name: F.name, kind: kind, activity: F.activity, area: (place && place.area) || F.area, placeCode: F.placeCode }).then(function (r) {
+      state.merchant = r.merchant; state.merchantStats = r.stats; state.merchantLoaded = true;
+      if (F.photoNew && F.photo) return WAPI.put("/merchant/photo", { image: F.photo }).then(function (r2) { state.merchant = r2.merchant; delete authImgCache["/api/merchant/photo"]; });
+      if (F.photoDrop) return WAPI.del("/merchant/photo").then(function () { state.merchant.hasPhoto = false; delete authImgCache["/api/merchant/photo"]; });
+    }).then(function () {
+      F.busy = false;
       var st = state.tabStacks[state.activeTab]; while (st.length > 1 && (st[st.length - 1].screen === "merchantForm" || st[st.length - 1].screen === "merchant")) st.pop();
       st.push({ screen: "merchant" }); toast(tmc().saved); render();
     }).catch(function (e) { F.busy = false; toast(e.message); render(); });
@@ -3354,12 +3478,16 @@
     }).join("") : '<div style="font-size:12px;line-height:1.5;color:rgba(11,31,58,.6);padding:4px 0">' + esc(f.noFrequent) + '</div>';
     var code = M.placeCode;
     return page3(hdr(M.name) +
-      '<span class="mono" style="font-size:10px;letter-spacing:.08em;color:rgba(11,31,58,.55);margin-top:-8px">' + esc((f.kinds[M.kind] || "").toUpperCase()) + (M.area ? " · " + esc(M.area.toUpperCase()) : "") + (code ? " · " + esc(code) : "") + '</span>' +
+      (M.hasPhoto ? '<div class="shop-photo"><img data-auth-src="/api/merchant/photo" alt="' + esc(M.name) + '"></div>' : '') +
+      '<span class="mono" style="font-size:10px;letter-spacing:.08em;color:rgba(11,31,58,.55);margin-top:-8px">' + esc((M.activity || f.kinds[M.kind] || "").toUpperCase()) + (M.area ? " · " + esc(M.area.toUpperCase()) : "") + (code ? " · " + esc(code) : "") + '</span>' +
       statsCard +
       '<div class="col" style="gap:8px"><button class="btn btn-ink" data-action="openBatch">' + esc(f.batch) + '</button>' +
       '<button class="btn btn-outline" data-action="mSendOne" style="color:#0B1F3A">' + esc(f.one) + '</button></div>' +
       (M.kind === "restaurant" ? '<div style="background:#DDF8F2;border-radius:14px;padding:11px 13px;font-size:12px;line-height:1.45">🍲 ' + esc(f.mealTip) + '</div>' : '') +
       '<div class="col" style="gap:2px;' + cardStyle + ';padding:6px 14px">' + '<div style="padding:8px 0 2px">' + sectionTitle(f.frequent) + '</div>' + freq + '</div>' +
+      (code ? '<div class="fx ac" style="gap:14px;background:#fff;border:1px solid var(--hair);border-radius:16px;padding:12px 14px"><div class="qr-mini" aria-hidden="true">' + qrSvg(codeUrl(code), 3) + '</div>' +
+        '<div class="col" style="gap:3px"><span class="mono" style="font-size:9.5px;letter-spacing:.07em;color:rgba(11,31,58,.55)">' + (state.lang === "en" ? "SHOP WUNAGO CODE" : "CODE WUNAGO DE LA BOUTIQUE") + '</span><span class="mono" style="font-weight:600;font-size:20px;letter-spacing:.06em">' + esc(code) + '</span>' +
+        '<span style="font-size:11.5px;color:rgba(11,31,58,.6)">' + (state.lang === "en" ? "Customers scan it to find you." : "Vos clients le scannent pour vous trouver.") + '</span></div></div>' : '') +
       (code ? '<div class="col" style="gap:8px"><a class="btn btn-outline" href="' + codeUrl(code) + '&shop=1&print=1" target="_blank" rel="noopener" style="color:#0B1F3A;text-decoration:none">' + esc(f.sticker) + '</a>' +
         '<button class="btn btn-outline" data-action="shareCode" data-arg="' + esc(code) + '" style="color:#0B1F3A">' + esc(f.shareShop) + '</button></div>' : '') +
       (S && S.successRate != null ? '<div class="fx ac jb" style="font-size:12px;color:rgba(11,31,58,.65)"><span>' + esc(f.stats) + '</span><span class="mono">' + pct(S.successRate) + ' · ' + S.deliveredAll + '/' + (S.deliveredAll + S.returnedAll) + '</span></div>' : '') +
@@ -3385,6 +3513,7 @@
         var l = r.link;
         return '<div class="fx ac" style="gap:10px;padding:10px 0;border-bottom:1px solid var(--hair)"><span class="col" style="flex:1;gap:1px;min-width:0"><span style="font-weight:700;font-size:13px">' + esc(l.contactName || ("+237 " + l.contactPhone)) + '</span>' +
           '<span class="mono" style="font-size:10.5px;color:rgba(11,31,58,.55)">' + esc(l.contactPhone) + (l.note ? ' · ' + esc(l.note) : '') + '</span></span>' +
+          '<button class="btn" data-action="batchShare" data-arg="' + i + '" aria-label="' + (state.lang === "en" ? "Share another way" : "Partager autrement") + '" style="width:40px;height:40px;flex:none;border-radius:12px;background:rgba(11,31,58,.06);padding:0">↗</button>' +
           '<button class="btn ' + (r.sent ? "btn-outline" : "btn-ink") + '" data-action="batchWa" data-arg="' + i + '" style="height:40px;border-radius:12px;padding:0 13px;font-size:12px;' + (r.sent ? "color:#0B1F3A" : "") + '">' + (r.sent ? "✓ " : "") + esc(f.wa) + '</button></div>';
       }).join("");
       return page3(hdr(f.results) + '<div style="font-size:12.5px;line-height:1.5;color:rgba(11,31,58,.7)">' + esc(f.resultsSub) + '</div>' +
@@ -3396,7 +3525,9 @@
       return '<div class="col" style="gap:6px;padding:10px;background:#F3F6F9;border-radius:14px">' +
         '<div class="fx" style="gap:6px">' + inp("m.batch." + i + ".phone", r.phone, f.phonePh, "flex:1.1;font-family:var(--mono)") + inp("m.batch." + i + ".name", r.name, f.namePh2, "flex:1") +
         '<button class="btn" data-action="batchDel" data-arg="' + i + '" aria-label="×" style="width:44px;height:44px;flex:none;border-radius:12px;background:#fff;border:1px solid var(--hair);padding:0">×</button></div>' +
-        inp("m.batch." + i + ".note", r.note, f.notePh, "width:100%") + '</div>';
+        '<div class="fx ac" style="gap:6px">' + inp("m.batch." + i + ".note", r.note, f.notePh, "flex:1") +
+          (r.photo ? '<button class="btn" data-action="dropPhoto" data-arg="batch:' + i + '" aria-label="' + (state.lang === "en" ? "Remove photo" : "Retirer la photo") + '" style="width:44px;height:44px;flex:none;border-radius:12px;padding:0;overflow:hidden;background:#fff"><img src="' + r.photo + '" alt="" style="width:100%;height:100%;object-fit:cover"></button>'
+            : photoPicker("batch:" + i, false, state.lang === "en" ? "Parcel photo" : "Photo du colis", null, { compact: true, style: "width:44px;height:44px;flex:none" })) + '</div></div>';
     }).join("");
     var ST = SIZE_TXT[state.lang] || SIZE_TXT.fr;
     var sizes = ["small", "medium", "large", "xl"].map(function (k) { return chip(ST[k][0] + " · " + ST[k][1], B.size === k, "batchSize", k); }).join("");
@@ -3406,6 +3537,7 @@
       '<div class="col" style="gap:8px">' + sectionTitle(f.start) + (places ? '<div class="fx" style="gap:6px;flex-wrap:wrap">' + places + '</div>' :
         '<div class="col" style="gap:8px;background:#DDF8F2;border-radius:16px;padding:13px 14px"><span style="font-size:12.5px;line-height:1.45">' + esc(f.noCode) + '</span><button class="btn btn-ink" data-action="openScreen" data-arg="codeForm" style="height:44px">' + esc(f.createCode) + '</button></div>') + '</div>' +
       '<div class="col" style="gap:8px">' + sectionTitle(f.recipients) + rows +
+        (canPickContact() ? '<button class="btn btn-ink" data-action="batchContacts" style="height:48px">📇 ' + (state.lang === "en" ? "Pick from my contacts" : "Choisir dans mes contacts") + '</button>' : '') +
         '<button class="btn btn-outline" data-action="batchAdd" style="height:44px;color:#0B1F3A">' + esc(f.add) + '</button>' +
         '<textarea data-bind="m.paste" aria-label="' + esc(f.paste) + '" placeholder="' + esc(f.paste) + '" rows="3" style="background:#fff;border:1px solid var(--hair);border-radius:12px;padding:10px 12px;font:600 13px var(--sans);resize:vertical">' + esc(B.paste) + '</textarea>' +
         '<button class="btn" data-action="batchPaste" style="height:40px;background:rgba(11,31,58,.06);font-weight:700;font-size:12px">' + esc(f.pasteGo) + '</button></div>' +
@@ -3415,6 +3547,23 @@
       '<div style="font-size:11.5px;line-height:1.5;color:rgba(11,31,58,.6)">' + esc(f.only) + '</div>' +
       '<button class="btn btn-ink" data-action="batchCreate"' + (B.busy || !n || !B.code ? " disabled" : "") + '>' + esc(B.busy ? f.creating : f.create + (n ? " (" + n + ")" : "")) + '</button>');
   }
+  actions.batchContacts = function () {
+    if (!canPickContact()) return;
+    navigator.contacts.select(["name", "tel"], { multiple: true }).then(function (list) {
+      var B = state.batch, add = [];
+      (list || []).forEach(function (c) {
+        var ph = null; (c.tel || []).some(function (t) { ph = phoneFromText(t); return !!ph; });
+        if (ph && !B.rows.some(function (r) { return phoneFromText(r.phone) === ph; })) add.push({ phone: ph, name: String((c.name || [])[0] || "").slice(0, 60), note: "" });
+      });
+      if (!add.length) return;
+      B.rows = B.rows.filter(function (r) { return r.phone || r.name || r.note || r.photo; }).concat(add).slice(0, 20); render();
+    }).catch(function () {});
+  };
+  actions.batchShare = function (el, i) {
+    var r = state.batch && state.batch.results[Number(i)]; if (!r || !r.ok) return;
+    if (navigator.share) { navigator.share({ text: linkMsg(r.link) }).catch(function () {}); return; }
+    try { navigator.clipboard.writeText(linkMsg(r.link)).then(function () { toast(tl().copied); }); } catch (e) {}
+  };
   actions.batchAdd = function () { if (state.batch.rows.length < 20) state.batch.rows.push(newBatchRow()); render(); };
   actions.batchDel = function (el, i) { state.batch.rows.splice(Number(i), 1); if (!state.batch.rows.length) state.batch.rows.push(newBatchRow()); render(); };
   actions.batchSize = function (el, k) { state.batch.size = k; render(); };
@@ -3435,7 +3584,7 @@
   actions.batchCreate = function () {
     var B = state.batch, f = tmc();
     var items = B.rows.filter(function (r) { return phoneFromText(r.phone); }).map(function (r) {
-      return { phone: phoneFromText(r.phone), name: r.name.trim(), note: ((B.meal ? "🍲 " + f.meal + ". " : "") + r.note.trim()).trim() };
+      return { phone: phoneFromText(r.phone), name: r.name.trim(), note: ((B.meal ? "🍲 " + f.meal + ". " : "") + r.note.trim()).trim(), photo: r.photo || undefined };
     });
     if (!items.length) { toast(f.none); return; }
     B.busy = true; render();
@@ -3448,6 +3597,13 @@
   actions.batchDone = function () { state.batch = null; var st = state.tabStacks[state.activeTab]; while (st.length > 1 && st[st.length - 1].screen !== "merchant") st.pop(); render(); };
   function setMerchantField(bind, v) {
     var p = bind.split(".");
+    if (p[1] === "activity" && state.mForm) {
+      var before = activityMatches(state.mForm.activity).join(",") + state.mForm.actOpen;
+      state.mForm.activity = v.slice(0, 60); state.mForm.actOpen = true;
+      if (before !== activityMatches(v).join(",") + true) render();
+      return;
+    }
+    if (p[1] === "hint" && state.mForm) { state.mForm.hint = v.slice(0, 120); return; }
     if (p[1] === "name" && state.mForm) state.mForm.name = v.slice(0, 60);
     else if (p[1] === "area" && state.mForm) state.mForm.area = v.slice(0, 60);
     else if (p[1] === "paste" && state.batch) state.batch.paste = v;
@@ -3630,7 +3786,7 @@
       : o.arrivedAt ? "" : (en ? "Deliver to " : "Livrez à ") + rName + (en ? ", then tap « I've arrived »." : ", puis touchez « Je suis arrivé ».");
     return page3(hdr(o.code + " · " + svcName(o.service)) +
       (tip ? '<div role="status" style="background:#DDF8F2;border-radius:14px;padding:11px 13px;font-weight:800;font-size:13px;line-height:1.4">' + esc(tip) + '</div>' : '') +
-      readyBadge(o) +
+      readyBadge(o) + parcelThumb(o) +
       '<div style="' + card + ';padding:14px;display:flex;flex-direction:column;gap:10px">' +
         '<div class="fx" style="gap:10px"><span style="width:9px;height:9px;margin-top:5px;flex:none;border-radius:99px;background:#1FD1B2;border:2.5px solid #0B1F3A"></span><span style="font-weight:700;font-size:13.5px">' + esc(o.pickup) + '</span></div>' +
         (o.dropoff !== o.pickup ? '<div class="fx" style="gap:10px"><span style="width:9px;height:9px;margin-top:5px;flex:none;background:#0B1F3A"></span><span style="font-weight:700;font-size:13.5px">' + esc(o.dropoff) + '</span></div>' : '') +
