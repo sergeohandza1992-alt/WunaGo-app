@@ -116,6 +116,7 @@ await S.waitForSelector('[data-bind="quickCode"]');
 ok('Accueil : « Envoyer à… » accepte un numéro',(await S.getAttribute('[data-bind="quickCode"]','placeholder')).includes('Numéro'));
 await S.fill('[data-bind="quickCode"]','6 77 55 44 33'); await S.click('[data-action="quickGo"]');
 await S.waitForSelector('[data-action="linkCreate"]');
+
 ok('Numéro tapé : écran d\'envoi avec mon code en départ',await S.isVisible('text=+237 6 77 55 44 33')&&await S.isVisible('[data-action="linkMine"][aria-pressed="true"]'));
 await S.fill('[data-bind="linkName"]','Paul Etoa');
 await S.click('[data-action="linkSet"][data-arg="payer|them"]');
@@ -143,10 +144,10 @@ await P.waitForSelector('#confirm');
 ok('Prix affiché au destinataire, à régler au livreur',await P.isVisible('text=Prix de la livraison')&&await P.isVisible('text=À régler au livreur'));
 await P.screenshot({path:'tests/captures/lien-4-prix.png',fullPage:true});
 await P.click('#confirm');
-await P.waitForSelector('.bigcode');
-ok('Course lancée : code de remise affiché au destinataire',/^\d{4}$/.test((await P.textContent('.bigcode')).trim()));
+await P.waitForSelector('text=Ce qui va se passer');
+ok('Course lancée : étapes expliquées, code de secours disponible',await P.isVisible('text=Vous tapez le code affiché sur son téléphone')&&await P.isVisible('text=Code de secours'));
 await P.screenshot({path:'tests/captures/lien-5-lancee.png',fullPage:true});
-await P.click('text=Suivre la livraison');
+await P.click('a:has-text("Suivre")');
 await P.waitForSelector('text=Suivi de livraison, text=Pour Paul Etoa',{timeout:8000}).catch(()=>{});
 ok('Suivi de la livraison depuis le lien',P.url().includes('suivi.html?c='));
 
@@ -179,7 +180,7 @@ await S.waitForSelector('text=Recherche d\'un livreur, text=WUN-',{timeout:8000}
 const orders2=(await call('/orders','GET',null,shop)).orders;
 ok('Course lancée depuis l\'accueil',orders2[0].details.via==='link'&&orders2[0].details.pickupContact.name==='Jules');
 await Q.reload(); await Q.waitForSelector('text=Un livreur WunaGo arrive ✓');
-ok('La page du lien passe à « course lancée » (sans code : c\'est l\'expéditeur)',!(await Q.isVisible('.bigcode')));
+ok('La page du lien passe à « course lancée » (sans code : c\'est l\'expéditeur)',!(await Q.isVisible('text=Code de secours'))&&await Q.isVisible('text=Remettez-lui le colis'));
 
 /* code WunaGo + le destinataire paie */
 await S.click('[data-action="switchTab"][data-arg="home"]').catch(()=>{});
@@ -213,7 +214,66 @@ ok('Livreur : retour à l\'expéditeur, itinéraire et montant affichés',await 
 await LV.screenshot({path:'tests/captures/lien-8-retour.png'});
 ok('Livreur : bouton « Rendu à l\'expéditeur » (nom + photo, sans code)',(await LV.textContent('[data-action="startProof"]')).includes('Rendu'),await LV.textContent('[data-action="startProof"]'));
 
-ok('Aucune erreur JavaScript',[S,P,Q,LV].every(p=>!p.errors.length),[S,P,Q,LV].flatMap(p=>p.errors).join(' | '));
+/* ---------- 6. remise contrôlée : le destinataire tape le code affiché par le livreur ---------- */
+await call('/courier/orders/'+o2.id+'/accept','POST',{},liv);
+let mineL=(await call('/courier/orders','GET',null,liv)).orders.find(x=>x.id===o2.id);
+ok('Code du livreur caché avant d\'être en route',!mineL.handoverCode);
+await call('/courier/orders/'+o2.id+'/step','POST',{to:'picked_up'},liv);
+await call('/courier/orders/'+o2.id+'/step','POST',{to:'en_route'},liv);
+mineL=(await call('/courier/orders','GET',null,liv)).orders.find(x=>x.id===o2.id);
+ok('Livreur en route : code à montrer disponible',/^\d{4}$/.test(mineL.handoverCode||''));
+const cliOrder=(await call('/orders/'+o2.id,'GET',null,cli)).order;
+ok('Le client ne voit pas le code du livreur',!cliOrder.handoverCode);
+const tr=await call('/suivi/'+cliOrder.trackToken);
+ok('Suivi : confirmation possible, expéditeur nommé',tr.canConfirm&&tr.sender==='Maman'&&tr.triesLeft===5,JSON.stringify(tr).slice(0,160));
+const wrong=await call('/suivi/'+cliOrder.trackToken+'/receive','POST',{code:mineL.handoverCode==='1111'?'2222':'1111'});
+ok('Mauvais code refusé, essais restants indiqués',wrong._status===400&&/4 essais restants/.test(wrong.error),wrong.error);
+await call('/courier/orders/'+o2.id+'/step','POST',{to:'arrived'},liv);
+const A2=await phone(null);
+await login(A2,'699887766');
+await A2.waitForSelector('[data-action="switchTab"][data-arg="orders"]');
+await A2.click('[data-action="switchTab"][data-arg="orders"]');
+await A2.waitForSelector(`[data-action="openOrder"][data-arg="${o2.id}"]`,{timeout:15000}); await A2.click(`[data-action="openOrder"][data-arg="${o2.id}"]`);
+await A2.waitForSelector('[data-action="confirmReceipt"]',{timeout:15000});
+ok('App du destinataire : « est devant chez vous », saisie du code',await A2.isVisible('text=est devant chez vous'));
+await A2.screenshot({path:'tests/captures/remise-1-destinataire.png'});
+await LV.evaluate(()=>{location.hash='#courses'}); await LV.reload();
+await LV.waitForSelector(`[data-action="openCourse"][data-arg="${o2.id}"]`,{timeout:15000}); await LV.click(`[data-action="openCourse"][data-arg="${o2.id}"]`);
+await LV.waitForSelector('text=MONTREZ CE CODE');
+ok('Livreur : code affiché en grand, secours disponible',(await LV.textContent('body')).includes(mineL.handoverCode)&&await LV.isVisible('text=Pas de téléphone ? Saisir son code de secours'));
+await LV.screenshot({path:'tests/captures/remise-2-livreur.png'});
+await A2.fill('[data-bind="rcvCode"]',mineL.handoverCode); await A2.click('[data-action="confirmReceipt"]');
+await A2.waitForSelector('text=Réception confirmée ✓');
+const fin=(await call('/orders/'+o2.id,'GET',null,cli)).order;
+ok('Réception confirmée par le destinataire : course livrée',fin.status==='delivered'&&fin.deliveredWith==='recipient');
+await LV.waitForSelector('text=Réception confirmée par le destinataire ✓',{timeout:15000});
+ok('L\'écran du livreur se met à jour tout seul',true);
+const again2=await call('/suivi/'+cliOrder.trackToken+'/receive','POST',{code:mineL.handoverCode});
+ok('Pas de double confirmation',again2._status===409);
+/* page publique de suivi : saisie du code par le destinataire */
+const pubOrder=orders2.length?null:null;
+const L3=await call('/links','POST',{direction:'send',phone:'677889900',name:'Rita',mineCode:place.place.code,payer:'them'},shop);
+await call('/lien/'+L3.link.token+'/place','POST',{mode:'gps',lat:4.07,lng:9.74});
+const v3=await call('/lien/'+L3.link.token+'/confirm','POST',{});
+const oid3=(await call('/orders','GET',null,shop)).orders.find(x=>x.code===v3.order.code).id;
+await call('/courier/orders/'+oid3+'/accept','POST',{},liv);
+for(const st of ['picked_up','en_route']) await call('/courier/orders/'+oid3+'/step','POST',{to:st},liv);
+const hc=(await call('/courier/orders','GET',null,liv)).orders.find(x=>x.id===oid3).handoverCode;
+const R2=await phone(null);
+await R2.goto(URL+'suivi.html?c='+v3.order.trackToken);
+await R2.waitForSelector('#rcv');
+ok('Page de suivi : « Ce qui va se passer » et saisie du code',await R2.isVisible('text=Ce qui va se passer')&&await R2.isVisible('text=Confirmer la réception'));
+await R2.screenshot({path:'tests/captures/remise-3-suivi.png',fullPage:true});
+await R2.fill('#rcv',hc); await R2.click('#rcv-go');
+await R2.waitForSelector('h1:has-text("Réception confirmée")');
+ok('Suivi public : réception confirmée par le destinataire',true);
+/* accueil recentré : colis et trajets seulement */
+const H=await phone(null); await H.context().addInitScript(()=>{window.WG_ALL_SERVICES=false});
+await login(H,'699887766'); await H.waitForSelector('[data-action="pickService"][data-arg="parcel"]');
+ok('Accueil recentré : colis et trajets, sans pressing ni courses',await H.isVisible('[data-action="pickService"][data-arg="ride"]')&&!(await H.isVisible('[data-action="pickService"][data-arg="laundry"]'))&&!(await H.isVisible('[data-action="pickService"][data-arg="errand"]')));
+await H.screenshot({path:'tests/captures/remise-4-accueil.png'});
+
+ok('Aucune erreur JavaScript',[S,P,Q,LV,A2,R2,H].every(p=>!p.errors.length),[S,P,Q,LV,A2,R2,H].flatMap(p=>p.errors).join(' | '));
 console.log(results.join('\n'));
 await browser.close(); srv.kill('SIGTERM');
 if(results.some(r=>r.startsWith('FAIL'))) process.exit(1);

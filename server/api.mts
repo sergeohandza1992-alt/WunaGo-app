@@ -234,6 +234,8 @@ async function createOrderFrom(b: Row, user: Row, createdBy: string | null) {
           qt.distanceKm, qt.zone, scheduledAt ? new Date(scheduledAt).toISOString() : null,
           String(randomInt(1000, 10000)), randomBytes(12).toString("base64url")]);
       if (createdBy) await q("UPDATE orders SET created_by = $2 WHERE id = $1", [rows[0].id, createdBy]);
+      /* code de remise du livreur : il le montre, le destinataire le saisit pour confirmer la réception */
+      if (service !== "ride") rows[0].handover_code = (await q("UPDATE orders SET handover_code = $2 WHERE id = $1 RETURNING handover_code", [rows[0].id, String(randomInt(1000, 10000))]))[0].handover_code;
       if (usedCodes.length) await q("UPDATE places SET uses = uses + 1 WHERE code = ANY($1::text[])", [usedCodes]);
       if (b.paymentMethod === "wallet") await q("INSERT INTO wallet_tx (user_id, amount, kind, order_id) VALUES ($1, $2, 'order', $3)", [user.id, -price.net, rows[0].id]);
       return rows[0];
@@ -411,6 +413,7 @@ async function enrich(rows: Row[], viewer: Row) {
     out.proofName = o.proof_name || null;
     out.deliveredWith = o.delivered_with || null;
     if (o.user_id === viewer.id || viewer.role === "admin") { out.deliveryCode = o.delivery_code || null; out.trackToken = o.track_token || null; }
+    if (o.courier_id === viewer.id && o.stage === 2 && o.status !== "delivered" && o.status !== "cancelled" && !(o.details || {}).returned) out.handoverCode = o.handover_code || null;
     out.proofPhoto = o.proof_photo || null;
     out.assignedAt = o.assigned_at ? new Date(o.assigned_at).getTime() : null;
     return out;
@@ -714,12 +717,43 @@ async function publicTrack(token: string) {
       phone: live ? c.phone : null, pos: live && c.pos_lat != null ? { lat: c.pos_lat, lng: c.pos_lng, at: new Date(c.pos_at).getTime() } : null };
   }
   const d = o.details || {};
+  const owner = (await db().sql`SELECT name FROM users WHERE id = ${o.user_id}`)[0] || {};
+  /* qui remet le colis au départ : la personne indiquée (« Recevoir de… »), sinon le client qui a commandé */
+  const sender = (d.pickupContact && d.pickupContact.name) || owner.name || "";
   return json({ code: o.code, service: o.service, status: o.status, stage: o.stage, pickup: o.pickup, dropoff: o.dropoff, hints: d.hints || null,
+    sender, returned: !!d.returned, deliveredWith: o.delivered_with || null,
+    canConfirm: live && o.service !== "ride" && o.stage === 2 && !d.returned && !!o.handover_code && (o.handover_tries || 0) < 5,
+    triesLeft: Math.max(0, 5 - (o.handover_tries || 0)),
     positionShared: !!d.dropoffShared, canSharePosition: live && o.service !== "ride" && !(o.service === "laundry" && d.laundry && d.laundry.sameReturn),
     recipient: d.recipient ? { name: d.recipient.name || "" } : null, vehicle: o.vehicle,
     pickupGeo: o.pickup_lat != null ? { lat: o.pickup_lat, lng: o.pickup_lng } : null, dropoffGeo: o.dropoff_lat != null ? { lat: o.dropoff_lat, lng: o.dropoff_lng } : null,
     createdAt: new Date(o.created_at).getTime(), deliveredAt: o.delivered_at ? new Date(o.delivered_at).getTime() : null,
     arrivedAt: o.arrived_at && o.status !== "delivered" ? new Date(o.arrived_at).getTime() : null, courier });
+}
+
+/* remise contrôlée : le destinataire saisit le code affiché sur le téléphone du livreur et confirme la réception */
+async function confirmReceipt(token: string, b: Row) {
+  const o = (await db().sql`SELECT * FROM orders WHERE track_token = ${token}`)[0];
+  if (!o) return fail(404, "Lien de suivi introuvable.");
+  if (o.status === "delivered") return fail(409, "Réception déjà confirmée ✓");
+  if (o.status === "cancelled") return fail(409, "Cette livraison a été annulée.");
+  const d = o.details || {};
+  if (o.service === "ride" || d.returned || !o.handover_code) return fail(409, "Confirmation non disponible pour cette livraison.");
+  if (o.stage !== 2) return fail(409, "Le livreur n'est pas encore en route vers vous.");
+  if ((o.handover_tries || 0) >= 5) return fail(429, "Trop d'essais. Dictez votre code de remise au livreur : il le saisira.");
+  const code = String(b.code || "").replace(/\D/g, "");
+  if (code !== o.handover_code) {
+    const r = await db().sql`UPDATE orders SET handover_tries = handover_tries + 1 WHERE id = ${o.id} RETURNING handover_tries`;
+    const left = Math.max(0, 5 - r[0].handover_tries);
+    return fail(400, left ? "Code incorrect. Vérifiez le code affiché sur le téléphone du livreur (" + left + " essai" + (left > 1 ? "s" : "") + " restant" + (left > 1 ? "s" : "") + ")." : "Trop d'essais. Dictez votre code de remise au livreur : il le saisira.");
+  }
+  const who = String(b.name || (d.recipient && d.recipient.name) || "Destinataire").trim().slice(0, 60);
+  const rows = await db().sql`UPDATE orders SET stage = 3, status = 'delivered', delivered_at = NOW(), proof_name = ${who}, delivered_with = 'recipient', updated_at = NOW()
+    WHERE id = ${o.id} AND status <> 'delivered' RETURNING *`;
+  if (!rows.length) return fail(409, "Réception déjà confirmée ✓");
+  if (o.courier_id) push([o.courier_id], { title: "Remise confirmée · " + o.code, body: who + " a confirmé la réception du colis. Course terminée.", url: "/#courses", tag: o.code }, "orders");
+  push([o.user_id], { title: SVC_FR[o.service] + " · " + o.code, body: "Colis remis : " + who + " a confirmé la réception.", url: "/#commande=" + o.id, tag: o.code }, "orders");
+  return json({ ok: true });
 }
 
 /* le destinataire envoie sa position exacte depuis le lien de suivi (point d'arrivée corrigé, prix inchangé) */
@@ -1351,6 +1385,8 @@ export default async (req: Request, context: any) => {
     }
     const sp2 = path.match(/^\/suivi\/([A-Za-z0-9_-]{10,40})\/position$/);
     if (sp2 && m === "POST") return await shareDropoff(sp2[1], await body(req));
+    const rc = path.match(/^\/suivi\/([A-Za-z0-9_-]{10,40})\/receive$/);
+    if (rc && m === "POST") return await confirmReceipt(rc[1], await body(req));
     if (path === "/auth/verify" && m === "POST") return await authVerify(req);
     if (path === "/auth/logout" && m === "POST") return await logout(req);
 

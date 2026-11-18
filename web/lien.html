@@ -122,10 +122,18 @@
     return html;
   }
   function ordered() {
-    var o = D.order || {};
-    return '<div class="card dark"><span class="lbl">Course lancée · ' + esc(o.code) + '</span><div style="font-weight:800;font-size:18px">Un livreur WunaGo arrive ✓</div>' +
-      (o.deliveryCode ? '<p class="muted">Code de remise, à donner au livreur ' + (D.other && D.other.person && D.other.person.name ? "(transmettez-le à " + esc(D.other.person.name) + ")" : "à l'arrivée") + ' :</p><div class="bigcode">' + esc(o.deliveryCode) + '</div>' : '') + '</div>' +
-      (o.trackToken ? '<a class="btn ink" href="suivi.html?c=' + encodeURIComponent(o.trackToken) + '">Suivre la livraison</a>' : '') +
+    var o = D.order || {}, rcv = send();
+    var person = D.other && D.other.person && D.other.person.name ? D.other.person.name : "";
+    var steps = rcv
+      ? ['Un livreur WunaGo récupère le colis chez ' + esc(D.from) + '.', 'Il appelle ' + (person ? esc(person) : 'vous') + ' en arrivant.',
+         '<b>' + (person ? esc(person) + ' tape' : 'Vous tapez') + ' le code affiché sur son téléphone</b> : la remise est confirmée.']
+      : ['Un livreur WunaGo vient chercher le colis chez ' + (person ? esc(person) : 'vous') + '.', 'Remettez-lui le colis.', esc(D.from) + ' confirme la réception à l\'arrivée.'];
+    return '<div class="card dark"><span class="lbl">Course lancée · ' + esc(o.code) + '</span><div style="font-weight:800;font-size:18px">Un livreur WunaGo arrive ✓</div></div>' +
+      '<div class="card"><span class="lbl">Ce qui va se passer</span><ol style="margin:0;padding-left:20px;display:flex;flex-direction:column;gap:7px;font-size:13.5px;line-height:1.45">' +
+        steps.map(function (x) { return '<li>' + x + '</li>'; }).join("") + '</ol></div>' +
+      (o.trackToken ? '<a class="btn ink" href="suivi.html?c=' + encodeURIComponent(o.trackToken) + '">' + (rcv ? "Suivre et confirmer la réception" : "Suivre la livraison") + '</a>' : '') +
+      (o.deliveryCode ? '<div class="card"><span class="lbl">Code de secours</span><div style="font-family:var(--mono);font-weight:600;font-size:22px;letter-spacing:.25em">' + esc(o.deliveryCode) + '</div>' +
+        '<p class="muted">Seulement si ' + (person ? esc(person) + ' ne peut' : 'vous ne pouvez') + ' pas confirmer sur le téléphone : dictez-le au livreur.' + (person ? ' Transmettez-lui ce lien.' : '') + '</p></div>' : '') +
       '<a class="btn out" href="/">Découvrir WunaGo</a>';
   }
   function ended(title, text) {

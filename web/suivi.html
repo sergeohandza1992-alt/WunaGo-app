@@ -36,6 +36,10 @@
     .muted { font-size: 12.5px; line-height: 1.5; color: rgba(16,16,16,.7); margin: 0; }
     .big { font-weight: 800; font-size: 16px; }
     .err { text-align: center; padding: 60px 20px; }
+    .dark { background: var(--k); color: #fff; border: 0; } .dark .lbl { color: var(--y); } .dark .muted { color: rgba(255,255,255,.8); }
+    .pin { width: 100%; height: 58px; border-radius: 12px; border: 0; background: #fff; color: var(--k); font-family: var(--mono); font-weight: 600; font-size: 28px; letter-spacing: .4em; text-align: center; }
+    .steps { margin: 0; padding-left: 20px; display: flex; flex-direction: column; gap: 6px; font-size: 13px; line-height: 1.45; }
+    .flash { background: var(--y); border-radius: 14px; padding: 12px 14px; font-weight: 800; font-size: 13.5px; line-height: 1.4; }
   </style>
 </head>
 <body>
@@ -89,25 +93,53 @@
         var cls = done || i < d.stage ? "done" : i === d.stage && !cancelled ? "on" : "";
         return '<div class="st ' + cls + '"><div><div class="dot"></div>' + (i < 3 ? '<div class="bar"></div>' : '') + '</div><span>' + esc(s) + '</span></div>';
       }).join("");
-      var c = d.courier, h = d.hints || {};
+      var c = d.courier, h = d.hints || {}, cn = c ? c.name : "Le livreur", rn = d.recipient && d.recipient.name ? d.recipient.name : "vous";
+      if (done && d.deliveredWith === "recipient") title = "Réception confirmée ✓";
+      if (done && d.deliveredWith === "returned") title = "Colis rendu à l'expéditeur";
+      var parcelLike = d.service !== "ride";
+      /* remise contrôlée : le destinataire tape le code affiché par le livreur */
+      var confirmBox = d.canConfirm ? '<div class="card dark"><div class="lbl">Confirmer la réception</div>' +
+        '<div class="big">' + (d.arrivedAt ? esc(cn) + " est devant chez vous." : "Quand " + esc(cn) + " arrive :") + '</div>' +
+        '<p class="muted">Vérifiez le colis, puis tapez le code affiché sur le téléphone du livreur.</p>' +
+        '<input class="pin" id="rcv" inputmode="numeric" maxlength="4" autocomplete="off" placeholder="• • • •" aria-label="Code affiché par le livreur">' +
+        '<button class="btn yel" id="rcv-go">J\'ai reçu mon colis</button><p class="muted" id="rcv-msg" role="status"></p></div>' : '';
+      var steps = !done && !cancelled && parcelLike && !d.returned ? '<div class="card"><div class="lbl">Ce qui va se passer</div><ol class="steps">' +
+        '<li' + (d.stage > 0 ? ' style="opacity:.5"' : '') + '>' + esc(cn) + ' récupère le colis' + (d.sender ? ' chez ' + esc(d.sender) : '') + '.</li>' +
+        '<li' + (d.arrivedAt ? ' style="opacity:.5"' : '') + '>Il vous appelle en arrivant.</li>' +
+        '<li><b>Vous tapez le code affiché sur son téléphone</b> : la remise est confirmée.</li></ol></div>' : '';
+      var pickupMsg = !done && !cancelled && parcelLike && c && d.stage === 0 ? '<div class="flash" role="status">🛵 ' + esc(cn) + ' vient récupérer le colis' + (d.sender ? ' chez ' + esc(d.sender) : '') + '.</div>' : '';
+      var retMsg = d.returned && !done ? '<div class="flash" role="status">↩ Colis non remis : il retourne à l\'expéditeur.</div>' : '';
       main.innerHTML =
         '<div><div class="lbl">' + (d.recipient && d.recipient.name ? "Pour " + esc(d.recipient.name) : "Suivi de livraison") + '</div><h1>' + esc(title) + '</h1></div>' +
+        pickupMsg + retMsg + confirmBox +
         (c ? '<div class="card"><div class="row"><div class="av">' + esc(c.name.slice(0, 1).toUpperCase()) + '</div><div style="flex:1"><div class="lbl">Votre livreur</div><div class="big">' + esc(c.name) + '</div>' +
           '<div class="lbl" style="text-transform:none">' + esc(VEH[c.vehicle] || "") + (c.plate ? " · " + esc(c.plate) : "") + '</div></div>' +
           (c.phone ? '<a class="btn ink" href="tel:+237' + esc(c.phone) + '">Appeler</a>' : '') + '</div></div>'
           : !done && !cancelled ? '<div class="card"><p class="muted">Un livreur WunaGo va prendre en charge la livraison dans quelques minutes.</p></div>' : '') +
-        '<div class="card"><div class="tl">' + tl + '</div></div>' +
+        '<div class="card"><div class="tl">' + tl + '</div></div>' + steps +
         '<div class="card"><div><div class="lbl">Départ</div><div style="font-weight:700">' + esc(d.pickup) + '</div>' + (h.pickup ? '<p class="muted">Repère : ' + esc(h.pickup) + '</p>' : '') + '</div>' +
         (d.dropoff !== d.pickup ? '<div><div class="lbl">Arrivée</div><div style="font-weight:700">' + esc(d.dropoff) + '</div>' + (h.dropoff ? '<p class="muted">Repère : ' + esc(h.dropoff) + '</p>' : '') + '</div>' : '') + '</div>' +
         (d.canSharePosition ? '<div class="card"><div class="big">' + (d.positionShared ? "Position exacte reçue ✓" : "Le livreur ne connaît pas l'endroit ?") + '</div>' +
           '<p class="muted">' + (d.positionShared ? "Le livreur ira directement au point envoyé. Vous pouvez le renvoyer si vous avez bougé." : "Si vous êtes déjà à l'adresse de livraison, envoyez votre position exacte : le livreur arrivera directement à vous.") + '</p>' +
           '<button class="btn ' + (d.positionShared ? "out" : "ink") + '" id="share-pos">📍 ' + (d.positionShared ? "Renvoyer ma position" : "Envoyer ma position exacte") + '</button><p class="muted" id="pos-msg" role="status"></p></div>' : '') +
-        (!done && !cancelled ? '<p class="muted">À l\'arrivée, donnez au livreur le <b>code de remise</b> reçu dans le message.</p>' : '') +
+        (!done && !cancelled && parcelLike && !d.canConfirm && !d.returned ? '<p class="muted">À l\'arrivée du livreur, vous taperez ici le code affiché sur son téléphone pour confirmer la réception.</p>' : '') +
         '<a class="btn yel" href="/">Commander avec WunaGo</a>';
       drawMap(d);
       var sb = document.getElementById("share-pos");
       if (sb) sb.onclick = sharePos;
+      var rg = document.getElementById("rcv-go");
+      if (rg) rg.onclick = confirmReceipt;
       return !done && !cancelled;
+    }
+    function confirmReceipt() {
+      var inp = document.getElementById("rcv"), msg = document.getElementById("rcv-msg"), btn = document.getElementById("rcv-go");
+      var code = String(inp.value || "").replace(/\D/g, "");
+      if (code.length !== 4) { msg.textContent = "Tapez le code à 4 chiffres affiché sur le téléphone du livreur."; return; }
+      btn.disabled = true; msg.textContent = "Vérification…";
+      fetch("/api/suivi/" + encodeURIComponent(token) + "/receive", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ code: code }) })
+        .then(function (r) { return r.json().then(function (j) { if (!r.ok) throw new Error(j.error || "Erreur."); return j; }); })
+        .then(function () { load(); })
+        .catch(function (e) { btn.disabled = false; msg.textContent = e.message; });
     }
     function sharePos() {
       var msg = document.getElementById("pos-msg"), btn = document.getElementById("share-pos");
@@ -127,6 +159,8 @@
       fetch("/api/suivi/" + encodeURIComponent(token), { cache: "no-store" }).then(function (r) { return r.json().then(function (j) { return { ok: r.ok, j: j }; }); })
         .then(function (x) {
           if (!x.ok) throw new Error(x.j.error || "Lien invalide.");
+          var a = document.activeElement;
+          if (a && a.id === "rcv" && a.value) { timer = setTimeout(load, 15000); return; }
           if (show(x.j)) timer = setTimeout(load, 15000);
         }).catch(function (e) {
           main.innerHTML = '<div class="err"><h1>Lien de suivi introuvable</h1><p class="muted">' + esc(e.message) + '</p><p><a class="btn yel" href="/">Ouvrir WunaGo</a></p></div>';
