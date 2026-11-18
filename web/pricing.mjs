@@ -9,7 +9,9 @@
 export const TARIFS = {
   arrondi: 50,                       // prix arrondis au 50 F supérieur (monnaie facile)
   partLivreur: 0.8,                  // part reversée au livreur sur le transport (livraison, trajet, zone, collecte) — hors articles et prestations pressing
-  lignesTransport: ["delivery", "ride", "zone", "collect", "collectFree"],
+  lignesTransport: ["delivery", "ride", "zone", "collect", "collectFree", "return"],
+  retour: { part: 0.5 },             // colis non remis (absent, refus) : retour à l'expéditeur = 50 % du transport de l'aller, réglé par l'expéditeur
+  lienValiditeH: 48,                 // un lien « Où voulez-vous recevoir ? » reste valable 48 h
   distanceMaxKm: 40,
   facteurRoute: 1.35,                // distance à vol d'oiseau × 1,35 ≈ distance par la route en ville
 
@@ -215,7 +217,13 @@ export function courierShare(lines) {
   return Math.round(Math.max(0, base) * TARIFS.partLivreur / TARIFS.arrondi) * TARIFS.arrondi;
 }
 
+/** Retour à l'expéditeur (colis non remis) : part du transport de l'aller, arrondie au 50 F supérieur. */
+export function returnFee(lines) {
+  const base = (lines || []).filter((l) => TARIFS.lignesTransport.includes(l.key) && l.key !== "return").reduce((s, l) => s + (l.amount || 0), 0);
+  return Math.ceil(Math.max(0, base) * TARIFS.retour.part / TARIFS.arrondi) * TARIFS.arrondi;
+}
+
 if (typeof window !== "undefined") {
   window.WPricing = { TARIFS: TARIFS, QUARTIERS: QUARTIERS, quote: quote, zoneOf: zoneOf, hourFactor: hourFactor, roadKm: roadKm,
-    distanceKm: distanceKm, findQuartier: findQuartier, vehicleFor: vehicleFor, vehicleAllows: vehicleAllows, fromPrices: fromPrices, doualaTime: doualaTime, courierShare: courierShare };
+    distanceKm: distanceKm, findQuartier: findQuartier, vehicleFor: vehicleFor, vehicleAllows: vehicleAllows, fromPrices: fromPrices, doualaTime: doualaTime, courierShare: courierShare, returnFee: returnFee };
 }

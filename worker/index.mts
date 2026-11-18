@@ -12,10 +12,11 @@ import m4 from "../netlify/database/migrations/20261117200000_experience_utilisa
 import m5 from "../netlify/database/migrations/20261117210000_arrivee_livreur.sql";
 import m6 from "../netlify/database/migrations/20261117220000_code_wunago.sql";
 import m7 from "../netlify/database/migrations/20261118090000_parametres.sql";
+import m8 from "../netlify/database/migrations/20261118120000_envoi_par_lien.sql";
 const MIGRATIONS: [string, string][] = [
   ["20261117140000_schema_initial", m1], ["20261117160000_parcours_dedies_et_tarifs", m2], ["20261117170000_livreurs_messagerie_notifications", m3],
   ["20261117200000_experience_utilisateur", m4], ["20261117210000_arrivee_livreur", m5], ["20261117220000_code_wunago", m6],
-  ["20261118090000_parametres", m7]
+  ["20261118090000_parametres", m7], ["20261118120000_envoi_par_lien", m8]
 ];
 
 let ready: Promise<void> | null = null;

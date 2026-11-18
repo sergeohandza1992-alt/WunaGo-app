@@ -3,7 +3,7 @@
 // SMS_MODE=demo (par défaut) : pas de SMS envoyé, le code est renvoyé à l'app pour affichage.
 
 import { createHash, randomBytes, randomInt } from "node:crypto";
-import { SERVICES, VEHICLES, PAY_METHODS, STATUSES, quote, normalizePhone, distanceKm, courierShare, TARIFS, QUARTIERS } from "./rules.mts";
+import { SERVICES, VEHICLES, PAY_METHODS, STATUSES, quote, normalizePhone, distanceKm, courierShare, returnFee, TARIFS, QUARTIERS } from "./rules.mts";
 import { sendPush, publicKey, pushLog } from "./push.mts";
 import { runAlerts } from "./alerts.mts";
 import { db, env } from "./platform.mts";
@@ -151,6 +151,14 @@ function cleanDetails(service: string, b: Row) {
   if (hp || hd) extra.hints = { pickup: hp, dropoff: hd };
   const rc = b.recipient || {}, rn = String(rc.name || "").trim().slice(0, 60), rph = normalizePhone(rc.phone);
   if (rn || rph) extra.recipient = { name: rn, phone: rph || "" };
+  /* personne qui remet le colis au départ (« Recevoir de… ») */
+  const pc = b.pickupContact || {}, pcn = String(pc.name || "").trim().slice(0, 60), pcp = normalizePhone(pc.phone);
+  if (pcn || pcp) extra.pickupContact = { name: pcn, phone: pcp || "" };
+  /* qui paie la livraison : l'expéditeur ou le destinataire (other = une personne sans compte, paiement au livreur) */
+  const pb = b.payBy || {};
+  if (pb.role === "sender" || pb.role === "recipient")
+    extra.payBy = { role: pb.role, name: String(pb.name || "").trim().slice(0, 60), phone: normalizePhone(pb.phone) || "", other: !!pb.other };
+  if (b.via === "link") extra.via = "link";
   return { ...serviceDetails(service, b), ...extra };
 }
 function serviceDetails(service: string, b: Row) {
@@ -184,7 +192,12 @@ async function createOrderFrom(b: Row, user: Row, createdBy: string | null) {
     b[f] = (p.place_name ? p.place_name + ", " : "") + p.area + ", Douala · " + p.code;
     b[f + "Geo"] = { lat: p.lat, lng: p.lng };
     b.hints = { ...(b.hints || {}), [f]: p.hint || (b.hints || {})[f] || "" };
-    if (f === "dropoff" && service === "parcel" && p.user_id !== user.id) b.recipient = { name: p.owner_name || "", phone: p.owner_phone };
+    if (f === "dropoff" && service === "parcel" && p.user_id !== user.id && !b.keepRecipient) b.recipient = { name: p.owner_name || "", phone: p.owner_phone };
+  }
+  /* le destinataire paie : il règle le livreur à la réception (espèces ou mobile money au livreur) */
+  if (b.payBy && b.payBy.other) {
+    b.paymentMethod = "cash";
+    if (b.payBy.role === "recipient" && !b.payBy.name && b.recipient) b.payBy = { ...b.payBy, name: b.recipient.name, phone: b.recipient.phone };
   }
   if (!(VEHICLES as readonly string[]).includes(b.vehicle)) return fail(400, "Véhicule inconnu.");
   if (!(PAY_METHODS as readonly string[]).includes(b.paymentMethod)) return fail(400, "Moyen de paiement inconnu.");
@@ -523,6 +536,172 @@ async function placesRoutes(req: Request, user: Row, path: string, m: string): P
   return null;
 }
 
+/* ---------- envoi par lien : « Envoyer à… » / « Recevoir de… » un numéro ----------
+   Celui qui crée le lien indique son côté (son code ou sa position) et qui paie la livraison.
+   L'autre personne ouvre le lien (WhatsApp), choisit le lieu ; la course part quand celui qui paie confirme le prix. */
+const LINK_SIZES: Record<string, number> = { small: 2, medium: 15 };
+const DIR_OK = (d: any) => d === "send" || d === "receive";
+function sideGeo(x: Row | null) { return x && x.lat != null ? { lat: Number(x.lat), lng: Number(x.lng) } : null; }
+function linkEnds(l: Row, other: Row | null) {
+  const mine = l.mine || {}, send = l.direction === "send";
+  return { from: send ? mine : other, to: send ? other : mine };
+}
+function linkQuote(l: Row, other: Row) {
+  const { from, to } = linkEnds(l, other);
+  return quote({ service: "parcel", pickup: from.text, dropoff: to.text, pickupGeo: sideGeo(from), dropoffGeo: sideGeo(to), vehicle: "bike", weightKg: LINK_SIZES[l.size] || 2 }, Date.now());
+}
+function linkExpired(l: Row) { return (l.status === "waiting_place" || l.status === "waiting_confirm") && new Date(l.expires_at).getTime() < Date.now(); }
+function linkOut(l: Row) {
+  const o = l.other || null;
+  return { id: l.id, token: l.token, direction: l.direction, contactPhone: l.contact_phone, contactName: l.contact_name, payer: l.payer, paymentMethod: l.payment_method,
+    size: l.size, note: l.note, mine: { text: (l.mine || {}).text, code: (l.mine || {}).code || null },
+    other: o ? { text: o.text, code: o.code || null, hint: o.hint || "", person: o.person || null } : null,
+    price: l.price_net, status: linkExpired(l) ? "expired" : l.status, orderId: l.order_id,
+    createdAt: new Date(l.created_at).getTime(), expiresAt: new Date(l.expires_at).getTime() };
+}
+async function linkOrder(l: Row) {
+  const creator = (await db().sql`SELECT * FROM users WHERE id = ${l.user_id}`)[0];
+  const o = l.other || {}, mine = l.mine || {}, send = l.direction === "send";
+  const contact = { name: (o.person && o.person.name) || l.contact_name || "", phone: (o.person && o.person.phone) || l.contact_phone };
+  const b: Row = { service: "parcel", vehicle: "bike", weightKg: LINK_SIZES[l.size] || 2, note: l.note || "", via: "link", keepRecipient: true,
+    paymentMethod: l.payer === "me" ? l.payment_method : "cash", hints: {} };
+  const put = (f: "pickup" | "dropoff", x: Row) => {
+    if (x.code) b[f + "Code"] = x.code; else { b[f] = x.text; b[f + "Geo"] = sideGeo(x); b.hints[f] = x.hint || ""; }
+  };
+  put("pickup", send ? mine : o); put("dropoff", send ? o : mine);
+  if (send) b.recipient = contact; else { b.pickupContact = contact; b.recipient = { name: creator.name || "", phone: creator.phone }; }
+  const senderSide = send ? { name: creator.name || "", phone: creator.phone } : contact;
+  const recipSide = send ? contact : { name: creator.name || "", phone: creator.phone };
+  /* « me » = le créateur paie ; « them » = l'autre personne paie au livreur */
+  const payerIsSender = (l.payer === "me") === send;
+  const who = payerIsSender ? senderSide : recipSide;
+  b.payBy = { role: payerIsSender ? "sender" : "recipient", name: who.name, phone: who.phone, other: l.payer === "them" };
+  return { creator, b };
+}
+async function confirmLink(l: Row) {
+  const claimed = await db().sql`UPDATE delivery_links SET status = 'ordered', updated_at = NOW() WHERE id = ${l.id} AND status = 'waiting_confirm' AND expires_at > NOW() RETURNING *`;
+  if (!claimed.length) return fail(409, "Ce lien n'attend plus de confirmation.");
+  const { creator, b } = await linkOrder(l);
+  const res = await createOrderFrom(b, creator, null);
+  if (res.status !== 201) { await db().sql`UPDATE delivery_links SET status = 'waiting_confirm' WHERE id = ${l.id}`; return res; }
+  const j = await res.clone().json();
+  await db().sql`UPDATE delivery_links SET order_id = ${j.order.id}, price_net = ${j.order.price.net} WHERE id = ${l.id}`;
+  return { res, order: j.order, creator };
+}
+async function linkCreate(req: Request, user: Row) {
+  const b = await body(req);
+  if (!DIR_OK(b.direction)) return fail(400, "Choisissez : envoyer ou recevoir.");
+  const phone = normalizePhone(b.phone);
+  if (!phone) return fail(400, "Numéro invalide : 9 chiffres commençant par 6.");
+  if (phone === user.phone) return fail(400, "C'est votre propre numéro.");
+  let mine: Row;
+  if (b.mineCode) {
+    const p = await findPlace(b.mineCode);
+    if (!p) return fail(400, "Code WunaGo introuvable.");
+    mine = { code: p.code, text: (p.place_name ? p.place_name + ", " : "") + p.area + ", Douala · " + p.code, lat: p.lat, lng: p.lng, hint: p.hint || "" };
+  } else {
+    const g = b.mineGeo || {}, lat = Number(g.lat), lng = Number(g.lng);
+    if (!(Math.abs(lat) <= 90 && Math.abs(lng) <= 180) || distanceKm({ lat, lng }, { lat: 4.05, lng: 9.72 }) > 60) return fail(400, "Indiquez votre point : votre code ou votre position.");
+    mine = { text: nearestArea(lat, lng) + ", Douala", lat, lng, hint: String(b.mineHint || "").trim().slice(0, 120) };
+  }
+  const payer = b.payer === "them" ? "them" : "me";
+  const pm = payer === "me" && (PAY_METHODS as readonly string[]).includes(b.paymentMethod) ? b.paymentMethod : "cash";
+  const size = LINK_SIZES[b.size] ? b.size : "small";
+  const active = (await db().sql`SELECT COUNT(*) AS n FROM delivery_links WHERE user_id = ${user.id} AND status IN ('waiting_place','waiting_confirm') AND expires_at > NOW()`)[0].n;
+  if (Number(active) >= 30) return fail(429, "Trop de liens en attente : annulez-en quelques-uns.");
+  const rows = await db().sql`INSERT INTO delivery_links (token, user_id, direction, contact_phone, contact_name, mine, payer, payment_method, size, note, expires_at)
+    VALUES (${randomBytes(9).toString("base64url")}, ${user.id}, ${b.direction}, ${phone}, ${String(b.name || "").trim().slice(0, 60)}, ${JSON.stringify(mine)}::jsonb,
+      ${payer}, ${pm}, ${size}, ${String(b.note || "").trim().slice(0, 300)}, NOW() + ${String(TARIFS.lienValiditeH) + " hours"}::interval) RETURNING *`;
+  return json({ link: linkOut(rows[0]) }, 201);
+}
+async function linkRoutes(req: Request, user: Row, path: string, m: string): Promise<Response | null> {
+  if (path === "/links" && m === "POST") return await linkCreate(req, user);
+  if (path === "/links" && m === "GET") {
+    const rows = await db().sql`SELECT * FROM delivery_links WHERE user_id = ${user.id}
+      AND ((status IN ('waiting_place','waiting_confirm') AND expires_at > NOW() - INTERVAL '1 day') OR (status = 'ordered' AND updated_at > NOW() - INTERVAL '10 minutes'))
+      ORDER BY created_at DESC LIMIT 30`;
+    return json({ links: rows.map(linkOut) });
+  }
+  const r = path.match(/^\/links\/([0-9a-f-]{36})\/(confirm|cancel)$/);
+  if (!r || m !== "POST") return null;
+  const l = (await db().sql`SELECT * FROM delivery_links WHERE id = ${r[1]} AND user_id = ${user.id}`)[0];
+  if (!l) return fail(404, "Lien introuvable.");
+  if (r[2] === "cancel") {
+    if (l.status === "ordered") return fail(409, "La course est déjà lancée : annulez-la depuis la commande.");
+    const rows = await db().sql`UPDATE delivery_links SET status = 'cancelled', updated_at = NOW() WHERE id = ${l.id} RETURNING *`;
+    return json({ link: linkOut(rows[0]) });
+  }
+  if (l.payer !== "me") return fail(409, "C'est votre correspondant qui confirme cette course.");
+  if (l.status !== "waiting_confirm" || linkExpired(l)) return fail(409, l.status === "waiting_place" ? "Votre correspondant n'a pas encore choisi le lieu." : "Ce lien n'attend plus de confirmation.");
+  const out = await confirmLink(l);
+  if (out instanceof Response) return out;
+  return out.res;
+}
+/* page publique du lien (sans compte) */
+async function publicLink(token: string) {
+  const l = (await db().sql`SELECT * FROM delivery_links WHERE token = ${token}`)[0];
+  if (!l) return null;
+  const c = (await db().sql`SELECT name FROM users WHERE id = ${l.user_id}`)[0] || {};
+  let order = null;
+  if (l.order_id) {
+    const o = (await db().sql`SELECT code, status, track_token, delivery_code, price_net FROM orders WHERE id = ${l.order_id}`)[0];
+    if (o) order = { code: o.code, status: o.status, trackToken: o.track_token, price: o.price_net,
+      deliveryCode: l.direction === "send" && o.status !== "delivered" && o.status !== "cancelled" ? o.delivery_code : null };
+  }
+  const out = linkOut(l), mine = l.mine || {};
+  let closed = false;
+  if (l.other && l.status === "waiting_confirm") { const q = linkQuote(l, l.other); closed = !!q.closed; out.price = q.net; }
+  return { l, view: { direction: l.direction, from: String(c.name || "Un client WunaGo"), contactName: l.contact_name, payer: l.payer, size: l.size, note: l.note,
+    mineArea: mine.code ? String(mine.text || "").split(" · ")[0] : mine.text, status: out.status, other: out.other, price: out.price, closed, order } };
+}
+async function linkPlace(token: string, b: Row) {
+  const x = await publicLink(token);
+  if (!x) return fail(404, "Lien introuvable.");
+  const l = x.l;
+  if (x.view.status === "expired") return fail(410, "Ce lien a expiré. Demandez-en un nouveau.");
+  if (l.status !== "waiting_place" && l.status !== "waiting_confirm") return fail(409, "Le lieu ne peut plus être modifié.");
+  let other: Row;
+  if (b.mode === "code") {
+    const p = await findPlace(b.code);
+    if (!p) return fail(404, "Ce Code WunaGo n'existe pas. Vérifiez les 4 caractères après « WG- ».");
+    other = { code: p.code, text: (p.place_name ? p.place_name + ", " : "") + p.area + ", Douala · " + p.code, lat: p.lat, lng: p.lng, hint: p.hint || "",
+      owner: String(p.owner_name || "").split(" ")[0] };
+  } else {
+    const lat = Number(b.lat), lng = Number(b.lng);
+    if (!(Math.abs(lat) <= 90 && Math.abs(lng) <= 180)) return fail(400, "Position introuvable : activez la localisation ou placez l'épingle.");
+    if (distanceKm({ lat, lng }, { lat: 4.05, lng: 9.72 }) > 60) return fail(400, "WunaGo livre à Douala et ses environs.");
+    const name = String(b.placeName || "").trim().slice(0, 60);
+    other = { text: (name ? name + ", " : "") + nearestArea(lat, lng) + ", Douala", lat, lng, hint: String(b.hint || "").trim().slice(0, 120) };
+  }
+  if (b.hint && other.code) other.hint = String(b.hint).trim().slice(0, 120) || other.hint;
+  const pn = String((b.person || {}).name || "").trim().slice(0, 60), pp = normalizePhone((b.person || {}).phone);
+  if ((b.person || {}).phone && !pp) return fail(400, "Numéro de la personne invalide : 9 chiffres commençant par 6.");
+  if (pn || pp) other.person = { name: pn, phone: pp || "" };
+  const q = linkQuote(l, other);
+  if (q.errors.includes("distance")) return fail(400, ERRS.distance);
+  const rows = await db().sql`UPDATE delivery_links SET other = ${JSON.stringify(other)}::jsonb, price_net = ${q.net}, status = 'waiting_confirm', updated_at = NOW()
+    WHERE id = ${l.id} RETURNING *`;
+  if (l.payer === "me") {
+    const who = l.contact_name || (other.person && other.person.name) || "+237 " + l.contact_phone;
+    push([l.user_id], { title: (l.direction === "send" ? who + " a choisi où recevoir" : who + " a indiqué d'où part le colis"),
+      body: String(other.text).split(" · ")[0] + " · " + fmtF(q.net) + ". Touchez pour confirmer la course.", url: "/#liens", tag: "lien-" + l.id }, "orders");
+  }
+  return json({ ...(await publicLink(token))!.view, saved: !!rows.length });
+}
+async function linkConfirmPublic(token: string) {
+  const x = await publicLink(token);
+  if (!x) return fail(404, "Lien introuvable.");
+  const l = x.l;
+  if (l.payer !== "them") return fail(409, "C'est l'expéditeur qui confirme cette course.");
+  if (x.view.status === "expired") return fail(410, "Ce lien a expiré.");
+  if (l.status !== "waiting_confirm") return fail(409, l.status === "ordered" ? "La course est déjà lancée." : "Choisissez d'abord le lieu.");
+  const out = await confirmLink(l);
+  if (out instanceof Response) return out;
+  const who = l.contact_name || "+237 " + l.contact_phone;
+  push([l.user_id], { title: "Course lancée · " + out.order.code, body: who + " a confirmé (" + fmtF(out.order.price.net) + " à régler au livreur).", url: "/#commande=" + out.order.id, tag: out.order.code }, "orders");
+  return json((await publicLink(token))!.view);
+}
+
 /* ---------- suivi public (lien partagé au destinataire, sans compte) ---------- */
 async function publicTrack(token: string) {
   const o = (await db().sql`SELECT * FROM orders WHERE track_token = ${token}`)[0];
@@ -636,10 +815,30 @@ async function courierRoutes(req: Request, user: Row, path: string, m: string): 
       if (!(o.stage === 2 || (o.service === "ride" && o.stage === 0))) return fail(409, "Indiquez votre arrivée une fois sur place.");
       rows = await db().sql`UPDATE orders SET arrived_at = NOW(), updated_at = NOW() WHERE id = ${o.id} RETURNING *`;
       const a = rows[0];
+      if ((o.details || {}).returned) {
+        push([a.user_id], { title: "Retour du colis · " + o.code, body: "Le livreur est au point de départ avec le colis non remis.", url: "/#commande=" + a.id, tag: a.code }, "orders");
+        return json({ order: await withClient(a, user) });
+      }
       push([a.user_id], { title: o.service === "ride" ? "Votre chauffeur est arrivé" : "Votre livreur est arrivé",
         body: (o.service === "ride" ? "Il vous attend au point de départ." : "Il est sur place") + (o.delivery_code && o.service !== "ride" ? ". Code de remise : " + o.delivery_code + "." : "."),
         url: "/#commande=" + a.id, tag: a.code }, "orders");
       return json({ order: await withClient(a, user) });
+    }
+    if (to === "return") {
+      /* colis non remis (absent, refus) : retour à l'expéditeur, frais de retour réglés au livreur par l'expéditeur */
+      const d0 = o.details || {};
+      if (o.service !== "parcel" || o.stage !== 2 || d0.returned) return fail(409, "Retour possible une fois arrivé chez le destinataire.");
+      const reason = ["absent", "refused", "unreachable"].includes(b.reason) ? b.reason : "absent";
+      const fee = returnFee(o.price_lines || []);
+      const lines = [...(o.price_lines || []), { key: "return", amount: fee }];
+      /* l'expéditeur règle le retour, et l'aller aussi si c'était au destinataire de payer */
+      const due = fee + (o.payment_status === "cod" && d0.payBy && d0.payBy.role === "recipient" ? o.price_net : 0);
+      const details = { ...d0, returned: { at: Date.now(), reason, fee, due } };
+      rows = await db().sql`UPDATE orders SET price_lines = ${JSON.stringify(lines)}::jsonb, price_gross = price_gross + ${fee}, price_net = price_net + ${fee},
+        details = ${JSON.stringify(details)}::jsonb, arrived_at = NULL, updated_at = NOW() WHERE id = ${o.id} RETURNING *`;
+      const R: Record<string, string> = { absent: "destinataire absent", refused: "colis refusé", unreachable: "destinataire injoignable" };
+      push([o.user_id], { title: "Colis non remis · " + o.code, body: "Retour à l'expéditeur (" + R[reason] + "). Frais de retour : " + fmtF(fee) + ".", url: "/#commande=" + o.id, tag: o.code }, "orders");
+      return json({ order: await withClient(rows[0], user) });
     }
     if (to === "picked_up" && o.stage === 0) rows = await db().sql`UPDATE orders SET stage = 1, status = 'picked_up', updated_at = NOW() WHERE id = ${o.id} RETURNING *`;
     else if (to === "en_route" && o.stage === 1) rows = await db().sql`UPDATE orders SET stage = 2, status = 'en_route', en_route_at = NOW(), updated_at = NOW() WHERE id = ${o.id} RETURNING *`;
@@ -648,6 +847,7 @@ async function courierRoutes(req: Request, user: Row, path: string, m: string): 
       const name = String(b.receivedBy || "").trim().slice(0, 60), code = String(b.code || "").replace(/\D/g, "");
       let how = "name";
       if (code) {
+        if ((o.details || {}).returned) return fail(400, "Retour à l'expéditeur : indiquez le nom de la personne et prenez une photo.");
         if (!o.delivery_code || code !== o.delivery_code) return fail(400, "Code de remise incorrect. Demandez-le au destinataire.");
         how = "code";
       } else {
@@ -656,11 +856,12 @@ async function courierRoutes(req: Request, user: Row, path: string, m: string): 
         if (o.delivery_code && !photo) return fail(400, "Sans code, une photo de la remise est obligatoire.");
       }
       rows = await db().sql`
-        UPDATE orders SET stage = 3, status = 'delivered', delivered_at = NOW(), proof_photo = ${photo}, proof_name = ${name || null}, delivered_with = ${how}, updated_at = NOW()
+        UPDATE orders SET stage = 3, status = 'delivered', delivered_at = NOW(), proof_photo = ${photo}, proof_name = ${name || null},
+          delivered_with = ${(o.details || {}).returned ? "returned" : how}, updated_at = NOW()
         WHERE id = ${o.id} RETURNING *`;
     } else return fail(409, "Étape impossible depuis le statut actuel.");
     const done = rows[0];
-    push([done.user_id], { title: SVC_FR[done.service] + " · " + done.code, body: STEP_FR[to][done.service], url: "/#commande=" + done.id, tag: done.code }, "orders");
+    push([done.user_id], { title: SVC_FR[done.service] + " · " + done.code, body: (done.details || {}).returned && to === "delivered" ? "Colis rendu à l'expéditeur." : STEP_FR[to][done.service], url: "/#commande=" + done.id, tag: done.code }, "orders");
     return json({ order: await withClient(done, user) });
   }
   return fail(404, "Route inconnue.");
@@ -847,9 +1048,16 @@ async function adminRoutes(req: Request, user: Row, path: string, m: string, url
         (SELECT COUNT(*) FROM users WHERE role = 'courier') AS couriers,
         (SELECT COUNT(*) FROM users WHERE role = 'client' AND deleted_at IS NULL) AS clients,
         (SELECT COUNT(*) FROM orders WHERE status = 'received' AND courier_id IS NULL
-           AND GREATEST(created_at, COALESCE(scheduled_at, created_at) - INTERVAL '1 hour') < NOW() - INTERVAL '10 minutes') AS late`;
+           AND GREATEST(created_at, COALESCE(scheduled_at, created_at) - INTERVAL '1 hour') < NOW() - INTERVAL '10 minutes') AS late,
+        (SELECT COUNT(*) FROM delivery_links WHERE status IN ('waiting_place','waiting_confirm') AND expires_at > NOW()) AS links_waiting`;
     const x = s[0];
     return json({ stats: Object.fromEntries(Object.entries(x).map(([k, v]) => [k, Number(v)])) });
+  }
+  if (path === "/admin/links" && m === "GET") {
+    /* envois par lien en attente : le correspondant n'a pas encore choisi le lieu, ou le prix attend confirmation */
+    const rows = await db().sql`SELECT l.*, u.name AS creator_name, u.phone AS creator_phone FROM delivery_links l JOIN users u ON u.id = l.user_id
+      WHERE l.status IN ('waiting_place','waiting_confirm') AND l.expires_at > NOW() ORDER BY l.created_at DESC LIMIT 200`;
+    return json({ links: rows.map((l) => ({ ...linkOut(l), creator: { name: l.creator_name || "Client", phone: l.creator_phone } })) });
   }
   if (path === "/admin/orders" && m === "GET") {
     /* historique : filtres combinables (statut, période en dates de Douala, service, paiement, livreur, recherche) + pagination */
@@ -1135,6 +1343,12 @@ export default async (req: Request, context: any) => {
       if (!p) return fail(404, "Ce Code WunaGo n'existe pas.");
       return json({ code: p.code, name: String(p.owner_name || "").split(" ")[0] || "", label: p.label, placeName: p.place_name, area: p.area });
     }
+    const ln = path.match(/^\/lien\/([A-Za-z0-9_-]{8,40})(?:\/(place|confirm))?$/);
+    if (ln) {
+      if (!ln[2] && m === "GET") { const x = await publicLink(ln[1]); return x ? json(x.view) : fail(404, "Lien introuvable ou expiré."); }
+      if (ln[2] === "place" && m === "POST") return await linkPlace(ln[1], await body(req));
+      if (ln[2] === "confirm" && m === "POST") return await linkConfirmPublic(ln[1]);
+    }
     const sp2 = path.match(/^\/suivi\/([A-Za-z0-9_-]{10,40})\/position$/);
     if (sp2 && m === "POST") return await shareDropoff(sp2[1], await body(req));
     if (path === "/auth/verify" && m === "POST") return await authVerify(req);
@@ -1145,6 +1359,7 @@ export default async (req: Request, context: any) => {
 
     if (path === "/me" && m === "GET") return json({ user: userOut(user) });
     const pr = await placesRoutes(req, user, path, m); if (pr) return pr;
+    const lr = await linkRoutes(req, user, path, m); if (lr) return lr;
     const cr = await courierRoutes(req, user, path, m); if (cr) return cr;
     const ad = await adminRoutes(req, user, path, m, url); if (ad) return ad;
     if (path === "/conversations" && m === "GET") return json({ conversations: await listConversations(user) });

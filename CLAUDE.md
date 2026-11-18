@@ -38,6 +38,12 @@ Porteur du projet : Serge-Venant OHANDZA. Langue de travail et de l'interface : 
   autocollant imprimable), lien `/#code=WG-XXXX`, saisie ou scan dans une commande et au backoffice ; le serveur résout `pickupCode` / `dropoffCode`.
   **Commande éclair** : en haut de l'accueil, « Envoyer à… » / « Aller chez… » (colis léger ou trajet) + carnet de codes (`prefs.codebook`, ajout automatique) ;
   un seul écran (contact, départ = mon code ou ma position, paiement, prix) → « Envoyer ». Le lien `/#code=` ouvre cet écran.
+  **Envoi par lien** (table `delivery_links`) : « Envoyer à… » un simple numéro (accueil, ou contact Android) / « Recevoir de… ». Lien WhatsApp
+  `web/lien.html?t=` (sans compte) : l'autre choisit le lieu (ici / son code / code d'un proche / autre lieu sur carte) et la personne qui reçoit ou remet ;
+  celui qui paie la livraison confirme le prix (créateur : carte « Envois en attente » sur l'accueil, `POST /api/links/:id/confirm` ; correspondant :
+  `POST /api/lien/:token/confirm`, paiement au livreur). `details.payBy`, `details.pickupContact`, `details.via = "link"`. WunaGo ne gère que la livraison,
+  jamais la vente ni l'argent des marchandises. Retour à l'expéditeur (absent / refus) : étape livreur `return`, frais `TARIFS.retour` (50 % du transport),
+  réglés par l'expéditeur (`details.returned`).
   Version affichée : `APP_VERSION` (app.js) et pied du menu (admin.js), à changer avec `CACHE` (sw.js).
 - Tests : `livraison2` (multi-acteurs : backoffice, livreur, clients, messagerie, notifications), `tarifs` (grille, sans navigateur), `services` (parcours dédiés, profil), `parcours` (mode local), `google-maps` (API Google simulée), `ecrans-compte` (étape 3), `serveur` (API + Postgres local
   via `tests/dev-server.mjs`). Les tests décalent l'heure à midi la nuit (`tests/horloge.mjs`). Lancer : `npm install && npx playwright install chromium && npm test`. Serveur local : `npm run dev`.
