@@ -70,7 +70,7 @@
     return '<div class="shell"><nav class="side" aria-label="Sections">' +
       '<div class="brand"><svg width="22" height="28" viewBox="0 0 60 76" aria-hidden="true"><path d="M30 4C14.5 4 4 15.4 4 29.5C4 47 30 72 30 72C30 72 56 47 56 29.5C56 15.4 45.5 4 30 4Z" fill="#1FD1B2"/><rect x="20" y="20" width="20" height="20" rx="3" fill="#0B1F3A"/></svg><span>WunaGo<br><small>BACKOFFICE</small></span></div>' +
       NAV.map(function (n) { var k = c[n[0]]; return '<button class="' + (S.view === n[0] || (S.view === "courier" && n[0] === "couriers") ? "on" : "") + '" data-a="nav" data-v="' + n[0] + '">' + n[1] + (k ? '<span class="count">' + k + '</span>' : '') + '</button>'; }).join("") +
-      '<div class="foot"><span class="mono" style="font-size:10px;opacity:.6">Version 26 · 18/11/2026</span><span>' + esc(S.me.name || "Administrateur") + '<br><span class="mono">' + esc(phone(S.me.phone)) + '</span></span><button class="btn btn-sm btn-ghost" style="background:rgba(255,255,255,.1);color:#fff" data-a="logout">Se déconnecter</button></div>' +
+      '<div class="foot"><span class="mono" style="font-size:10px;opacity:.6">Version 27 · 18/11/2026</span><span>' + esc(S.me.name || "Administrateur") + '<br><span class="mono">' + esc(phone(S.me.phone)) + '</span></span><button class="btn btn-sm btn-ghost" style="background:rgba(255,255,255,.1);color:#fff" data-a="logout">Se déconnecter</button></div>' +
       '</nav><main>' + lateBanner() + inner + '</main></div>';
   }
   function kpi(label, value, dark) { return '<div class="card kpi' + (dark ? " dark" : "") + '"><span class="lbl">' + label + '</span><b>' + value + '</b></div>'; }
@@ -510,7 +510,7 @@
     return shell('<h1>Commerçants</h1><p class="note">Boutiques, restaurants et e-commerçants qui expédient avec WunaGo. ' + L.length + ' commerce(s) · ' + tot + ' envoi(s) sur 30 jours. WunaGo ne gère que la livraison : aucune donnée de vente.</p>' +
       (L.length ? '<div class="card" style="overflow:auto"><table><thead><tr><th class="lbl">Commerce</th><th class="lbl">Type</th><th class="lbl">Contact</th><th class="lbl">Code</th><th class="lbl">Envois 30 j</th><th class="lbl">Réussite</th><th class="lbl">Dernier envoi</th><th></th></tr></thead><tbody>' +
         L.map(function (x) {
-          return '<tr><td><b>' + esc(x.name) + '</b>' + (x.area ? '<br><span class="mono" style="font-size:11px">' + esc(x.area) + '</span>' : '') + '</td><td>' + esc(MKIND[x.kind] || x.kind) + '</td>' +
+          return '<tr><td><b>' + esc(x.name) + '</b>' + (x.area ? '<br><span class="mono" style="font-size:11px">' + esc(x.area) + '</span>' : '') + '</td><td>' + esc(x.activity || MKIND[x.kind] || x.kind) + (x.hasPhoto ? ' 📷' : '') + '</td>' +
             '<td>' + esc(x.owner || "—") + '<br><span class="mono" style="font-size:11px">' + esc(phone(x.phone)) + '</span></td><td class="mono">' + esc(x.placeCode || "—") + '</td>' +
             '<td class="mono">' + x.sent30 + '</td><td class="mono">' + (x.successRate == null ? "—" : x.successRate + " % (" + x.delivered + "/" + (x.delivered + x.returned) + ")") + '</td>' +
             '<td class="mono">' + (x.last ? when(x.last) : "—") + '</td><td><button class="btn btn-sm btn-ghost" data-a="writeClient" data-v="' + x.userId + '">Écrire</button></td></tr>';
