@@ -81,7 +81,15 @@ Porteur du projet : Serge-Venant OHANDZA. Langue de travail et de l'interface : 
   `photo` par client dans l'envoi groupé, publiques `GET /api/lien/:token/photo` et `/api/suivi/:token/parcel-photo`, vignette côté client et livreur).
   Envoi groupé : contacts choisis dans le répertoire (plusieurs d'un coup, Android), « Partager autrement » pour chaque lien.
   Version affichée : `APP_VERSION` (app.js) et pied du menu (admin.js), à changer avec `CACHE` (sw.js).
-- Tests : `commerce-photos` (secteur, Code de la boutique, photos, répertoire, partage), `confort` (menu, retours, défilement, reprise d'envoi, boutons en cours), `espace-commercants` (profil, envoi groupé, stats, reçu, photo livreur, disponibilité), `inscription-livreur` (dossier, lecture des pièces, contrat, validation, agence), `sans-donnees` (badge, remise, page légère), `parcours-simple` (colis et trajet en un écran, bilan livreur), `envoi-lien` (envoi par lien, remise contrôlée, accueil recentré), `livraison2` (multi-acteurs : backoffice, livreur, clients, messagerie, notifications), `tarifs` (grille, sans navigateur), `services` (parcours dédiés, profil), `parcours` (mode local), `google-maps` (API Google simulée), `ecrans-compte` (étape 3), `serveur` (API + Postgres local
+  **Paiements mobile money (v28, SasPay)** : `server/saspay.mts` (client API) ; table `payments` (+ `wallet_tx.payment_id` unique).
+  Recharge du portefeuille : `POST /api/pay/topup` → session SasPay (page hébergée, Orange Money / MTN MoMo) → retour `/#paiement=<id>` →
+  `GET /api/pay/:id`. **Crédit uniquement après vérification serveur** (statut de session + `verify` de la transaction), une seule fois ;
+  notification signée `POST /api/saspay/webhook` (HMAC `timestamp.corps`, 5 min) toujours revérifiée ; revérification planifiée
+  (`reconcilePayments`, déclencheur 2 min) ; montant incomplet → `review`. Backoffice › Paiements (`GET /api/admin/payments`).
+  Secrets Cloudflare : `SASPAY_SECRET_KEY`, `SASPAY_WEBHOOK_SECRET`, `SASPAY_MODE` (`test` par défaut → `sandbox-api.saspay.me` ;
+  `live` → `api.saspay.me`). Garde-fou : clé `sk_live_` en test (ou `sk_test_` en live) = paiements désactivés. Sans clé : recharge simulée (démo).
+  Étapes suivantes : payer une course par mobile money, paiement par le destinataire via le lien, versements livreurs.
+- Tests : `paiements` (SasPay simulé : recharge, refus, notification signée, garde-fous, backoffice), `commerce-photos` (secteur, Code de la boutique, photos, répertoire, partage), `confort` (menu, retours, défilement, reprise d'envoi, boutons en cours), `espace-commercants` (profil, envoi groupé, stats, reçu, photo livreur, disponibilité), `inscription-livreur` (dossier, lecture des pièces, contrat, validation, agence), `sans-donnees` (badge, remise, page légère), `parcours-simple` (colis et trajet en un écran, bilan livreur), `envoi-lien` (envoi par lien, remise contrôlée, accueil recentré), `livraison2` (multi-acteurs : backoffice, livreur, clients, messagerie, notifications), `tarifs` (grille, sans navigateur), `services` (parcours dédiés, profil), `parcours` (mode local), `google-maps` (API Google simulée), `ecrans-compte` (étape 3), `serveur` (API + Postgres local
   via `tests/dev-server.mjs`). Les tests décalent l'heure à midi la nuit (`tests/horloge.mjs`). Lancer : `npm install && npx playwright install chromium && npm test`. Serveur local : `npm run dev`.
 - Mise en ligne : **Cloudflare Workers** (offre gratuite, `wrangler.toml`) relié au dépôt GitHub : chaque fusion dans `main` publie
   automatiquement. Base : **Neon** (Postgres gratuit). Secrets Cloudflare : `DATABASE_URL`, `ADMIN_PHONES`. Netlify (crédits épuisés en nov. 2026) abandonné ;
@@ -116,7 +124,7 @@ Rayons : boutons 17 px, cartes 16–18 px, pilules 99 px. Zones tactiles ≥ 44 
 3. ✅ Écrans manquants : Mes adresses, moyens de paiement, notifications, annulation, litiges
 4. ✅ Backend réel (hors paiements) : comptes, commandes serveur, connexion par code (SMS réels à brancher), suivi rafraîchi
 5. ✅ Deuxième livraison : messagerie (client / livreur / service client / entre clients), espace livreur avec position en direct, backoffice `admin.html`, notifications Web Push
-6. **En dernier** : paiements Orange Money / MTN MoMo réels
+6. **En cours** : paiements Orange Money / MTN MoMo réels via SasPay (recharge du portefeuille faite en mode test)
 
 ## Décisions
 - Pas de clé Google Maps payante pour l'instant : carte OpenStreetMap + bouton « Ouvrir dans Google Maps ».

@@ -9,7 +9,7 @@
   var SUPPORT_PHONE = "+237600000000", SUPPORT_PHONE_LABEL = "+237 6 00 00 00 00";
   var STORE_KEY = "wunago.client.v1";
   /* Version affichée dans Réglages : à changer avec CACHE dans sw.js à chaque mise en ligne */
-  var APP_VERSION = "27 · 18/11/2026";
+  var APP_VERSION = "28 · 19/11/2026";
   var deferredInstall = null;
   var lastScreenKey = "";
   var installDismissed = false;
@@ -245,6 +245,7 @@
     var grouped = Math.round(n).toString().replace(/\B(?=(\d{3})+(?!\d))/g, " ");
     return grouped + " FCFA";
   }
+  function fmt(n) { return Math.round(Number(n) || 0).toString().replace(/\B(?=(\d{3})+(?!\d))/g, " "); }
   function fmtW(w) { return (state.lang === "en" ? String(w) : String(w).replace(".", ",")) + " kg"; }
   function svc(key) { return SERVICES.filter(function (s) { return s.key === key; })[0]; }
   function svcName(key) { return svc(key)[state.lang]; }
@@ -497,7 +498,7 @@
           '<span style="background:#0B1F3A;color:#fff;border-radius:99px;padding:9px 13px;font-weight:700;font-size:11.5px">' + esc(d.topUp) + '</span>' +
         '</button>' +
       '</div>' +
-      '<div class="scroll">' + installBanner() + quickHero() + resumeCard() + (state.merchant ? merchantHomeCard() : "") + linksCard() + '<div style="padding:18px 20px 6px;font-weight:700;font-size:12.5px;color:rgba(11,31,58,.5)">' + esc(d.services) + '</div>' +
+      '<div class="scroll">' + installBanner() + quickHero() + (state.payPending ? '<div style="padding:14px 20px 0">' + payPendingCard() + '</div>' : '') + resumeCard() + (state.merchant ? merchantHomeCard() : "") + linksCard() + '<div style="padding:18px 20px 6px;font-weight:700;font-size:12.5px;color:rgba(11,31,58,.5)">' + esc(d.services) + '</div>' +
       '<div style="padding:2px 20px 0">' + (state.settings.homeLayout === "tiles" ? '<div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">' + tiles + '</div>' : '<div class="col" style="gap:8px">' + listRows + '</div>') + '</div>' +
       activeCard + codeHomeCard() + (state.merchant ? "" : merchantHomeCard()) + recentBlock() +
       (srv() ? '<div style="height:24px"></div>' : '<div style="padding:20px 20px 24px"><div style="border:1px dashed rgba(11,31,58,.2);border-radius:16px;padding:14px;background:repeating-linear-gradient(135deg,rgba(31,209,178,.16) 0 8px,transparent 8px 16px)">' +
@@ -1017,11 +1018,37 @@
 
   /* ============================== screen: wallet ============================== */
 
+  /* paiement mobile money en attente de confirmation */
+  function payPendingCard() {
+    var p = state.payPending; if (!p) return "";
+    var en = state.lang === "en";
+    return '<div class="pay-pending" role="status"><div class="fx ac" style="gap:10px"><span class="spin"></span><div class="col" style="gap:2px;flex:1">' +
+      '<b style="font-size:13px">' + (en ? "Payment being confirmed" : "Paiement en cours de confirmation") + (p.amount ? ' · ' + fmt(p.amount) + ' F' : '') + '</b>' +
+      '<span style="font-size:11.5px;color:rgba(11,31,58,.62);line-height:1.4">' + (p.attempt === "failed"
+        ? (en ? "The last attempt was refused. You can try again on the payment page." : "La dernière tentative a été refusée. Vous pouvez réessayer sur la page de paiement.")
+        : (en ? "Your wallet is credited as soon as Orange Money / MTN confirms." : "Votre portefeuille est crédité dès la confirmation d'Orange Money ou MTN.")) + '</span></div></div>' +
+      '<div class="fx" style="gap:8px">' + (p.url ? '<button class="btn btn-outline" data-action="resumePayUrl" style="flex:1;height:40px;font-size:12px">' + (en ? "Back to payment" : "Reprendre le paiement") + '</button>' : '') +
+      '<button class="btn btn-ink" data-action="checkPay" style="flex:1;height:40px;font-size:12px">' + (en ? "Check" : "Vérifier") + '</button></div>' +
+      '<button class="link-btn" data-action="dismissPay" style="align-self:center;border:0;background:transparent;font-size:11.5px;color:rgba(11,31,58,.55);text-decoration:underline;min-height:32px;cursor:pointer">' + (en ? "Hide (if paid later, your wallet is still credited)" : "Masquer (si vous payez plus tard, le crédit arrivera quand même)") + '</button></div>';
+  }
+
   function screenWallet() {
     var d = t();
     var panel = state.walletPanel;
     var panelHtml = "";
-    if (panel === "topup") {
+    if (panel === "topup" && payReal()) {
+      /* paiement réel : montant, puis page de paiement sécurisée SasPay (Orange Money, MTN MoMo…) */
+      var en = state.lang === "en";
+      panelHtml = '<div class="col" style="gap:9px;padding-top:2px">' +
+        '<div class="fx" style="gap:7px">' + [2000, 5000, 10000].map(function (v) {
+          var on = Number(state.topUpAmount) === v;
+          return '<button class="btn" data-action="setTopUpAmount" data-arg="' + v + '" style="flex:1;height:38px;border-radius:11px;background:' + (on ? "#1FD1B2" : "rgba(255,255,255,.1)") + ';color:' + (on ? "#0B1F3A" : "#fff") + ';font-weight:700;font-size:11.5px">' + fmt(v) + ' F</button>';
+        }).join("") + '</div>' +
+        '<input data-bind="topUpAmount" value="' + esc(state.topUpAmount || "") + '" placeholder="' + (en ? "Other amount (min. 500)" : "Autre montant (500 F minimum)") + '" inputmode="numeric" style="height:42px;border-radius:11px;background:rgba(255,255,255,.08);padding:0 13px;color:#fff;font-weight:600;font-size:13px" />' +
+        '<span style="font-size:11px;line-height:1.45;color:rgba(255,255,255,.7)">' + (en ? "You will pay with Orange Money or MTN MoMo on SasPay's secure page, then come back here." : "Vous payez par Orange Money ou MTN MoMo sur la page sécurisée SasPay, puis vous revenez ici automatiquement.") + '</span>' +
+        (WAPI.status.pay === "test" ? '<span class="mono pay-test">' + (en ? "TEST MODE · NO REAL MONEY" : "MODE TEST · AUCUN ARGENT RÉEL") + '</span>' : '') +
+        '<button class="btn btn-accent" data-action="doTopUp" data-primary>' + esc(en ? "Continue to payment" : "Continuer vers le paiement") + '</button></div>';
+    } else if (panel === "topup") {
       panelHtml = '<div class="col" style="gap:9px;padding-top:2px">' +
         '<div class="fx" style="gap:7px">' + ["orange_money", "mtn_momo"].map(function (m) {
           var on = state.topUpMethod === m;
@@ -1047,6 +1074,7 @@
 
     return '<div class="scroll"><div class="col" style="padding:calc(18px + var(--sat)) 20px 20px;gap:15px">' +
       '<div class="fx ac" style="gap:12px">' + menuBtn() + '<div class="fx ac jc" style="width:46px;height:46px;border-radius:99px;background:#1FD1B2;font-weight:800;font-size:14px">' + state.user.initials + '</div><div class="col" style="gap:2px"><span style="font-weight:800;font-size:17px;letter-spacing:-.4px">' + esc(state.user.name) + '</span><span class="mono" style="font-size:11px;color:rgba(11,31,58,.55)">+237 ' + esc(state.phone) + '</span></div></div>' +
+      payPendingCard() +
       '<div class="col" style="background:#0B1F3A;border-radius:19px;padding:17px;gap:14px">' +
         '<div class="col" style="gap:2px"><span class="mono" style="font-size:10px;letter-spacing:.08em;color:rgba(255,255,255,.5)">' + esc(d.wallet) + '</span><span style="font-weight:800;font-size:29px;color:#1FD1B2;letter-spacing:-1px">' + fmtFcfa(state.wallet.balance) + '</span></div>' +
         '<div class="fx" style="gap:8px"><button class="btn" data-action="toggleWalletPanel" data-arg="topup" style="flex:1;height:44px;border-radius:12px;background:#1FD1B2;font-weight:700;font-size:12px">' + esc(d.topUp) + '</button><button class="btn" data-action="toggleWalletPanel" data-arg="send" style="flex:1;height:44px;border-radius:12px;background:transparent;border:1.5px solid rgba(255,255,255,.25);color:#fff;font-weight:700;font-size:12px">' + esc(d.send) + '</button></div>' +
@@ -1663,6 +1691,7 @@
     },
     toggleWalletPanel: function (el, arg) { state.walletPanel = state.walletPanel === arg ? null : arg; state.topUpAmount = ""; state.sendPhone = ""; render(); },
     setTopUpMethod: function (el, arg) { state.topUpMethod = arg; render(); },
+    setTopUpAmount: function (el, arg) { state.topUpAmount = String(arg); render(); },
     doTopUp: function () {
       var amt = Number(state.topUpAmount);
       if (!amt) return;
@@ -2867,6 +2896,49 @@
   var NAME_STR = { fr: { title: "Comment vous appelle-t-on ?", sub: "Votre prénom et votre nom, pour le livreur et le service client.", ph: "Ex. Ariane Ngono", go: "Continuer", need: "Indiquez au moins 2 lettres." },
                    en: { title: "What's your name?", sub: "First and last name, for the courier and support.", ph: "e.g. Ariane Ngono", go: "Continue", need: "Enter at least 2 letters." } };
   function srv() { return !!(window.WAPI && WAPI.status.on); }
+  /* paiement mobile money réel (SasPay) actif sur le serveur */
+  function payReal() { return srv() && !!WAPI.status.pay; }
+  var PAY_KEY = "wunago.pay", payTimer = null, payTries = 0;
+  function startPayment() {
+    var en = state.lang === "en", a = Math.round(Number(String(state.topUpAmount || "").replace(/[^\d]/g, "")));
+    if (!(a >= 500 && a <= 500000)) { toast(en ? "Amount between 500 and 500,000 F." : "Montant entre 500 et 500 000 F."); return; }
+    WAPI.post("/pay/topup", { amount: a }).then(function (r) {
+      try { localStorage.setItem(PAY_KEY, JSON.stringify({ id: r.payment.id, amount: a, at: Date.now(), url: r.checkoutUrl })); } catch (e) {}
+      state.payPending = { id: r.payment.id, amount: a, status: "pending", url: r.checkoutUrl }; state.walletPanel = null; state.topUpAmount = "";
+      render();
+      location.assign(r.checkoutUrl);
+    }).catch(errToast);
+  }
+  /* au retour de la page de paiement (ou à la réouverture de l'app) : on demande au serveur, qui vérifie auprès de SasPay */
+  function checkPayment(id, loud) {
+    if (!srv() || !id) return;
+    clearTimeout(payTimer);
+    WAPI.get("/pay/" + id).then(function (r) {
+      var p = r.payment, en = state.lang === "en";
+      state.wallet.balance = r.wallet.balance;
+      if (p.status === "paid") {
+        state.payPending = null; try { localStorage.removeItem(PAY_KEY); } catch (e) {}
+        toast((en ? "Wallet topped up: +" : "Portefeuille rechargé : +") + fmt(p.amount) + " F");
+      } else if (p.status === "pending") {
+        state.payPending = { id: p.id, amount: p.amount, status: "pending", attempt: p.attempt, url: (state.payPending || {}).url };
+        if (payTries++ < 15) payTimer = setTimeout(function () { checkPayment(id); }, 4000);
+        if (loud && p.attempt === "failed") toast(en ? "Payment refused. You can try again on the payment page." : "Paiement refusé. Vous pouvez réessayer sur la page de paiement.");
+        render();
+      } else {
+        state.payPending = null; try { localStorage.removeItem(PAY_KEY); } catch (e) {}
+        toast(p.status === "review" ? (en ? "Payment under review by our team." : "Paiement en vérification par notre équipe.") : (en ? "Payment not completed. Nothing was charged to your wallet." : "Paiement non abouti. Votre portefeuille n'a pas été modifié."));
+      }
+    }).catch(function () { render(); });
+  }
+  function resumePayment() {
+    var s = null; try { s = JSON.parse(localStorage.getItem(PAY_KEY) || "null"); } catch (e) {}
+    if (s && s.id && Date.now() - (s.at || 0) < 48 * 3600e3) { if (!state.payPending) state.payPending = { id: s.id, amount: s.amount, status: "pending", url: s.url }; payTries = 0; checkPayment(s.id); }
+    else if (s) { try { localStorage.removeItem(PAY_KEY); } catch (e) {} }
+  }
+  document.addEventListener("visibilitychange", function () { if (!document.hidden && state.loggedIn && state.payPending) { payTries = 0; checkPayment(state.payPending.id); } });
+  actions.dismissPay = function () { clearTimeout(payTimer); state.payPending = null; try { localStorage.removeItem(PAY_KEY); } catch (e) {} render(); };
+  actions.checkPay = function () { if (state.payPending) { payTries = 0; checkPayment(state.payPending.id, true); } };
+  actions.resumePayUrl = function () { if (state.payPending && state.payPending.url) location.assign(state.payPending.url); };
   function errToast(e) { toast((e && e.message) || "Erreur."); }
   function prettyPhone(p) { return String(p || "").replace(/^(\d)(\d{2})(\d{2})(\d{2})(\d{2})$/, "$1 $2 $3 $4 $5"); }
   var PREF_FIELDS = ["addresses", "payAccounts", "defaultPay", "notifPrefs", "codebook"];
@@ -2898,7 +2970,7 @@
     return Promise.all([WAPI.get("/me"), WAPI.get("/orders"), WAPI.get("/disputes")]).then(function (r) {
       applyUser(r[0].user); state.orders = r[1].orders; state.disputes = r[2].disputes;
       if (state.tabStacks.support[0].screen === "chat") state.tabStacks.support = [{ screen: "inbox" }];
-      render(); loadConvs(); loadCourier(); subscribePush(); loadPlaces(); loadLinks(); loadMerchant(); handleHash();
+      render(); loadConvs(); loadCourier(); subscribePush(); loadPlaces(); loadLinks(); loadMerchant(); handleHash(); resumePayment();
     }).catch(function (e) { if (e.status === 401) forceLogin(); });
   }
   function resetAccountState() {
@@ -2991,6 +3063,7 @@
   };
   actions.doTopUp = function () {
     if (!srv()) return base.doTopUp();
+    if (payReal()) return startPayment();
     WAPI.post("/wallet/topup", { amount: Number(state.topUpAmount), method: state.topUpMethod }).then(function (r) {
       state.wallet.balance = r.wallet.balance; state.walletPanel = null; toast(t().toastTopUp);
     }).catch(errToast);
@@ -3897,6 +3970,15 @@
   /* liens ouverts depuis une notification : #discussion=… #commande=… #courses */
   function handleHash() {
     if (!state.loggedIn) return;
+    var h0 = location.hash;
+    var mp = location.hash.match(/^#paiement=([0-9a-fA-F-]{36})/);
+    if (mp) {
+      try { history.replaceState(null, "", location.pathname); } catch (e) {}
+      state.activeTab = "wallet"; state.tabStacks.wallet = [{ screen: "wallet" }];
+      if (!state.payPending || state.payPending.id !== mp[1]) { var sv = null; try { sv = JSON.parse(localStorage.getItem(PAY_KEY) || "null"); } catch (e) {} state.payPending = { id: mp[1], amount: sv && sv.id === mp[1] ? sv.amount : 0, status: "pending", url: sv && sv.id === mp[1] ? sv.url : null }; }
+      payTries = 0; checkPayment(mp[1], true); render(); return;
+    }
+    if (h0 === "#portefeuille") { try { history.replaceState(null, "", location.pathname); } catch (e) {} state.activeTab = "wallet"; render(); return; }
     var h = location.hash, m1 = h.match(/^#discussion=([\w-]+)/), m2 = h.match(/^#commande=([\w-]+)/), m3 = h.match(/^#code=(WG-?[0-9A-Za-z]{4})/i);
     if (m3 && srv() && !isCourier()) { try { history.replaceState(null, "", location.pathname); } catch (e) {} actions.flashTo(null, codeFromText(m3[1]), "parcel"); return; }
     if (m1 && srv()) { state.activeTab = "support"; state.tabStacks.support = [{ screen: "inbox" }, { screen: "conv", convId: m1[1] }]; loadConvs().then(function () { loadMessages(m1[1], true); }); }

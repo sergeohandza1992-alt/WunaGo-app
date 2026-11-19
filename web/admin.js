@@ -52,7 +52,7 @@
   }
 
   /* ---------- vues ---------- */
-  var NAV = [["dash", "Tableau de bord"], ["orders", "Commandes"], ["couriers", "Livreurs"], ["apps", "Candidatures"], ["disputes", "Réclamations"], ["messages", "Messages"], ["clients", "Clients"], ["merchants", "Commerçants"]];
+  var NAV = [["dash", "Tableau de bord"], ["orders", "Commandes"], ["couriers", "Livreurs"], ["apps", "Candidatures"], ["disputes", "Réclamations"], ["messages", "Messages"], ["clients", "Clients"], ["merchants", "Commerçants"], ["payments", "Paiements"]];
   function counts() {
     var st = S.stats || {};
     return { orders: st.unassigned || 0, disputes: st.open_disputes || 0, couriers: st.couriers_online || 0, apps: Number(st.apps_pending || 0),
@@ -70,7 +70,7 @@
     return '<div class="shell"><nav class="side" aria-label="Sections">' +
       '<div class="brand"><svg width="22" height="28" viewBox="0 0 60 76" aria-hidden="true"><path d="M30 4C14.5 4 4 15.4 4 29.5C4 47 30 72 30 72C30 72 56 47 56 29.5C56 15.4 45.5 4 30 4Z" fill="#1FD1B2"/><rect x="20" y="20" width="20" height="20" rx="3" fill="#0B1F3A"/></svg><span>WunaGo<br><small>BACKOFFICE</small></span></div>' +
       NAV.map(function (n) { var k = c[n[0]]; return '<button class="' + (S.view === n[0] || (S.view === "courier" && n[0] === "couriers") ? "on" : "") + '" data-a="nav" data-v="' + n[0] + '">' + n[1] + (k ? '<span class="count">' + k + '</span>' : '') + '</button>'; }).join("") +
-      '<div class="foot"><span class="mono" style="font-size:10px;opacity:.6">Version 27 · 18/11/2026</span><span>' + esc(S.me.name || "Administrateur") + '<br><span class="mono">' + esc(phone(S.me.phone)) + '</span></span><button class="btn btn-sm btn-ghost" style="background:rgba(255,255,255,.1);color:#fff" data-a="logout">Se déconnecter</button></div>' +
+      '<div class="foot"><span class="mono" style="font-size:10px;opacity:.6">Version 28 · 19/11/2026</span><span>' + esc(S.me.name || "Administrateur") + '<br><span class="mono">' + esc(phone(S.me.phone)) + '</span></span><button class="btn btn-sm btn-ghost" style="background:rgba(255,255,255,.1);color:#fff" data-a="logout">Se déconnecter</button></div>' +
       '</nav><main>' + lateBanner() + inner + '</main></div>';
   }
   function kpi(label, value, dark) { return '<div class="card kpi' + (dark ? " dark" : "") + '"><span class="lbl">' + label + '</span><b>' + value + '</b></div>'; }
@@ -517,6 +517,23 @@
         }).join("") + '</tbody></table></div>' : '<div class="card empty">Aucun commerçant pour l\'instant. Ils s\'inscrivent depuis l\'app : Portefeuille › Espace commerçant.</div>'));
   }
 
+  var PAYST = { pending: "En attente", paid: "Payé", failed: "Échoué", expired: "Expiré", review: "À vérifier" };
+  function viewPayments() {
+    if (!S.pay) return shell('<h1>Paiements mobile money</h1><div class="card empty">Chargement…</div>');
+    var P = S.pay, L = P.payments || [], t = P.totals || {};
+    var fcfa = function (n) { return String(Math.round(n || 0)).replace(/\B(?=(\d{3})+(?!\d))/g, " ") + " F"; };
+    return shell('<h1>Paiements mobile money</h1><p class="note">Recharges du portefeuille par Orange Money / MTN MoMo via SasPay. ' +
+      (P.enabled ? (P.mode === "live" ? '<b>Production : argent réel.</b>' : '<b>Mode test</b> : aucun argent réel.') : '<b>Non activé</b> : ajoutez la clé SASPAY_SECRET_KEY dans Cloudflare.') +
+      ' Un paiement n\'est crédité qu\'après vérification auprès de SasPay. Rapprochez ces lignes avec votre tableau de bord SasPay.</p>' +
+      '<div class="kpis"><div class="card kpi"><span class="lbl">Payés</span><b>' + (t.paid || 0) + '</b></div><div class="card kpi"><span class="lbl">Montant crédité</span><b>' + fcfa(t.amount) + '</b></div>' +
+      '<div class="card kpi"><span class="lbl">Frais SasPay</span><b>' + fcfa(t.fees) + '</b></div><div class="card kpi"><span class="lbl">À vérifier</span><b>' + (t.review || 0) + '</b></div></div>' +
+      (L.length ? '<div class="card" style="overflow:auto"><table><thead><tr><th class="lbl">Date</th><th class="lbl">Client</th><th class="lbl">Montant</th><th class="lbl">État</th><th class="lbl">Réseau</th><th class="lbl">Frais</th><th class="lbl">Transaction</th></tr></thead><tbody>' +
+        L.map(function (x) {
+          return '<tr><td class="mono">' + when(x.createdAt) + '</td><td>' + esc(x.name || "—") + '<br><span class="mono" style="font-size:11px">' + esc(phone(x.phone)) + '</span></td><td class="mono">' + fcfa(x.amount) + (x.mode === "test" ? ' <span class="mono" style="font-size:10px;opacity:.6">TEST</span>' : '') + '</td>' +
+            '<td>' + esc(PAYST[x.status] || x.status) + '</td><td>' + esc(x.network || "—") + '</td><td class="mono">' + (x.fee == null ? "—" : fcfa(x.fee)) + '</td><td class="mono" style="font-size:11px">' + esc(x.transactionId || "—") + '</td></tr>';
+        }).join("") + '</tbody></table></div>' : '<div class="card empty">Aucun paiement pour l\'instant.</div>'));
+  }
+
   /* ---------- tiroirs (détail commande, réclamation, nouveau livreur) ---------- */
   function drawer() {
     var d = S.drawer; if (!d) return "";
@@ -592,7 +609,7 @@
     var html;
     if (!S.me) html = viewLogin();
     else if (S.me.role !== "admin") html = viewDenied();
-    else html = ({ dash: viewDash, orders: viewOrders, courier: viewCourier, couriers: viewCouriers, apps: viewApps, disputes: viewDisputes, messages: viewMessages, clients: viewClients, merchants: viewMerchants }[S.view])() + drawer();
+    else html = ({ dash: viewDash, orders: viewOrders, courier: viewCourier, couriers: viewCouriers, apps: viewApps, disputes: viewDisputes, messages: viewMessages, clients: viewClients, merchants: viewMerchants, payments: viewPayments }[S.view])() + drawer();
     if (S.toast) html += '<div class="toast">' + esc(S.toast) + '</div>';
     if (map && S.view !== "couriers") { map.remove(); map = null; }
     var mapEl = map && map.getContainer();
@@ -617,6 +634,7 @@
     if (v === "apps") jobs.push(WAPI.get("/admin/applications" + (S.appFilter ? "?status=" + S.appFilter : "")).then(function (r) { S.apps = r.applications; S.appCounts = r.counts; }));
     if (v === "disputes") jobs.push(WAPI.get("/admin/disputes").then(function (r) { S.disputes = r.disputes; }));
     if (v === "merchants") jobs.push(WAPI.get("/admin/merchants").then(function (r) { S.merchants = r.merchants; }));
+    if (v === "payments") jobs.push(WAPI.get("/admin/payments").then(function (r) { S.pay = r; }));
     if (v === "clients") jobs.push(WAPI.get("/admin/clients?q=" + encodeURIComponent(S.clientQ)).then(function (r) { S.clients = r.clients; }));
     if (v === "messages" && S.convId) jobs.push(loadMsgs());
     return Promise.all(jobs).then(render).catch(function (e) { if (e.status === 401) { WAPI.setToken(null); S.me = null; render(); } });
