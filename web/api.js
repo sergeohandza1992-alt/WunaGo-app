@@ -25,7 +25,7 @@
     var timer = setTimeout(function () { if (ctl) ctl.abort(); }, 5000);
     return fetch("/api/health", { cache: "no-store", signal: ctl && ctl.signal })
       .then(function (r) { return r.ok ? r.json() : null; })
-      .then(function (d) { state.on = !!(d && d.ok); state.unreachable = false; if (d) { state.sms = d.sms; state.demo = d.demo; state.pushKey = d.pushKey || null; } })
+      .then(function (d) { state.on = !!(d && d.ok); state.unreachable = false; if (d) { state.sms = d.sms; state.demo = d.demo; state.pay = d.pay || null; state.pushKey = d.pushKey || null; } })
       .catch(function () { state.on = false; state.unreachable = navigator.onLine !== false; })
       .then(function () { clearTimeout(timer); state.checked = true; return state.on; });
   }

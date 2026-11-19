@@ -284,3 +284,9 @@
   .act-list button:active, .act-list button:hover { background: #F3F6F9; }
   .qr-mini { width: 84px; height: 84px; flex: none; }
   .qr-mini svg { width: 100%; height: 100%; display: block; }
+
+/* paiement mobile money (SasPay) */
+.pay-pending { display:flex; flex-direction:column; gap:11px; background:#DDF8F2; border:1px solid rgba(11,31,58,.08); border-radius:16px; padding:13px 14px; color:#0B1F3A; }
+.pay-pending .spin { width:18px; height:18px; border-radius:99px; border:2.5px solid rgba(11,31,58,.18); border-top-color:#0B1F3A; animation:spin .8s linear infinite; flex:none; }
+.pay-test { align-self:flex-start; font-size:9.5px; letter-spacing:.6px; color:#0B1F3A; background:#DDF8F2; border-radius:99px; padding:4px 9px; font-weight:700; }
+@media (prefers-reduced-motion: reduce) { .pay-pending .spin { animation:none; } }

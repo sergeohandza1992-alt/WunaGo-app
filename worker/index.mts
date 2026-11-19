@@ -1,5 +1,5 @@
 // WunaGo sur Cloudflare Workers : sert l'app (dossier web/) et l'API (/api/*), base Neon (variable secrète DATABASE_URL).
-import handler, { configure } from "../server/api.mts";
+import handler, { configure, reconcilePayments } from "../server/api.mts";
 import { runAlerts } from "../server/alerts.mts";
 import { db } from "../server/platform.mts";
 import { neonDb } from "../server/db-neon.mts";
@@ -17,10 +17,11 @@ import m9 from "../netlify/database/migrations/20261118150000_remise_controlee.s
 import m10 from "../netlify/database/migrations/20261118170000_inscription_livreurs.sql";
 import m11 from "../netlify/database/migrations/20261118200000_espace_commercants.sql";
 import m12 from "../netlify/database/migrations/20261118230000_commerce_photos.sql";
+import m13 from "../netlify/database/migrations/20261119170000_paiements_saspay.sql";
 const MIGRATIONS: [string, string][] = [
   ["20261117140000_schema_initial", m1], ["20261117160000_parcours_dedies_et_tarifs", m2], ["20261117170000_livreurs_messagerie_notifications", m3],
   ["20261117200000_experience_utilisateur", m4], ["20261117210000_arrivee_livreur", m5], ["20261117220000_code_wunago", m6],
-  ["20261118090000_parametres", m7], ["20261118120000_envoi_par_lien", m8], ["20261118150000_remise_controlee", m9], ["20261118170000_inscription_livreurs", m10], ["20261118200000_espace_commercants", m11], ["20261118230000_commerce_photos", m12]
+  ["20261118090000_parametres", m7], ["20261118120000_envoi_par_lien", m8], ["20261118150000_remise_controlee", m9], ["20261118170000_inscription_livreurs", m10], ["20261118200000_espace_commercants", m11], ["20261118230000_commerce_photos", m12], ["20261119170000_paiements_saspay", m13]
 ];
 
 let ready: Promise<void> | null = null;
@@ -44,5 +45,7 @@ export default {
   },
   async scheduled(_event: any, env: any, ctx: any) {
     ctx.waitUntil(setup(env).then(() => runAlerts(db())).then((r) => console.log("alertes", JSON.stringify(r))));
+    /* paiements restés en attente (client parti avant la fin, message SasPay perdu) : revérifiés auprès de SasPay */
+    ctx.waitUntil(setup(env).then(() => reconcilePayments()).then((r) => console.log("paiements", JSON.stringify(r))).catch((e) => console.error("paiements", e)));
   }
 };

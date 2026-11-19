@@ -9,6 +9,7 @@ import { SERVICES, VEHICLES, PAY_METHODS, STATUSES, quote, normalizePhone, dista
 import { sendPush, publicKey, pushLog } from "./push.mts";
 import { runAlerts } from "./alerts.mts";
 import { db, env } from "./platform.mts";
+import { saspayOn, payMode, createCheckout, sessionStatus, verifyPayment, webhookValid, PayError } from "./saspay.mts";
 export { configure } from "./platform.mts";
 
 type Row = Record<string, any>;
@@ -323,6 +324,7 @@ async function rateOrder(req: Request, user: Row, ref: string) {
 }
 
 async function walletTopUp(req: Request, user: Row) {
+  if (saspayOn()) return fail(409, "La recharge passe par la page de paiement mobile money.");
   if (!DEMO_ACTIONS()) return fail(403, "Recharge réelle disponible avec les paiements Mobile Money.");
   const { amount } = await body(req);
   const a = Math.round(Number(amount));
@@ -333,6 +335,117 @@ async function walletTopUp(req: Request, user: Row) {
     return r[0];
   });
   return json({ wallet: { balance: out.wallet_balance } });
+}
+
+/* ---------- paiements mobile money (SasPay) ----------
+   1. le client choisit un montant → session de paiement SasPay (page hébergée : Orange Money, MTN MoMo…) ;
+   2. il paie sur cette page puis revient dans l'app ;
+   3. le portefeuille n'est crédité qu'après vérification auprès de SasPay (retour du client, notification signée
+      ou vérification planifiée) — une seule fois grâce à l'état « pending » et à l'index unique wallet_tx.payment_id. */
+const PAY_MIN = 500, PAY_MAX = 500000;
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+function payOut(p: Row) {
+  return { id: p.id, amount: p.amount, status: p.status, mode: p.mode, attempt: p.attempt || null,
+    createdAt: new Date(p.created_at).getTime(), paidAt: p.paid_at ? new Date(p.paid_at).getTime() : null };
+}
+
+async function payTopUp(req: Request, user: Row, url: URL) {
+  if (!saspayOn()) return fail(409, "Le paiement mobile money n'est pas encore activé.");
+  const { amount } = await body(req);
+  const a = Math.round(Number(amount));
+  if (!(a >= PAY_MIN && a <= PAY_MAX)) return fail(400, "Montant entre 500 et 500 000 FCFA.");
+  const recent = await db().sql`SELECT COUNT(*)::int AS n FROM payments WHERE user_id = ${user.id} AND created_at > NOW() - INTERVAL '10 minutes'`;
+  if (recent[0].n >= 5) return fail(429, "Trop de tentatives. Patientez quelques minutes.");
+  const p = (await db().sql`INSERT INTO payments (user_id, amount, mode) VALUES (${user.id}, ${a}, ${payMode()}) RETURNING *`)[0];
+  try {
+    const s = await createCheckout({ amount: a, description: "Recharge portefeuille WunaGo", returnUrl: url.origin + "/#paiement=" + p.id, customerName: user.name || undefined, reference: p.id });
+    await db().sql`UPDATE payments SET session_id = ${s.id}, checkout_url = ${s.url} WHERE id = ${p.id}`;
+    return json({ payment: payOut(p), checkoutUrl: s.url }, 201);
+  } catch (e: any) {
+    await db().sql`UPDATE payments SET status = 'failed' WHERE id = ${p.id}`;
+    return fail(e instanceof PayError ? e.status : 502, e instanceof PayError ? e.message : "Paiement indisponible. Réessayez.");
+  }
+}
+
+/** Revérifie un paiement en attente auprès de SasPay et crédite le portefeuille s'il est payé. */
+async function settlePayment(p: Row): Promise<Row> {
+  if (p.status !== "pending" || !p.session_id || !saspayOn()) return p;
+  const touch = async (attempt?: string) => {
+    const r = await db().sql`UPDATE payments SET last_check = NOW() WHERE id = ${p.id} RETURNING *`;
+    return { ...(r[0] || p), attempt: attempt || null };
+  };
+  let st;
+  try { st = await sessionStatus(p.session_id); } catch (e) { return touch(); }
+  if (st.status === "PAID" || st.txStatus === "SUCCESS") {
+    let fee = st.fee, amt = st.amount;
+    if (st.txId) {
+      try {
+        const v = await verifyPayment(String(st.txId));
+        if (v.status !== "SUCCESS") return touch();
+        if (v.fee != null) fee = v.fee; if (v.amount != null) amt = v.amount;
+      } catch (e) { return touch(); }
+    }
+    if (amt != null && amt + 0.5 < p.amount) {
+      /* montant payé inférieur au montant demandé : pas de crédit automatique, l'équipe vérifie */
+      const r = await db().sql`UPDATE payments SET status = 'review', transaction_id = ${st.txId}, last_check = NOW() WHERE id = ${p.id} AND status = 'pending' RETURNING *`;
+      return r[0] || p;
+    }
+    const done = await tx(async (q) => {
+      const r = await q("UPDATE payments SET status = 'paid', paid_at = NOW(), last_check = NOW(), transaction_id = $2, fee = $3, network = $4 WHERE id = $1 AND status = 'pending' RETURNING *",
+        [p.id, st.txId ? String(st.txId) : null, fee == null ? null : Math.round(fee), st.network]);
+      if (!r.length) return null;
+      await q("UPDATE users SET wallet_balance = wallet_balance + $2 WHERE id = $1", [p.user_id, p.amount]);
+      await q("INSERT INTO wallet_tx (user_id, amount, kind, payment_id) VALUES ($1, $2, 'topup', $3)", [p.user_id, p.amount, p.id]);
+      return r[0];
+    });
+    if (done) {
+      push([p.user_id], { title: "Portefeuille rechargé", body: p.amount.toLocaleString("fr-FR").replace(/\u202f|\u00a0/g, " ") + " F ajoutés à votre portefeuille WunaGo.", url: "/#portefeuille", tag: "paiement" }, "orders");
+      return done;
+    }
+    return (await db().sql`SELECT * FROM payments WHERE id = ${p.id}`)[0] || p;
+  }
+  if (st.status === "EXPIRED" || st.status === "CANCELLED") {
+    const r = await db().sql`UPDATE payments SET status = ${st.status === "EXPIRED" ? "expired" : "failed"}, last_check = NOW() WHERE id = ${p.id} AND status = 'pending' RETURNING *`;
+    return r[0] || p;
+  }
+  /* la session reste ouverte : le client peut réessayer sur la même page après un refus */
+  return touch(st.txStatus === "FAILED" ? "failed" : undefined);
+}
+
+async function payStatus(user: Row, id: string) {
+  if (!UUID_RE.test(id)) return fail(404, "Paiement introuvable.");
+  const p = (await db().sql`SELECT * FROM payments WHERE id = ${id} AND user_id = ${user.id}`)[0];
+  if (!p) return fail(404, "Paiement introuvable.");
+  const out = await settlePayment(p);
+  const u = await db().sql`SELECT wallet_balance FROM users WHERE id = ${user.id}`;
+  return json({ payment: payOut(out), wallet: { balance: u[0].wallet_balance } });
+}
+
+/** Notification SasPay : signature vérifiée, puis on revérifie toujours le paiement auprès de SasPay (le contenu ne suffit pas). */
+async function payWebhook(req: Request) {
+  const raw = await req.text();
+  if (!(await webhookValid(raw, req.headers.get("x-webhook-timestamp"), req.headers.get("x-webhook-signature")))) return fail(403, "Signature invalide.");
+  let ev: Row = {}; try { ev = JSON.parse(raw); } catch (e) { return fail(400, "Message illisible."); }
+  const d = ev.data || {}, ref = String((d.metadata || {}).wg_payment || "");
+  let rows: Row[] = [];
+  if (UUID_RE.test(ref)) rows = await db().sql`SELECT * FROM payments WHERE id = ${ref} AND status = 'pending'`;
+  const ids = [d.id, d.checkout_session, d.checkout_session_id, d.session_id].filter(Boolean).map(String);
+  if (!rows.length && ids.length) rows = await db().sql`SELECT * FROM payments WHERE status = 'pending' AND (transaction_id = ANY(${ids}) OR session_id = ANY(${ids}))`;
+  if (!rows.length && /^transaction\./.test(String(ev.event || "")))
+    rows = await db().sql`SELECT * FROM payments WHERE status = 'pending' AND session_id IS NOT NULL AND created_at > NOW() - INTERVAL '24 hours' ORDER BY created_at DESC LIMIT 10`;
+  for (const p of rows) await settlePayment(p);
+  return json({ ok: true, checked: rows.length });
+}
+
+/** Vérification planifiée (toutes les 2 min) des paiements restés en attente. */
+export async function reconcilePayments() {
+  if (!saspayOn()) return { checked: 0 };
+  const exp = await db().sql`UPDATE payments SET status = 'expired' WHERE status = 'pending' AND created_at < NOW() - INTERVAL '48 hours' RETURNING id`;
+  const rows = await db().sql`SELECT * FROM payments WHERE status = 'pending' AND session_id IS NOT NULL AND created_at < NOW() - INTERVAL '1 minute'
+    AND (last_check IS NULL OR last_check < NOW() - INTERVAL '90 seconds') ORDER BY created_at LIMIT 20`;
+  let paid = 0;
+  for (const p of rows) if ((await settlePayment(p)).status === "paid") paid++;
+  return { checked: rows.length, paid, expired: exp.length };
 }
 
 async function walletSend(req: Request, user: Row) {
@@ -1601,6 +1714,13 @@ async function adminRoutes(req: Request, user: Row, path: string, m: string, url
       return { userId: x.user_id, name: x.name, kind: x.kind, activity: x.activity || "", hasPhoto: !!x.has_photo, area: x.area, placeCode: x.place_code, phone: x.phone, owner: x.owner, sent30: Number(x.sent30),
         delivered: d, returned: r, successRate: d + r ? Math.round((d / (d + r)) * 100) : null, last: x.last ? new Date(x.last).getTime() : null, createdAt: new Date(x.created_at).getTime() }; }) });
   }
+  if (path === "/admin/payments" && m === "GET") {
+    /* paiements mobile money : suivi et rapprochement avec le tableau de bord SasPay */
+    const rows = await db().sql`SELECT p.*, u.name, u.phone FROM payments p JOIN users u ON u.id = p.user_id ORDER BY p.created_at DESC LIMIT 200`;
+    const tot = await db().sql`SELECT COUNT(*) FILTER (WHERE status = 'paid')::int AS paid, COALESCE(SUM(amount) FILTER (WHERE status = 'paid'), 0)::int AS amount,
+      COALESCE(SUM(fee) FILTER (WHERE status = 'paid'), 0)::int AS fees, COUNT(*) FILTER (WHERE status = 'review')::int AS review FROM payments`;
+    return json({ enabled: saspayOn(), mode: payMode(), totals: tot[0], payments: rows.map((p) => ({ ...payOut(p), name: p.name, phone: p.phone, fee: p.fee, network: p.network, transactionId: p.transaction_id })) });
+  }
   if (path === "/admin/clients" && m === "GET") {
     const q = (url.searchParams.get("q") || "").trim();
     const rows = await db().sql`
@@ -1783,8 +1903,9 @@ const apiHandler = async (req: Request, context: any): Promise<Response> => {
     if (path === "/health") {
       // L'app ne passe en mode serveur que si la base répond.
       try { await db().sql`SELECT 1`; } catch (e) { console.error("health db", e); return json({ ok: false }, 503); }
-      return json({ ok: true, sms: SMS_MODE(), demo: DEMO_ACTIONS(), pushKey: await publicKey(db()) });
+      return json({ ok: true, sms: SMS_MODE(), demo: DEMO_ACTIONS(), pay: saspayOn() ? payMode() : null, pushKey: await publicKey(db()) });
     }
+    if (path === "/saspay/webhook" && m === "POST") return await payWebhook(req);
     if (path.startsWith("/lite")) {
       /* page livreur légère : appelle l'API elle-même avec le jeton du cookie */
       const call = async (p: string, method = "GET", b?: any, token?: string | null) => {
@@ -1924,6 +2045,13 @@ const apiHandler = async (req: Request, context: any): Promise<Response> => {
       return await rateOrder(req, user, r[1]);
     }
     if (path === "/wallet/topup" && m === "POST") return await walletTopUp(req, user);
+    if (path === "/pay/topup" && m === "POST") return await payTopUp(req, user, url);
+    if (path === "/pay" && m === "GET") {
+      const rows = await db().sql`SELECT * FROM payments WHERE user_id = ${user.id} ORDER BY created_at DESC LIMIT 20`;
+      return json({ payments: rows.map(payOut) });
+    }
+    r = path.match(/^\/pay\/([0-9a-fA-F-]{36})$/);
+    if (r && m === "GET") return await payStatus(user, r[1]);
     if (path === "/wallet/send" && m === "POST") return await walletSend(req, user);
     if (path === "/disputes" && m === "GET") {
       const rows = await db().sql`
